@@ -1,3 +1,17 @@
+
+<details>
+<summary>2026-01-30: Sneak peek of the web-gui...</summary>
+<div align="center">
+<img width="1108" height="1384" alt="image" src="https://github.com/user-attachments/assets/7852da20-f50e-4389-89b5-fb5def7930e2" />
+</div>
+</details>
+
+---
+<div align="center">
+<img width="942" height="338" alt="image" src="https://github.com/user-attachments/assets/54668fcd-eccb-4e52-96cb-eed5bc0098d1" />
+</div>
+
+---
 <div align="center">
 
 # 🎨 verpixeld
@@ -280,3 +294,4 @@ For the full license text, see the [LICENSE](LICENSE) file or visit
 *© 2022-2026 Jan R. Wrage*
 
 </div>
+
