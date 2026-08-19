@@ -97,12 +97,13 @@ verpixeld-panel/     RP2350 + W6300 firmware
 | Repo | Role |
 |------|------|
 | [verpixeld](https://github.com/Jan1503/verpixeld) | This application |
+| [canvasmanagement](https://github.com/Jan1503/canvasmanagement) | Canvas engine, extensions, filters, `deploy.ps1` |
 | [pixplane](https://github.com/Jan1503/pixplane) | Panel protocol (stream, discovery, `/cmd`) |
 | [verpixeld-panel](https://github.com/Jan1503/verpixeld-panel) | ICND1065L firmware 1.3 |
 | [deskcast](https://github.com/Jan1503/deskcast) | Windows desktop → panel or verpixeld |
 | [rpi-rgb-led-matrix](https://github.com/hzeller/rpi-rgb-led-matrix) | GPIO HUB75 driver (not vendored) |
 
-CanvasManagement is the shared framework; it is not on GitHub yet.
+CanvasManagement is the shared framework ([Jan1503/canvasmanagement](https://github.com/Jan1503/canvasmanagement)).
 
 ---
 
@@ -486,8 +487,8 @@ Common stack:
 1. **Clone the siblings**
    ```bash
    git clone https://github.com/Jan1503/verpixeld.git
+   git clone https://github.com/Jan1503/canvasmanagement.git
    git clone https://github.com/Jan1503/pixplane.git
-   # CanvasManagement is not public yet — keep the local sibling next to verpixeld
    # Copy the template, then edit OutputMode / Network.Host / Matrix size.
    cp verpixeld/appsettings.example.json verpixeld/appsettings.json
    # appsettings.json is gitignored (LAN IPs, cert password, HA token).
