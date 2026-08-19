@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Ensure Speech SDK native libs are copied to output -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <!-- Latency over throughput: on a 4-core Pi the default Server GC (SDK.Web) causes longer
+         stop-the-world pauses that show up as micro-stutter on both the HDMI output and the web
+         preview. Concurrent Workstation GC keeps per-frame pauses short. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.48.1" />
+    <!-- SkiaSharp pinned to 3.116.1 to match CanvasManagement (3.119.x lacks Raspberry Pi native deps) -->
+    <PackageReference Include="SkiaSharp" Version="3.116.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.116.1" />
+    <PackageReference Include="YouTubeMusicAPI" Version="3.0.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Project references auto-track the net10 build output (replaces hardcoded Debug DLL HintPaths).
+         CanvasManagement transitively brings in CanvasManagement.Interfaces. -->
+    <ProjectReference Include="..\..\..\!Repos\rpi-rgb-led-matrix\bindings\c#\RPiRgbLEDMatrix.csproj" />
+    <ProjectReference Include="..\..\CanvasManagement\CanvasManagement\CanvasManagement.csproj" />
+    <ProjectReference Include="..\..\CanvasManagement\CanvasManagement.BdfFontManager\CanvasManagement.BdfFontManager.csproj" />
+    <ProjectReference Include="..\..\pixplane\PixPlane.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="wwwroot\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <Content Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Update="appsettings.*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

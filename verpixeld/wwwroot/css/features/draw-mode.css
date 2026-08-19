@@ -1,0 +1,573 @@
+/* ============================================================================
+   RGB DISPLAY CONTROL PANEL - DRAW MODE
+   Drawing Tools, Canvas, Live Mode, Gallery
+   ============================================================================ */
+
+/* ============================================================================
+   DRAW CONTROLS
+   ============================================================================ */
+
+.draw-controls {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.draw-control-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.draw-control-group label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.draw-select {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  min-width: 120px;
+}
+
+/* ============================================================================
+   DRAW TOOLBAR
+   ============================================================================ */
+
+.draw-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.draw-tools {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.draw-tool-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.draw-tool-btn:hover {
+  border-color: var(--color-accent);
+  background: var(--color-bg-primary);
+}
+
+.draw-tool-btn.active {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-text-inverted);
+}
+
+.draw-tool-btn .tool-icon {
+  font-size: 1.25rem;
+}
+
+/* Toolbar Rows */
+.draw-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.draw-toolbar-row + .draw-toolbar-row {
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.draw-tool-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--color-border);
+  margin: 0 var(--spacing-xs);
+}
+
+.draw-shape-fill {
+  display: none;
+  margin-left: var(--spacing-sm);
+}
+
+.draw-shape-fill .draw-checkbox-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* ============================================================================
+   COLOR PICKER
+   ============================================================================ */
+
+.draw-color-picker-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.draw-color-picker-wrap::after {
+  content: 'Color';
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.draw-color-picker {
+  width: 60px;
+  height: 60px;
+  border: 4px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  padding: 0;
+  background: var(--color-bg-primary);
+  box-shadow: var(--shadow-md), inset 0 0 0 2px rgba(255,255,255,0.1);
+  transition: all var(--transition-base);
+}
+
+.draw-color-picker:hover {
+  border-color: var(--color-accent);
+  transform: scale(1.05);
+  box-shadow: var(--shadow-lg), 0 0 0 3px var(--color-accent-subtle);
+}
+
+.draw-color-picker::-webkit-color-swatch-wrapper {
+  padding: 6px;
+}
+
+.draw-color-picker::-webkit-color-swatch {
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(0,0,0,0.15);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.draw-color-picker::-moz-color-swatch {
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(0,0,0,0.15);
+}
+
+/* ============================================================================
+   SLIDERS
+   ============================================================================ */
+
+.draw-sliders-row {
+  gap: var(--spacing-xl);
+}
+
+.draw-slider-control {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex: 1;
+  min-width: 140px;
+  max-width: 220px;
+}
+
+.draw-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  min-width: 50px;
+}
+
+.draw-slider-wide {
+  flex: 1;
+  height: 8px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--color-bg-tertiary);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.draw-slider-wide::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  cursor: pointer;
+  border: 3px solid var(--color-bg-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.draw-slider-wide::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  cursor: pointer;
+  border: 3px solid var(--color-bg-primary);
+}
+
+.draw-slider-value {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* ============================================================================
+   DRAWING CANVAS
+   ============================================================================ */
+
+.draw-canvas-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  overflow-x: auto;
+  padding: var(--spacing-sm) 0;
+}
+
+.draw-canvas-wrapper {
+  position: relative;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #000;
+  box-shadow: var(--shadow-lg);
+  cursor: crosshair;
+  touch-action: none;
+  display: inline-block;
+}
+
+#draw-canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.draw-canvas-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+  background-image: 
+    linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.1) 1px, transparent 1px);
+  /* Grid size is set dynamically via JS based on canvas scale */
+  background-size: var(--grid-cell-size, 4px) var(--grid-cell-size, 4px);
+}
+
+.draw-canvas-grid.visible {
+  opacity: 1;
+}
+
+.draw-canvas-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* ============================================================================
+   CHECKBOX & LIVE MODE
+   ============================================================================ */
+
+.draw-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  cursor: pointer;
+}
+
+.draw-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent);
+}
+
+.draw-live-toggle {
+  margin-left: auto;
+}
+
+.live-mode-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+}
+
+.live-mode-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.live-mode-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--color-bg-tertiary);
+  border: 2px solid var(--color-border);
+  transition: all var(--transition-base);
+  border-radius: 26px;
+}
+
+.live-mode-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 2px;
+  bottom: 2px;
+  background-color: var(--color-text-secondary);
+  transition: all var(--transition-base);
+  border-radius: 50%;
+}
+
+.live-mode-switch input:checked + .live-mode-slider {
+  background-color: #ef4444;
+  border-color: #dc2626;
+}
+
+.live-mode-switch input:checked + .live-mode-slider:before {
+  transform: translateX(22px);
+  background-color: white;
+}
+
+.live-mode-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  transition: color var(--transition-base);
+}
+
+.live-mode-switch input:checked ~ .live-mode-label,
+.draw-live-toggle:has(input:checked) .live-mode-label {
+  color: #ef4444;
+}
+
+.live-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-text-muted);
+  transition: all var(--transition-base);
+}
+
+.draw-live-toggle:has(input:checked) .live-indicator {
+  background-color: #ef4444;
+  box-shadow: 0 0 8px #ef4444, 0 0 16px rgba(239, 68, 68, 0.5);
+  animation: live-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.2);
+  }
+}
+
+/* ============================================================================
+   DRAWING SAVE/LOAD GALLERY
+   ============================================================================ */
+
+.save-drawing-preview {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.drawing-thumbnail-large {
+  max-width: 100%;
+  max-height: 200px;
+  image-rendering: pixelated;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.drawing-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--spacing-md);
+  max-height: 400px;
+  overflow-y: auto;
+  padding: var(--spacing-xs);
+}
+
+.drawing-gallery-item {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: all var(--transition-base);
+  display: flex;
+  flex-direction: column;
+}
+
+.drawing-gallery-item:hover {
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.drawing-thumbnail {
+  width: 100%;
+  height: 90px;
+  object-fit: contain;
+  background: #000;
+  image-rendering: pixelated;
+  cursor: pointer;
+  transition: opacity var(--transition-base);
+}
+
+.drawing-thumbnail:hover {
+  opacity: 0.85;
+}
+
+.drawing-gallery-info {
+  padding: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.drawing-gallery-name {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drawing-gallery-size {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.drawing-gallery-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  padding-top: 0;
+  justify-content: flex-end;
+}
+
+/* Gallery icon buttons (duplicate from components for specificity) */
+.drawing-gallery-actions .btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.drawing-gallery-actions .btn-icon:hover {
+  background: var(--color-accent);
+  color: white;
+}
+
+.drawing-gallery-actions .btn-icon-sm {
+  width: 28px;
+  height: 28px;
+}
+
+.drawing-gallery-actions .btn-icon-danger:hover {
+  background: var(--color-danger);
+  color: white;
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .draw-toolbar-row {
+    width: 100%;
+  }
+  
+  .draw-tools {
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+  
+  .draw-color-picker-wrap {
+    margin-left: 0;
+  }
+  
+  .draw-sliders-row {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+  
+  .draw-slider-control {
+    width: 100%;
+    max-width: none;
+  }
+  
+  .draw-canvas-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  
+  #draw-canvas {
+    max-width: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .drawing-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    max-height: 300px;
+  }
+  
+  .drawing-thumbnail {
+    height: 70px;
+  }
+}

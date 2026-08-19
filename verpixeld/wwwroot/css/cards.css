@@ -1,0 +1,347 @@
+/* ============================================================================
+   RGB DISPLAY CONTROL PANEL - CARDS & SECTIONS
+   Sections, Dashboard Cards, Unified Card System, Collapsible Sections
+   ============================================================================ */
+
+/* ============================================================================
+   SECTIONS & DASHBOARD CARDS
+   ============================================================================ */
+
+.section {
+  margin: var(--spacing-xl) 0;
+  padding: var(--spacing-xl);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-secondary);
+  transition: all var(--transition-base);
+}
+
+.section:hover {
+  border-color: var(--color-border-light);
+}
+
+.section h2 {
+  position: relative;
+  padding-left: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.section h2::before {
+  display: none;
+}
+
+.dashboard-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
+  margin: var(--spacing-xl) 0;
+  transition: all var(--transition-base);
+}
+
+.dashboard-card:hover {
+  border-color: var(--color-border-light);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+.section-header h2 {
+  margin: 0;
+  padding-left: 0;
+}
+
+.section-header h2::before {
+  display: none;
+}
+
+/* ============================================================================
+   UNIFIED CARD SYSTEM
+   ============================================================================ */
+
+/* Base card */
+.filter-item,
+.saved-layout-card,
+.schedule-card,
+.canvas-stack-item {
+  background: var(--color-bg-primary);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+  transition: all 0.2s ease;
+}
+
+/* Base hover - only for cards without active state */
+.canvas-card:hover:not(.has-content),
+.filter-item:hover,
+.saved-layout-card:hover:not(.is-active):not(.is-default),
+.schedule-card:hover:not(.inactive),
+.canvas-stack-item:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+/* Active card hover */
+.saved-layout-card.is-active:hover {
+  border-color: var(--color-success) !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Default card hover */
+.saved-layout-card.is-default:hover:not(.is-active) {
+  border-color: var(--color-accent);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Card headers */
+.saved-layout-header,
+.schedule-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Card titles */
+.filter-name,
+.saved-layout-name,
+.schedule-name,
+.canvas-stack-name {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+/* Card metadata/descriptions */
+.card-meta,
+.filter-params,
+.saved-layout-description,
+.schedule-details,
+.canvas-stack-details {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  margin: var(--spacing-sm) 0;
+  line-height: 1.5;
+}
+
+/* Card actions */
+.card-actions,
+.saved-layout-actions,
+.schedule-actions,
+.canvas-stack-controls {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+/* Special card states - Active Layout */
+.saved-layout-card.is-active {
+  border-color: var(--color-success) !important;
+  background: linear-gradient(to right, var(--color-bg-primary), rgba(76, 175, 80, 0.08)) !important;
+}
+
+.saved-layout-card.is-active:hover {
+  border-color: var(--color-success) !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
+  transform: translateY(-2px);
+}
+
+/* Canvas with content */
+.canvas-card.has-content:hover {
+  border-color: var(--color-success) !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Default Layout */
+.saved-layout-card.is-default:not(.is-active) {
+  border-color: var(--color-accent) !important;
+  background: linear-gradient(to right, var(--color-bg-primary), rgba(33, 150, 243, 0.05));
+}
+
+.saved-layout-card.is-default:not(.is-active):hover {
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Active + Default (Active wins) */
+.saved-layout-card.is-active.is-default {
+  border-color: var(--color-success) !important;
+  background: linear-gradient(to right, var(--color-bg-primary), rgba(76, 175, 80, 0.08)) !important;
+}
+
+/* ============================================================================
+   UNIFIED CARD SYSTEM - Phase 2
+   ============================================================================ */
+
+.card {
+  background: var(--color-bg-secondary);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  transition: all var(--transition-base);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-accent);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 2px solid var(--color-border);
+}
+
+.card-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.card-subtitle {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  margin-top: var(--spacing-xs);
+}
+
+.card-body {
+  color: var(--color-text-primary);
+  line-height: 1.5;
+}
+
+.card-footer {
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  gap: var(--spacing-xs);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Card variants */
+.card-success {
+  border-color: var(--color-success);
+  background: linear-gradient(to right, var(--color-bg-secondary), rgba(16, 185, 129, 0.05));
+}
+
+.card-warning {
+  border-color: var(--color-warning);
+  background: linear-gradient(to right, var(--color-bg-secondary), rgba(245, 158, 11, 0.05));
+}
+
+.card-danger {
+  border-color: var(--color-danger);
+  background: linear-gradient(to right, var(--color-bg-secondary), rgba(239, 68, 68, 0.05));
+}
+
+.card-info {
+  border-color: var(--color-info);
+  background: linear-gradient(to right, var(--color-bg-secondary), rgba(59, 130, 246, 0.05));
+}
+
+.card-interactive {
+  cursor: pointer;
+}
+
+.card-interactive:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ============================================================================
+   COLLAPSIBLE SECTIONS
+   ============================================================================ */
+
+.collapsible .section-header-collapsible {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) 0;
+  margin-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  user-select: none;
+  transition: all var(--transition-base);
+  /* Sticky header */
+  position: sticky;
+  top: 0;
+  background: var(--color-bg-primary);
+  z-index: 10;
+  margin-top: calc(-1 * var(--spacing-md));
+  padding-top: var(--spacing-md);
+}
+
+.collapsible .section-header-collapsible:hover {
+  color: var(--color-accent);
+}
+
+.collapsible .section-header-collapsible h2 {
+  margin: 0;
+  flex: 1;
+}
+
+.section-header-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.collapse-icon {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  transition: transform var(--transition-base);
+  flex-shrink: 0;
+}
+
+.collapsible.collapsed .collapse-icon {
+  transform: rotate(-90deg);
+}
+
+.collapsible .section-content {
+  overflow: hidden;
+  max-height: 5000px;
+  opacity: 1;
+  transition: max-height 0.4s ease-out, opacity 0.3s ease-out;
+}
+
+.collapsible.collapsed .section-content {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* Remove border when collapsed */
+.collapsible.collapsed .section-header-collapsible {
+  border-bottom-color: transparent;
+  margin-bottom: 0;
+  padding-bottom: var(--spacing-sm);
+}

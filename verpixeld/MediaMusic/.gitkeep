@@ -1,0 +1,22 @@
+# Demo Music Folder
+
+Place your MOD/XM/S3M/IT tracker files here for demo mode playback.
+
+## Supported formats:
+- .mod (Amiga ProTracker)
+- .xm (FastTracker II)
+- .s3m (Scream Tracker 3)
+- .it (Impulse Tracker)
+- .stm (Scream Tracker 2)
+- .mtm (MultiTracker)
+
+## Required on Linux:
+Install one of these MOD players:
+- xmp: `sudo apt install xmp`
+- mikmod: `sudo apt install mikmod`
+- openmpt123: `sudo apt install libopenmpt-tools`
+
+## Finding MOD files:
+- https://modarchive.org/
+- https://amp.dascene.net/
+- https://ftp.modland.com/

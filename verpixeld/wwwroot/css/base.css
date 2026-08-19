@@ -1,0 +1,322 @@
+/* ============================================================================
+   RGB DISPLAY CONTROL PANEL - BASE STYLES
+   Reset, Body, Container, Typography
+   ============================================================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-display);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  min-height: 100vh;
+  padding: var(--spacing-lg);
+  transition: background-color var(--transition-base), color var(--transition-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle background pattern */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(ellipse at 20% 0%, var(--color-accent-light) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(244, 63, 94, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-xl);
+  padding: var(--spacing-2xl);
+  position: relative;
+  transition: background-color var(--transition-base), box-shadow var(--transition-base);
+  border: 1px solid var(--color-border);
+}
+
+/* ============================================================================
+   TYPOGRAPHY
+   ============================================================================ */
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  font-size: var(--font-size-3xl);
+  margin-bottom: var(--spacing-sm);
+  display: inline-block;
+}
+
+/* Distinctive logo title styling */
+h1.logo-title {
+  font-family: 'Orbitron', 'Rajdhani', Arial, sans-serif;
+  font-size: clamp(2.5rem, 8vw, 4rem);
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: lowercase;
+  position: relative;
+  /* Base color - always visible */
+  color: #00c8ff;
+  /* Animated glow */
+  animation: logoGlow 2s ease-in-out infinite alternate;
+}
+
+/* Gradient text effect - only apply when supported */
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  h1.logo-title {
+    background: linear-gradient(
+      135deg,
+      #ff007f 0%,
+      #ff7f00 20%,
+      #00ffc8 40%,
+      #00bfff 60%,
+      #9400d3 80%,
+      #ff1493 100%
+    );
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: transparent;
+    animation: logoGradientFlow 4s ease infinite, logoGlow 2s ease-in-out infinite alternate;
+  }
+}
+
+/* Glow effect behind logo */
+h1.logo-title::before {
+  content: 'verpixeld';
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  color: #00c8ff;
+  filter: blur(12px);
+  opacity: 0.5;
+  z-index: -1;
+}
+
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  h1.logo-title::before {
+    background: linear-gradient(
+      135deg,
+      #ff007f 0%,
+      #ff7f00 20%,
+      #00ffc8 40%,
+      #00bfff 60%,
+      #9400d3 80%,
+      #ff1493 100%
+    );
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: transparent;
+    animation: logoGradientFlow 4s ease infinite;
+  }
+}
+
+/* Logo animations */
+@keyframes logoGradientFlow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes logoGlow {
+  from {
+    filter: drop-shadow(0 0 15px rgba(0, 200, 255, 0.3)) drop-shadow(0 0 30px rgba(255, 0, 127, 0.2));
+  }
+  to {
+    filter: drop-shadow(0 0 25px rgba(0, 200, 255, 0.5)) drop-shadow(0 0 50px rgba(255, 0, 127, 0.3));
+  }
+}
+
+@keyframes logoGradientFlow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes logoGlow {
+  from {
+    filter: drop-shadow(0 0 15px rgba(0, 200, 255, 0.3)) drop-shadow(0 0 30px rgba(255, 0, 127, 0.2));
+  }
+  to {
+    filter: drop-shadow(0 0 25px rgba(0, 200, 255, 0.5)) drop-shadow(0 0 50px rgba(255, 0, 127, 0.3));
+  }
+}
+
+h2 {
+  font-size: var(--font-size-2xl);
+  margin-bottom: var(--spacing-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+h3 {
+  font-size: var(--font-size-lg);
+  margin: var(--spacing-lg) 0 var(--spacing-md) 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+.subtitle {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-xl);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-normal);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: var(--font-size-sm);
+}
+
+p {
+  color: var(--color-text-primary);
+  line-height: var(--line-height-relaxed);
+  font-size: var(--font-size-base);
+}
+
+/* Typography utility classes */
+.text-xs { font-size: var(--font-size-xs); }
+.text-sm { font-size: var(--font-size-sm); }
+.text-base { font-size: var(--font-size-base); }
+.text-lg { font-size: var(--font-size-lg); }
+.text-xl { font-size: var(--font-size-xl); }
+
+/* Utility color classes */
+.text-danger { color: var(--color-danger); }
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-info { color: var(--color-info); }
+
+/* Apply to text-muted paragraphs */
+p.text-muted {
+  text-align: center;
+  padding: var(--spacing-lg);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ============================================================================
+   SMOOTH SCROLLING
+   ============================================================================ */
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================================
+   FOCUS VISIBLE IMPROVEMENTS
+   ============================================================================ */
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ============================================================================
+   APP FOOTER
+   ============================================================================ */
+
+.app-footer {
+  margin-top: 3rem;
+  padding: 1.5rem 0;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+
+.footer-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.footer-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.footer-logo {
+  font-family: var(--font-logo);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: var(--gradient-header);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.footer-tagline {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+}
+
+.footer-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.footer-sep {
+  opacity: 0.4;
+}
+
+@media (max-width: 600px) {
+  .footer-inner {
+    flex-direction: column;
+    text-align: center;
+  }
+}

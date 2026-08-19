@@ -1,0 +1,463 @@
+/* ============================================================================
+   FAVORITES & HISTORY - Save and access media quickly
+   ============================================================================ */
+
+/* ================================================
+   SECTION STYLING - Collapsible containers
+   ================================================ */
+.favorites-section,
+.history-section {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.favorites-header,
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--color-bg-tertiary);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s ease;
+}
+
+.favorites-header:hover,
+.history-header:hover {
+  background: var(--color-border);
+}
+
+.favorites-header h3,
+.history-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-primary);
+  flex: 1;
+}
+
+.favorites-count,
+.history-count {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-weight: normal;
+}
+
+.expand-icon {
+  transition: transform 0.2s ease;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.favorites-section.expanded .expand-icon,
+.history-section.expanded .expand-icon {
+  transform: rotate(180deg);
+}
+
+.favorites-content,
+.history-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.favorites-section.expanded .favorites-content,
+.history-section.expanded .history-content {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+/* ================================================
+   ITEM LIST - Media cards
+   ================================================ */
+.favorites-list,
+.history-list {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.favorite-item,
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.favorite-item:hover,
+.history-item:hover {
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-accent);
+}
+
+.favorite-item.playing,
+.history-item.playing {
+  border-color: var(--color-accent);
+  background: var(--color-accent-light);
+}
+
+/* Thumbnail */
+.item-thumbnail {
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  background: var(--color-bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.item-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.item-thumbnail .item-icon {
+  font-size: 1.5rem;
+}
+
+/* Info */
+.item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text-primary);
+}
+
+.item-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.item-type-badge {
+  background: var(--color-accent);
+  color: white;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+}
+
+.item-type-badge.youtube {
+  background: #ff0000;
+}
+
+.item-type-badge.network {
+  background: #00a67e;
+}
+
+.item-type-badge.local {
+  background: var(--color-info);
+}
+
+/* Actions */
+.item-actions {
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.favorite-item:hover .item-actions,
+.history-item:hover .item-actions {
+  opacity: 1;
+}
+
+.item-action-btn {
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--color-text-primary);
+}
+
+.item-action-btn:hover {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+.item-action-btn.danger:hover {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+/* ================================================
+   EMPTY STATE
+   ================================================ */
+.favorites-empty,
+.history-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.favorites-empty-icon,
+.history-empty-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ================================================
+   ADD TO FAVORITES BUTTON (in mini-player)
+   ================================================ */
+.favorite-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 0.25rem;
+  transition: transform 0.2s ease;
+  color: var(--color-text-muted);
+}
+
+.favorite-toggle:hover {
+  transform: scale(1.2);
+  color: gold;
+}
+
+.favorite-toggle.active {
+  color: gold;
+}
+
+/* ================================================
+   CLEAR HISTORY BUTTON
+   ================================================ */
+.history-clear-btn {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--color-text-secondary);
+}
+
+.history-clear-btn:hover {
+  background: var(--color-danger);
+  color: white;
+  border-color: var(--color-danger);
+}
+
+/* ================================================
+   AV SYNC INDICATOR
+   ================================================ */
+.av-sync-badge {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+}
+
+.av-sync-badge.adjusted {
+  color: var(--color-accent);
+}
+
+/* ================================================
+   EDIT FAVORITE MODAL (inline)
+   ================================================ */
+.favorite-edit-inline {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.favorite-edit-inline input {
+  flex: 1;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+.favorite-edit-inline button {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+/* ================================================
+   LOADING STATE - Spinner overlay on items
+   ================================================ */
+.favorite-item.loading,
+.history-item.loading {
+  position: relative;
+  pointer-events: none;
+}
+
+.favorite-item.loading > *:not(.item-loading-overlay),
+.history-item.loading > *:not(.item-loading-overlay) {
+  opacity: 0.3;
+}
+
+.item-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 6px;
+  z-index: 10;
+}
+
+.item-spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--color-accent, #3b82f6);
+  border-radius: 50%;
+  animation: item-spin 0.8s linear infinite;
+}
+
+.item-loading-overlay span {
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+@keyframes item-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ================================================
+   AUTO-PLAY CONTROLS
+   ================================================ */
+.autoplay-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  margin-right: 0.5rem;
+}
+
+.autoplay-btn {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.autoplay-btn:hover {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+.autoplay-btn.active {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+#autoplay-toggle-btn.active {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
+#autoplay-toggle-btn.active:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.autoplay-status {
+  font-size: 0.75rem;
+  color: var(--color-accent);
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 3px;
+}
+
+/* ================================================
+   NOW-PLAYING HIGHLIGHT - Active auto-play item
+   ================================================ */
+.favorite-item.now-playing {
+  border-color: var(--color-accent);
+  background: rgba(59, 130, 246, 0.08);
+  box-shadow: 0 0 0 1px var(--color-accent), 0 0 12px rgba(59, 130, 246, 0.15);
+}
+
+.favorite-item.now-playing .item-name {
+  color: var(--color-accent);
+}
+
+/* Animated equalizer bars for now-playing indicator */
+.now-playing-indicator {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+}
+
+.now-playing-indicator span {
+  display: block;
+  width: 3px;
+  background: var(--color-accent);
+  border-radius: 1px;
+  animation: equalizer 0.8s ease-in-out infinite alternate;
+}
+
+.now-playing-indicator span:nth-child(1) {
+  height: 60%;
+  animation-delay: 0s;
+}
+
+.now-playing-indicator span:nth-child(2) {
+  height: 100%;
+  animation-delay: 0.2s;
+}
+
+.now-playing-indicator span:nth-child(3) {
+  height: 40%;
+  animation-delay: 0.4s;
+}
+
+@keyframes equalizer {
+  0% { height: 30%; }
+  100% { height: 100%; }
+}

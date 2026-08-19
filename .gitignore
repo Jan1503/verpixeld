@@ -1,0 +1,41 @@
+## Build
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+publish/
+nupkg/
+
+## Secrets and runtime data (never commit)
+**/*.pfx
+**/*.p12
+**/*.pem
+**/*.key
+**/.share_key
+**/server.pfx
+**/*.table
+appsettings.json
+**/appsettings.json
+!**/appsettings.example.json
+Config/
+**/Config/
+Data/
+**/Data/
+Media/
+**/Media/
+**/seam_correction.json
+**/Favorites/
+**/Layouts/
+**/Schedules/
+
+## OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.cursor/
+*.swp

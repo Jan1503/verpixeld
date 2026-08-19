@@ -1,0 +1,397 @@
+/* ==========================================================================
+   CAMERA STREAM STYLES
+   ========================================================================== */
+
+/* Camera Controls Layout */
+.camera-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.camera-control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.camera-control-group label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.camera-select {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+/* Fix for select dropdown options */
+.camera-select option {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+.camera-select:hover {
+  border-color: var(--color-accent);
+}
+
+.camera-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-light);
+}
+
+/* Camera Options Row */
+.camera-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.camera-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.camera-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.camera-checkbox-label:hover {
+  color: var(--color-text-primary);
+}
+
+.camera-effect-select {
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.camera-effect-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+/* Camera Preview Container */
+.camera-preview-container {
+  margin-bottom: 1rem;
+}
+
+.camera-preview-wrapper {
+  position: relative;
+  background: #0a0a0a;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  aspect-ratio: 2 / 1;
+  max-width: 100%;
+}
+
+#camera-video {
+  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+#camera-preview-canvas {
+  max-width: 100%;
+  max-height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border-radius: var(--radius-sm);
+}
+
+.camera-status {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 2rem;
+}
+
+.camera-status-icon {
+  font-size: 3rem;
+  opacity: 0.5;
+}
+
+.camera-status-text {
+  font-size: 0.9rem;
+}
+
+.camera-status.streaming {
+  display: none;
+}
+
+/* Camera Info Bar */
+.camera-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
+.camera-stream-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  opacity: 0.5;
+}
+
+.camera-stream-indicator.active {
+  opacity: 1;
+  color: var(--color-success);
+}
+
+.stream-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.camera-stream-indicator.active .stream-dot {
+  animation: stream-pulse 1s ease-in-out infinite;
+}
+
+@keyframes stream-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* Camera Adjustments */
+.camera-adjustments {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  padding: 0.75rem;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.camera-slider-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.camera-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  min-width: 70px;
+}
+
+.camera-slider {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--color-bg-tertiary);
+  border-radius: 3px;
+  outline: none;
+}
+
+.camera-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.camera-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  margin-top: -6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.camera-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  background: var(--color-accent-hover);
+}
+
+.camera-slider::-moz-range-track {
+  height: 6px;
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.camera-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-accent);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.camera-slider::-moz-range-thumb:hover {
+  transform: scale(1.15);
+  background: var(--color-accent-hover);
+}
+
+.camera-slider-value {
+  min-width: 35px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+/* Streaming State */
+.camera-preview-wrapper.streaming .camera-status {
+  display: none;
+}
+
+.camera-preview-wrapper.streaming #camera-preview-canvas {
+  display: block;
+}
+
+/* Error State */
+.camera-status.error {
+  color: var(--color-danger);
+}
+
+.camera-status.error .camera-status-icon {
+  opacity: 1;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .camera-controls {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .camera-control-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .camera-select {
+    flex: 1;
+    max-width: 150px;
+  }
+
+  .camera-options {
+    justify-content: flex-start;
+    gap: 1.25rem;
+  }
+
+  .camera-preview-wrapper {
+    min-height: 150px;
+  }
+
+  .camera-adjustments {
+    grid-template-columns: 1fr;
+  }
+
+  .camera-slider-control {
+    flex-wrap: wrap;
+  }
+
+  .camera-label {
+    min-width: 80px;
+  }
+
+  .camera-slider {
+    order: 3;
+    width: 100%;
+    margin-top: 0.25rem;
+  }
+
+  .camera-slider-value {
+    order: 2;
+    margin-left: auto;
+  }
+}
+
+/* Dark Mode Enhancements */
+[data-theme="dark"] .camera-preview-wrapper {
+  background: #000;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .camera-status {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+[data-theme="dark"] .camera-controls,
+[data-theme="dark"] .camera-options,
+[data-theme="dark"] .camera-adjustments,
+[data-theme="dark"] .camera-info {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-border);
+}
+
+[data-theme="dark"] .camera-select {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+
+[data-theme="dark"] .camera-select option {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+[data-theme="dark"] .camera-slider {
+  background: var(--color-border);
+}
+
+[data-theme="dark"] .camera-slider::-webkit-slider-runnable-track {
+  background: var(--color-border);
+}
+
+[data-theme="dark"] .camera-slider::-moz-range-track {
+  background: var(--color-border);
+}

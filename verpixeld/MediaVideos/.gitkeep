@@ -1,0 +1,35 @@
+# Demo Videos Folder
+
+Place your demoscene video captures here for playback on the LED matrix.
+
+## Supported formats:
+- .mp4 (recommended)
+- .webm
+- .mkv
+- .avi
+- .mov
+- .flv
+
+## Required on Linux:
+FFmpeg must be installed:
+```bash
+sudo apt install ffmpeg
+```
+
+## Tips for best results:
+1. Videos will be scaled to your matrix resolution automatically
+2. Lower resolution source videos work best (less processing)
+3. High contrast content looks best on LED matrices
+4. Consider adding a MOD/XM soundtrack for authentic demoscene experience
+
+## Where to find demo captures:
+- https://pouet.net/ - The demoscene database
+- https://demozoo.org/ - Archive with video links
+- https://www.youtube.com/ - Search "demoscene" + demo name
+- https://files.scene.org/ - Original demo files (need emulator to capture)
+
+## Recording your own demos:
+You can capture demos running in emulators:
+- DOSBox for PC demos
+- FS-UAE for Amiga demos
+- Use OBS or FFmpeg to record the window

@@ -1,0 +1,2826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>verpixeld - LED Matrix Control</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <!-- Google Fonts - Distinctive typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Modular CSS -->
+    <link rel="stylesheet" href="/css/variables.css?v=20260817a">
+    <link rel="stylesheet" href="/css/base.css?v=20260208a">
+    <link rel="stylesheet" href="/css/components.css?v=20260208a">
+    <link rel="stylesheet" href="/css/forms.css?v=20260817a">
+    <link rel="stylesheet" href="/css/cards.css?v=20260208a">
+    <link rel="stylesheet" href="/css/modals.css?v=20260208a">
+    <link rel="stylesheet" href="/css/tabs.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/canvas.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/filters.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/layouts.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/scheduler.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/night-mode.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/draw-mode.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/camera-stream.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/media-player.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/network-shares.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/audio-output.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/favorites.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/console-log.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/image-upload.css?v=20260208c">
+    <link rel="stylesheet" href="/css/features/ai-art.css?v=20260208c">
+    <link rel="stylesheet" href="/css/features/voice-commands.css?v=20260208c">
+    <link rel="stylesheet" href="/css/features/settings.css?v=20260818a">
+    <link rel="stylesheet" href="/css/responsive.css?v=20260208a">
+    <link rel="stylesheet" href="/css/animations.css?v=20260208a">
+    <link rel="stylesheet" href="/css/splash.css?v=20260208a">
+</head>
+<body>
+
+  <!-- Animated Splash Screen -->
+  <div id="splash-screen" class="splash-screen">
+    <div class="splash-content">
+      <div class="splash-particles" id="splash-particles"></div>
+      <div class="splash-glow"></div>
+      <h1 class="splash-logo">
+        <span class="splash-letter" style="--i:0">v</span>
+        <span class="splash-letter" style="--i:1">e</span>
+        <span class="splash-letter" style="--i:2">r</span>
+        <span class="splash-letter" style="--i:3">p</span>
+        <span class="splash-letter" style="--i:4">i</span>
+        <span class="splash-letter" style="--i:5">x</span>
+        <span class="splash-letter" style="--i:6">e</span>
+        <span class="splash-letter" style="--i:7">l</span>
+        <span class="splash-letter" style="--i:8">d</span>
+      </h1>
+      <p class="splash-tagline">LED Matrix Control System</p>
+      <div class="splash-loader">
+        <div class="splash-loader-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Header actions -->
+    <div class="header-actions">
+      <div id="connection-status" class="connection-indicator disconnected" title="Server connection status">
+        <span class="connection-dot"></span>
+        <span class="connection-text">Connecting...</span>
+      </div>
+      <button id="restart-render-btn" class="btn-icon btn-icon-warning" title="Restart Render Loop">
+        <span>↻</span>
+      </button>
+      <button id="reboot-btn" class="btn-icon btn-icon-danger" title="Reboot System">
+        <span>⏻</span>
+      </button>
+      <button id="theme-toggle" class="btn-icon" title="Toggle theme">
+        <span class="theme-icon-light">🌙</span>
+        <span class="theme-icon-dark" style="display:none;">☀️</span>
+      </button>
+    </div>
+
+    <h1 class="logo-title">verpixeld</h1>
+    <p class="subtitle animate-in" data-anim-delay="0">LED Matrix Control System</p>
+
+    <!-- Compact Status Bar -->
+    <div class="filter-stats animate-in" data-anim-delay="0">
+      <div class="stat-item" data-anim-delay="1">
+        <span class="stat-value" id="stat-fps">--</span>
+        <span class="stat-label">FPS</span>
+      </div>
+      <div class="stat-item" data-anim-delay="2">
+        <span class="stat-value" id="resolution">384×192</span>
+        <span class="stat-label">Resolution</span>
+      </div>
+      <div class="stat-item" data-anim-delay="3">
+        <span class="stat-value" id="stat-uptime">--</span>
+        <span class="stat-label">Uptime</span>
+      </div>
+    </div>
+
+    <div id="message" class="message"></div>
+
+    <!-- Global Brightness Control (always visible) -->
+    <div class="global-controls-bar">
+      <div class="brightness-control">
+        <span class="brightness-icon">☀️</span>
+        <input type="range" id="global-brightness" min="0" max="100" value="100"
+               class="brightness-slider" oninput="updateGlobalBrightness(this.value)">
+        <span class="brightness-value" id="global-brightness-value">100%</span>
+      </div>
+      <div class="active-extensions" id="active-extensions">
+        <!-- Populated by JS: shows chips for active extensions/camera/draw -->
+      </div>
+    </div>
+
+    <!-- Media Player Bar (only visible when playing) -->
+    <div class="media-player-bar hidden" id="media-player-bar">
+      <div class="media-player-info">
+        <span class="media-player-icon" id="media-player-icon">&#127916;</span>
+        <div class="media-player-title-container">
+          <span class="media-player-title" id="media-player-title">No media</span>
+        </div>
+      </div>
+      <div class="media-player-controls">
+        <button class="media-player-btn media-player-btn-small" id="media-shuffle-btn" onclick="toggleShuffleMode()" title="Shuffle">🔀</button>
+        <button class="media-player-btn" id="media-prev-btn" onclick="playPreviousTrack()" title="Previous">⏮️</button>
+        <button class="media-player-btn" id="media-pause-btn" onclick="toggleMediaPause()" title="Pause">&#9208;&#65039;</button>
+        <button class="media-player-btn" id="media-next-btn" onclick="playNextTrack()" title="Next">⏭️</button>
+        <button class="media-player-btn media-player-btn-small" id="media-repeat-btn" onclick="toggleRepeatMode()" title="Repeat">🔁</button>
+        <button class="media-player-btn" id="media-stop-btn" onclick="stopMediaPlayback()" title="Stop">&#9209;&#65039;</button>
+      </div>
+      <div class="media-player-progress">
+        <div class="media-player-progress-bar" id="media-progress-bar" onclick="statusPlayerSeek(event)">
+          <div class="media-player-progress-fill" id="media-progress-fill"></div>
+        </div>
+        <span class="media-player-time" id="media-player-time">0:00 / 0:00</span>
+      </div>
+      <div class="media-player-volume">
+        <button class="media-player-btn" id="media-mute-btn" onclick="toggleMediaMute()" title="Mute">&#128266;</button>
+        <input type="range" class="media-player-volume-slider" id="media-volume-slider" min="0" max="100" value="70" 
+               oninput="setMediaVolume(this.value)">
+      </div>
+      <button class="favorite-toggle" id="media-favorite-btn" onclick="addCurrentToFavorites()" title="Add to favorites">☆</button>
+      <button class="media-player-close" id="media-player-close" onclick="hideMediaPlayerBar()" title="Hide player bar">✕</button>
+    </div>
+
+    <!-- Tab Navigation -->
+    <nav class="tab-navigation" role="tablist">
+      <button class="tab-btn active" data-tab="studio" onclick="switchTab('studio')" role="tab" aria-selected="true">
+        <span class="tab-btn-icon">🎛️</span>
+        <span class="tab-btn-label">Studio</span>
+      </button>
+      <button class="tab-btn" data-tab="schedule" onclick="switchTab('schedule')" role="tab" aria-selected="false">
+        <span class="tab-btn-icon">📅</span>
+        <span class="tab-btn-label">Schedule</span>
+      </button>
+      <button class="tab-btn" data-tab="canvas" onclick="switchTab('canvas')" role="tab" aria-selected="false">
+        <span class="tab-btn-icon">🎨</span>
+        <span class="tab-btn-label">Canvas</span>
+      </button>
+      <button class="tab-btn" data-tab="media" onclick="switchTab('media')" role="tab" aria-selected="false">
+        <span class="tab-btn-icon">📺</span>
+        <span class="tab-btn-label">Media</span>
+      </button>
+      <button class="tab-btn" data-tab="ai-art" onclick="switchTab('ai-art')" role="tab" aria-selected="false">
+        <span class="tab-btn-icon">🤖</span>
+        <span class="tab-btn-label">AI</span>
+      </button>
+      <button class="tab-btn" data-tab="effects" onclick="switchTab('effects')" role="tab" aria-selected="false">
+        <span class="tab-btn-icon">✨</span>
+        <span class="tab-btn-label">Effects</span>
+      </button>
+      <button class="tab-btn" data-tab="console" onclick="switchTab('console')" role="tab" aria-selected="false">
+        <span class="tab-btn-icon">🖥️</span>
+        <span class="tab-btn-label">Console</span>
+      </button>
+      <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')" role="tab" aria-selected="false">
+        <span class="tab-btn-icon">⚙️</span>
+        <span class="tab-btn-label">Settings</span>
+      </button>
+    </nav>
+
+    <!-- Camera Alert Banner (visible from any tab when alert is active) -->
+    <div class="alert-banner" id="alert-banner" style="display: none;">
+      <div class="alert-banner-inner">
+        <span class="alert-banner-pulse"></span>
+        <span class="alert-banner-text">📹 Camera Alert Active — <span id="alert-banner-remaining">0</span>s remaining</span>
+        <button class="alert-banner-dismiss" onclick="dismissAlert()">✋ Dismiss</button>
+      </div>
+    </div>
+
+    <!-- Tab Content Wrapper -->
+    <div class="tab-content-wrapper">
+
+      <!-- ═══════════════════════════════════════════════════════════════════
+           TAB 1: LAYOUTS
+           Layout profiles, Canvas grid, Saved layouts, Layer stack
+           ═══════════════════════════════════════════════════════════════════ -->
+      <!-- Retired as a tab — kept hidden so legacy element refs (canvas-grid, saved-layouts-list,
+           layout-profile) stay valid. Scenes / New / Automation now live in the Studio tab. -->
+      <div class="tab-panel" id="tab-layouts" role="tabpanel" aria-hidden="true" hidden>
+        
+        <!-- New Scene — start from a base profile, then arrange in the Studio -->
+        <div class="tab-section">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🎯</span>
+              New Scene
+            </h3>
+            <div class="tab-section-actions">
+              <button id="apply-layout-btn" class="btn btn-small btn-primary">Use Profile</button>
+              <button class="btn btn-small btn-secondary" onclick="switchTab('studio')">🎛️ Open Studio</button>
+            </div>
+          </div>
+          <div class="tab-section-body">
+            <div class="layout-controls">
+              <div class="layout-selector-with-preview">
+                <label for="layout-profile">Start from profile:</label>
+                <div class="layout-dropdown-container">
+                  <select id="layout-profile" class="layout-select" onchange="updateLayoutPreview(this.value)">
+                    <option value="fullscreen">Full Screen</option>
+                    <option value="headercontent">Header + Content</option>
+                    <option value="threepanel">Three Panel</option>
+                    <option value="splitview">Split View</option>
+                    <option value="dashboard">Dashboard (2x2)</option>
+                  </select>
+                  <div class="layout-preview" id="layout-preview">
+                    <div class="layout-preview-canvas" style="left:0;top:0;width:100%;height:100%;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p id="layout-description" class="text-muted" style="margin-top: 0.5rem;">Pick a starting profile, then open the <strong>Studio</strong> to add canvases, content and rotations, and save it as a Scene.</p>
+            <!-- Retired sections (Active Canvases / Layer Stack) — the Studio replaces them. Hidden
+                 placeholders keep older populators from erroring if they run. -->
+            <div id="canvas-grid" hidden></div>
+            <div id="canvas-stack" hidden></div>
+          </div>
+        </div>
+
+        <!-- Saved Layouts -->
+        <div class="tab-section collapsible">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">💾</span>
+              Scenes
+            </h3>
+            <div class="tab-section-actions">
+              <button id="save-current-layout-btn" class="btn btn-small btn-primary">Save Current</button>
+              <button id="scene-playlist-btn" class="btn btn-small btn-secondary" onclick="openPlaylistDialog()">🔁 Automation</button>
+              <button id="refresh-saved-layouts-btn" class="btn btn-small btn-secondary">Refresh</button>
+            </div>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <div id="saved-layouts-list" class="saved-layouts-list">
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- END TAB: LAYOUTS -->
+
+      <!-- ═══════════════════════════════════════════════════════════════════
+           TAB: STUDIO — live 3-pane canvas editor (mounted dynamically)
+           ═══════════════════════════════════════════════════════════════════ -->
+      <div class="tab-panel" id="tab-studio" role="tabpanel" aria-hidden="true"></div>
+
+
+      <!-- ═══════════════════════════════════════════════════════════════════
+           TAB 2: SCHEDULE
+           Layout scheduler + Night mode schedule
+           ═══════════════════════════════════════════════════════════════════ -->
+      <div class="tab-panel" id="tab-schedule" role="tabpanel" aria-hidden="true">
+        
+        <!-- Layout Scheduler -->
+        <div class="tab-section">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">📅</span>
+              Layout Scheduler
+            </h3>
+            <div class="tab-section-actions">
+              <button id="new-schedule-btn" class="btn btn-small btn-primary" onclick="showNewScheduleDialog()">New Schedule</button>
+              <button id="refresh-schedules-btn" class="btn btn-small btn-secondary" onclick="fetchSchedules()">Refresh</button>
+            </div>
+          </div>
+          <div class="tab-section-body">
+            <div id="schedule-status" class="schedule-status">
+              <div id="active-schedule-info">No active schedule</div>
+              <div id="next-change-info"></div>
+            </div>
+            <div id="schedules-list" class="schedules-grid">
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Night Mode Schedule -->
+        <div class="tab-section">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🌙</span>
+              Night Mode Schedule
+            </h3>
+            <div class="tab-section-actions">
+              <span class="badge inactive" id="night-mode-badge">Off</span>
+              <button class="btn btn-small btn-primary" onclick="showNightModeConfig()">Configure</button>
+            </div>
+          </div>
+          <div class="tab-section-body">
+            <div class="night-mode-status" id="night-mode-status">
+              <span id="night-mode-info" class="text-muted">Night mode automatically dims the display during specified hours.</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- END TAB: SCHEDULE -->
+
+
+      <!-- ═══════════════════════════════════════════════════════════════════
+           TAB 3: CANVAS
+           Draw mode + Camera stream
+           ═══════════════════════════════════════════════════════════════════ -->
+      <div class="tab-panel" id="tab-canvas" role="tabpanel" aria-hidden="true">
+        
+        <!-- Draw Mode -->
+        <div class="tab-section">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🎨</span>
+              Draw Mode
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small btn-primary" onclick="applyDrawingToCanvas()">Apply</button>
+              <button class="btn btn-small btn-secondary" onclick="showSaveDrawingDialog()">Save</button>
+              <button class="btn btn-small btn-secondary" onclick="showDrawingGallery()">Load</button>
+              <button class="btn btn-small btn-secondary" onclick="exportDrawingAsPng()">Export</button>
+              <button class="btn btn-small btn-danger" onclick="clearDrawingCanvas()">Clear</button>
+            </div>
+          </div>
+          <div class="tab-section-body">
+            <!-- Canvas Selection & Live Mode -->
+            <div class="draw-controls">
+              <div class="draw-control-group">
+                <label for="draw-target-canvas">Target Canvas:</label>
+                <select id="draw-target-canvas" class="draw-select">
+                  <option value="Main">Main</option>
+                </select>
+              </div>
+              <div class="draw-control-group draw-live-toggle">
+                <label class="live-mode-switch">
+                  <input type="checkbox" id="draw-live-mode" onchange="toggleLiveDrawMode()">
+                  <span class="live-mode-slider"></span>
+                </label>
+                <span class="live-mode-label">
+                  <span class="live-indicator" id="live-indicator"></span>
+                  Live Mode
+                </span>
+              </div>
+            </div>
+
+            <!-- Drawing Toolbar -->
+            <div class="draw-toolbar">
+              <div class="draw-toolbar-row">
+                <div class="draw-tools">
+                  <button class="draw-tool-btn active" data-tool="pencil" onclick="selectDrawTool('pencil')" title="Pencil">
+                    <span class="tool-icon">✏️</span>
+                  </button>
+                  <button class="draw-tool-btn" data-tool="eraser" onclick="selectDrawTool('eraser')" title="Eraser">
+                    <span class="tool-icon">🧽</span>
+                  </button>
+                  <span class="draw-tool-divider"></span>
+                  <button class="draw-tool-btn" data-tool="line" onclick="selectDrawTool('line')" title="Line">
+                    <span class="tool-icon">╱</span>
+                  </button>
+                  <button class="draw-tool-btn" data-tool="rect" onclick="selectDrawTool('rect')" title="Rectangle">
+                    <span class="tool-icon">▢</span>
+                  </button>
+                  <button class="draw-tool-btn" data-tool="ellipse" onclick="selectDrawTool('ellipse')" title="Ellipse">
+                    <span class="tool-icon">◯</span>
+                  </button>
+                </div>
+                <div class="draw-shape-fill" id="draw-shape-fill-toggle">
+                  <label class="draw-checkbox-label">
+                    <input type="checkbox" id="draw-fill-mode" onchange="toggleFillMode()">
+                    Fill
+                  </label>
+                </div>
+                <div class="draw-color-picker-wrap">
+                  <input type="color" id="draw-color" value="#ffffff" class="draw-color-picker" title="Color">
+                </div>
+              </div>
+              <div class="draw-toolbar-row draw-sliders-row">
+                <div class="draw-slider-control">
+                  <label class="draw-label">Opacity</label>
+                  <input type="range" id="draw-alpha" min="0" max="100" value="100" class="draw-slider-wide">
+                  <span id="draw-alpha-value" class="draw-slider-value">100%</span>
+                </div>
+                <div class="draw-slider-control">
+                  <label class="draw-label">Size</label>
+                  <input type="range" id="draw-brush-size" min="1" max="20" value="3" class="draw-slider-wide">
+                  <span id="draw-size-value" class="draw-slider-value">3px</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Drawing Canvas Container -->
+            <div class="draw-canvas-container">
+              <div class="draw-canvas-wrapper" id="draw-canvas-wrapper">
+                <canvas id="draw-canvas" width="384" height="192"></canvas>
+                <div class="draw-canvas-grid" id="draw-canvas-grid"></div>
+              </div>
+              <div class="draw-canvas-info">
+                <span id="draw-canvas-size">384 × 192</span>
+                <label class="draw-checkbox-label">
+                  <input type="checkbox" id="draw-show-grid" onchange="toggleDrawGrid()">
+                  Show Grid
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Image / Video Upload -->
+        <div class="tab-section">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🖼️</span>
+              Image &amp; Video Upload
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small btn-primary" onclick="applyUploadedImage()">Apply</button>
+              <button class="btn btn-small btn-danger" onclick="clearUploadedImage()">Clear</button>
+            </div>
+          </div>
+          <div class="tab-section-body">
+            <div class="upload-controls">
+              <div class="upload-control-group">
+                <label for="upload-target-canvas">Target Canvas:</label>
+                <select id="upload-target-canvas" class="upload-select">
+                  <option value="Main">Main</option>
+                </select>
+              </div>
+            </div>
+            <!-- Drop Zone -->
+            <div class="upload-dropzone" id="upload-dropzone">
+              <input type="file" id="upload-file-input" accept="image/*,video/*" style="display:none" onchange="handleFileUpload(this)">
+              <div class="upload-dropzone-content" id="upload-dropzone-content">
+                <span class="upload-dropzone-icon">📁</span>
+                <span class="upload-dropzone-text">Drop an image or video here, or <a href="#" onclick="event.preventDefault(); document.getElementById('upload-file-input').click()">browse</a></span>
+                <span class="upload-dropzone-hint">Supports JPG, PNG, GIF, WebP, MP4, WebM</span>
+              </div>
+            </div>
+            <!-- Preview -->
+            <div class="upload-preview-container" id="upload-preview-container" style="display:none">
+              <canvas id="upload-preview-canvas" width="384" height="192"></canvas>
+              <div class="upload-info">
+                <span id="upload-file-info">--</span>
+              </div>
+            </div>
+            <!-- Video controls (hidden until video loaded) -->
+            <div class="upload-video-controls" id="upload-video-controls" style="display:none">
+              <video id="upload-video-element" muted playsinline style="display:none"></video>
+              <canvas id="upload-video-process" style="display:none"></canvas>
+              <div class="upload-video-row">
+                <label class="upload-label">Frame:</label>
+                <input type="range" id="upload-video-seek" min="0" max="100" value="0" step="0.1" class="upload-slider" oninput="seekUploadVideo(this.value)">
+                <span id="upload-video-time" class="upload-slider-value">0:00</span>
+              </div>
+              <div class="upload-video-row">
+                <button class="btn btn-small btn-secondary" onclick="streamUploadVideo()" id="upload-stream-btn">Stream to Display</button>
+                <button class="btn btn-small btn-danger" onclick="stopUploadVideoStream()" id="upload-stream-stop-btn" style="display:none">Stop</button>
+                <div class="upload-control-group" style="margin-left:auto">
+                  <label for="upload-video-fps">FPS:</label>
+                  <select id="upload-video-fps" class="upload-select">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="15">15</option>
+                    <option value="24">24</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Camera Stream -->
+        <div class="tab-section">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">📷</span>
+              Camera Stream
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small btn-primary" id="camera-start-btn" onclick="startCameraStream()">Start</button>
+              <button class="btn btn-small btn-danger" id="camera-stop-btn" onclick="stopCameraStream()" disabled>Stop</button>
+            </div>
+          </div>
+          <div class="tab-section-body">
+            <!-- Camera Settings -->
+            <div class="camera-controls">
+              <div class="camera-control-group">
+                <label for="camera-target-canvas">Target Canvas:</label>
+                <select id="camera-target-canvas" class="camera-select">
+                  <option value="Main">Main</option>
+                </select>
+              </div>
+              <div class="camera-control-group">
+                <label for="camera-source">Camera:</label>
+                <select id="camera-source" class="camera-select">
+                  <option value="user">Front</option>
+                  <option value="environment">Back</option>
+                </select>
+              </div>
+              <div class="camera-control-group">
+                <label for="camera-fps">FPS:</label>
+                <select id="camera-fps" class="camera-select">
+                  <option value="5">5</option>
+                  <option value="10" selected>10</option>
+                  <option value="15">15</option>
+                  <option value="20">20</option>
+                  <option value="30">30</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Camera Options Row -->
+            <div class="camera-options">
+              <label class="camera-checkbox-label">
+                <input type="checkbox" id="camera-mirror" checked>
+                Mirror
+              </label>
+              <label class="camera-checkbox-label">
+                <input type="checkbox" id="camera-dither">
+                Dither
+              </label>
+              <label class="camera-checkbox-label">
+                <input type="checkbox" id="camera-grayscale">
+                Grayscale
+              </label>
+              <select id="camera-effect" class="camera-effect-select" title="Visual Effect">
+                <option value="none">No Effect</option>
+                <option value="edge">Edge Detection</option>
+                <option value="invert">Invert Colors</option>
+                <option value="sepia">Sepia</option>
+                <option value="nightvision">Night Vision</option>
+                <option value="thermal">Thermal</option>
+                <option value="posterize">Posterize</option>
+                <option value="pixelate">Pixelate</option>
+                <option value="rgbshift">RGB Shift</option>
+                <option value="emboss">Emboss</option>
+                <option value="blur">Blur</option>
+              </select>
+            </div>
+
+            <!-- Camera Preview Container -->
+            <div class="camera-preview-container">
+              <div class="camera-preview-wrapper" id="camera-preview-wrapper">
+                <video id="camera-video" autoplay playsinline muted></video>
+                <canvas id="camera-process-canvas" style="display: none;"></canvas>
+                <canvas id="camera-preview-canvas"></canvas>
+                <div class="camera-status" id="camera-status">
+                  <span class="camera-status-icon">📷</span>
+                  <span class="camera-status-text">Click "Start" to begin streaming</span>
+                </div>
+              </div>
+              <div class="camera-info">
+                <span id="camera-resolution">-- × --</span>
+                <span class="camera-stream-indicator" id="camera-stream-indicator">
+                  <span class="stream-dot"></span>
+                  <span id="camera-stream-fps">--</span> fps
+                </span>
+              </div>
+            </div>
+
+            <!-- Camera Adjustments -->
+            <div class="camera-adjustments">
+              <div class="camera-slider-control">
+                <label class="camera-label">Brightness</label>
+                <input type="range" id="camera-brightness" min="-100" max="100" value="0" class="camera-slider">
+                <span id="camera-brightness-value" class="camera-slider-value">0</span>
+              </div>
+              <div class="camera-slider-control">
+                <label class="camera-label">Contrast</label>
+                <input type="range" id="camera-contrast" min="-100" max="100" value="0" class="camera-slider">
+                <span id="camera-contrast-value" class="camera-slider-value">0</span>
+              </div>
+              <div class="camera-slider-control">
+                <label class="camera-label">Saturation</label>
+                <input type="range" id="camera-saturation" min="-100" max="100" value="0" class="camera-slider">
+                <span id="camera-saturation-value" class="camera-slider-value">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Local USB Camera -->
+        <div class="tab-section">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🎥</span>
+              Local Camera (USB)
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small btn-primary" id="localcam-start-btn" onclick="startLocalCamera()">Stream</button>
+              <button class="btn btn-small btn-danger" id="localcam-stop-btn" onclick="stopLocalCamera()" style="display:none">Stop</button>
+              <button class="btn btn-small btn-secondary" onclick="captureLocalCameraFrame()">Snapshot</button>
+            </div>
+          </div>
+          <div class="tab-section-body">
+            <div class="ai-controls">
+              <div class="ai-control-group">
+                <label for="localcam-device">Device:</label>
+                <select id="localcam-device" class="ai-select">
+                  <option value="">Detecting...</option>
+                </select>
+                <button class="btn btn-small btn-secondary" onclick="refreshLocalCamDevices()" title="Refresh devices">↻</button>
+              </div>
+              <div class="ai-control-group">
+                <label for="localcam-fps">FPS:</label>
+                <select id="localcam-fps" class="ai-select">
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="15" selected>15</option>
+                  <option value="24">24</option>
+                  <option value="30">30</option>
+                </select>
+              </div>
+              <div class="ai-control-group">
+                <label for="localcam-format">Format:</label>
+                <select id="localcam-format" class="ai-select">
+                  <option value="mjpeg" selected>MJPEG</option>
+                  <option value="yuyv422">YUYV</option>
+                </select>
+              </div>
+              <div class="ai-control-group">
+                <label for="localcam-resolution">Resolution:</label>
+                <select id="localcam-resolution" class="ai-select">
+                  <option value="320x240">320×240</option>
+                  <option value="640x480" selected>640×480</option>
+                  <option value="1280x720">1280×720</option>
+                  <option value="1920x1080">1920×1080</option>
+                </select>
+              </div>
+              <div class="ai-control-group">
+                <label for="localcam-scale">Scale:</label>
+                <select id="localcam-scale" class="ai-select">
+                  <option value="area" selected>Area (smooth)</option>
+                  <option value="bilinear">Bilinear</option>
+                  <option value="bicubic">Bicubic</option>
+                  <option value="neighbor">Nearest (pixelated)</option>
+                  <option value="lanczos">Lanczos</option>
+                </select>
+              </div>
+              <div class="ai-control-group">
+                <label for="localcam-effect">Effect:</label>
+                <select id="localcam-effect" class="ai-select">
+                  <option value="none" selected>No Effect</option>
+                  <option value="edge">Edge Detection</option>
+                  <option value="invert">Invert Colors</option>
+                  <option value="sepia">Sepia</option>
+                  <option value="nightvision">Night Vision</option>
+                  <option value="thermal">Thermal</option>
+                  <option value="posterize">Posterize</option>
+                  <option value="pixelate">Pixelate</option>
+                  <option value="rgbshift">RGB Shift</option>
+                  <option value="emboss">Emboss</option>
+                  <option value="blur">Blur</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn btn-small btn-primary" onclick="saveLocalCamConfig()" style="margin-top:8px">Save Settings</button>
+            <span class="localcam-status" id="localcam-status"></span>
+          </div>
+        </div>
+
+      </div><!-- END TAB: CANVAS -->
+
+
+      <!-- ═══════════════════════════════════════════════════════════════════
+           TAB: AI
+           AI image generation, voice assistant, chat, and scheduling
+           ═══════════════════════════════════════════════════════════════════ -->
+      <div class="tab-panel" id="tab-ai-art" role="tabpanel" aria-hidden="true">
+
+        <!-- AI Sub-Navigation -->
+        <nav class="ai-subtab-nav">
+          <button class="ai-subtab-btn active" data-aisub="generate" onclick="switchAiSubtab('generate')">🎨 Generate</button>
+          <button class="ai-subtab-btn" data-aisub="stylize" onclick="switchAiSubtab('stylize')">✨ Stylize</button>
+          <button class="ai-subtab-btn" data-aisub="gallery" onclick="switchAiSubtab('gallery')">🖼️ Gallery</button>
+          <button class="ai-subtab-btn" data-aisub="voice" onclick="switchAiSubtab('voice')">🎤 Voice</button>
+          <button class="ai-subtab-btn" data-aisub="schedule" onclick="switchAiSubtab('schedule')">⏰ Schedule</button>
+          <button class="ai-subtab-btn" data-aisub="settings" onclick="switchAiSubtab('settings')">⚙️ Settings</button>
+        </nav>
+
+        <!-- ── SUB: Generate ─────────────────────────────── -->
+        <div class="ai-subtab-panel active" id="ai-sub-generate">
+          <div class="tab-section">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title"><span class="tab-section-title-icon">🎨</span> Text-to-Image</h3>
+              <div class="tab-section-actions">
+                <button class="btn btn-small btn-primary" onclick="generateAiImage()" id="ai-generate-btn">Generate</button>
+              </div>
+            </div>
+            <div class="tab-section-body">
+              <div class="ai-prompt-area">
+                <textarea id="ai-prompt" class="ai-prompt-input" rows="3" placeholder="Describe the image you want to create... (e.g. 'A pixel art sunset over mountains with purple sky')"></textarea>
+              </div>
+              <div class="ai-controls">
+                <div class="ai-control-group">
+                  <label for="ai-style">Style:</label>
+                  <select id="ai-style" class="ai-select">
+                    <option value="">None (raw prompt)</option>
+                    <option value="pixel-art" selected>Pixel Art</option>
+                    <option value="retro-8bit">Retro / 8-bit</option>
+                    <option value="neon-synthwave">Neon Synthwave</option>
+                    <option value="abstract">Abstract</option>
+                    <option value="photograph">Photograph</option>
+                    <option value="watercolor">Watercolor</option>
+                    <option value="oil-painting">Oil Painting</option>
+                    <option value="comic">Comic / Pop Art</option>
+                    <option value="minimalist">Minimalist</option>
+                    <option value="cyberpunk">Cyberpunk</option>
+                  </select>
+                </div>
+                <div class="ai-control-group">
+                  <label for="ai-quality">Quality:</label>
+                  <select id="ai-quality" class="ai-select">
+                    <option value="low">Low (faster)</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High (slower)</option>
+                  </select>
+                </div>
+                <div class="ai-control-group">
+                  <label for="ai-target-canvas">Canvas:</label>
+                  <select id="ai-target-canvas" class="ai-select">
+                    <option value="Main">Main</option>
+                  </select>
+                </div>
+              </div>
+              <div class="ai-status" id="ai-status" style="display:none">
+                <div class="ai-status-spinner"></div>
+                <span class="ai-status-text" id="ai-status-text">Generating...</span>
+              </div>
+              <div class="ai-preview-container" id="ai-preview-container" style="display:none">
+                <canvas id="ai-preview-canvas" width="384" height="192"></canvas>
+                <div class="ai-preview-actions">
+                  <button class="btn btn-small btn-primary" onclick="applyAiImageToDisplay()">Apply to Display</button>
+                  <button class="btn btn-small btn-secondary" onclick="saveAiImageToGallery()">Save to Gallery</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Generation History -->
+          <div class="tab-section">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title"><span class="tab-section-title-icon">📜</span> Recent Generations</h3>
+              <div class="tab-section-actions">
+                <button class="btn btn-small btn-danger" onclick="clearAiHistory()">Clear</button>
+              </div>
+            </div>
+            <div class="tab-section-body">
+              <div class="ai-history-list" id="ai-history-list">
+                <div class="ai-history-empty">No images generated yet.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SUB: Stylize ──────────────────────────────── -->
+        <div class="ai-subtab-panel" id="ai-sub-stylize">
+          <div class="tab-section">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title"><span class="tab-section-title-icon">✨</span> Image-to-Image (Stylize)</h3>
+              <div class="tab-section-actions">
+                <button class="btn btn-small btn-primary" onclick="generateAiEdit()" id="ai-edit-btn">Stylize</button>
+              </div>
+            </div>
+            <div class="tab-section-body">
+              <div class="ai-edit-upload">
+                <div class="upload-dropzone ai-edit-dropzone" id="ai-edit-dropzone">
+                  <input type="file" id="ai-edit-file-input" accept="image/*" style="display:none" onchange="handleAiEditFileUpload(this)">
+                  <div class="upload-dropzone-content" id="ai-edit-dropzone-content">
+                    <span class="upload-dropzone-icon">🖼️</span>
+                    <span class="upload-dropzone-text">Drop a photo to stylize, or <a href="#" onclick="event.preventDefault(); document.getElementById('ai-edit-file-input').click()">browse</a></span>
+                  </div>
+                </div>
+              </div>
+              <div class="ai-prompt-area">
+                <textarea id="ai-edit-prompt" class="ai-prompt-input" rows="2" placeholder="Describe how to transform this image... (e.g. 'Convert to pixel art style with vibrant colors')"></textarea>
+              </div>
+              <div class="ai-controls">
+                <div class="ai-control-group">
+                  <label for="ai-edit-style">Style:</label>
+                  <select id="ai-edit-style" class="ai-select">
+                    <option value="pixel-art" selected>Pixel Art</option>
+                    <option value="retro-8bit">Retro / 8-bit</option>
+                    <option value="neon-synthwave">Neon Synthwave</option>
+                    <option value="watercolor">Watercolor</option>
+                    <option value="oil-painting">Oil Painting</option>
+                    <option value="comic">Comic / Pop Art</option>
+                    <option value="sketch">Pencil Sketch</option>
+                    <option value="cyberpunk">Cyberpunk</option>
+                  </select>
+                </div>
+              </div>
+              <div class="ai-status" id="ai-edit-status" style="display:none">
+                <div class="ai-status-spinner"></div>
+                <span class="ai-status-text" id="ai-edit-status-text">Stylizing...</span>
+              </div>
+              <div class="ai-preview-container" id="ai-edit-preview-container" style="display:none">
+                <div class="ai-edit-comparison">
+                  <div class="ai-edit-before">
+                    <span class="ai-edit-label">Original</span>
+                    <canvas id="ai-edit-before-canvas" width="192" height="96"></canvas>
+                  </div>
+                  <div class="ai-edit-after">
+                    <span class="ai-edit-label">Stylized</span>
+                    <canvas id="ai-edit-after-canvas" width="192" height="96"></canvas>
+                  </div>
+                </div>
+                <div class="ai-preview-actions">
+                  <button class="btn btn-small btn-primary" onclick="applyAiEditToDisplay()">Apply to Display</button>
+                  <button class="btn btn-small btn-secondary" onclick="saveAiEditToGallery()">Save to Gallery</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SUB: Gallery & Slideshow ──────────────────── -->
+        <div class="ai-subtab-panel" id="ai-sub-gallery">
+          <!-- Slideshow Controls -->
+          <div class="tab-section">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title"><span class="tab-section-title-icon">▶️</span> Slideshow</h3>
+              <div class="tab-section-actions">
+                <button class="btn btn-small btn-primary" onclick="startGallerySlideshow()" id="gallery-slideshow-start">Start</button>
+                <button class="btn btn-small btn-danger" onclick="stopGallerySlideshow()" id="gallery-slideshow-stop" style="display:none">Stop</button>
+              </div>
+            </div>
+            <div class="tab-section-body">
+              <div class="ai-controls">
+                <div class="ai-control-group">
+                  <label for="gallery-slideshow-interval">Interval:</label>
+                  <select id="gallery-slideshow-interval" class="ai-select">
+                    <option value="5">5 seconds</option>
+                    <option value="10" selected>10 seconds</option>
+                    <option value="15">15 seconds</option>
+                    <option value="30">30 seconds</option>
+                    <option value="60">1 minute</option>
+                    <option value="120">2 minutes</option>
+                    <option value="300">5 minutes</option>
+                  </select>
+                </div>
+                <div class="ai-control-group">
+                  <label for="gallery-slideshow-order">Order:</label>
+                  <select id="gallery-slideshow-order" class="ai-select">
+                    <option value="sequential">Sequential</option>
+                    <option value="shuffle" selected>Shuffle</option>
+                  </select>
+                </div>
+                <div class="ai-control-group">
+                  <label for="gallery-slideshow-canvas">Canvas:</label>
+                  <select id="gallery-slideshow-canvas" class="ai-select">
+                    <option value="Main">Main</option>
+                  </select>
+                </div>
+              </div>
+              <div class="gallery-slideshow-status" id="gallery-slideshow-status"></div>
+            </div>
+          </div>
+
+          <!-- Gallery Preview -->
+          <div class="tab-section">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title">
+                <span class="tab-section-title-icon">🖼️</span>
+                Saved Images
+                <span class="gallery-count" id="gallery-count"></span>
+              </h3>
+              <div class="tab-section-actions">
+                <button class="btn btn-small btn-secondary" onclick="loadGallery()">Refresh</button>
+              </div>
+            </div>
+            <div class="tab-section-body">
+              <!-- Large preview -->
+              <div class="gallery-preview-large" id="gallery-preview-large" style="display:none">
+                <canvas id="gallery-preview-canvas" width="384" height="192"></canvas>
+                <div class="gallery-preview-info" id="gallery-preview-info"></div>
+                <div class="ai-preview-actions">
+                  <button class="btn btn-small btn-primary" onclick="applyGalleryPreviewToDisplay()">Apply to Display</button>
+                  <button class="btn btn-small btn-warning" id="gallery-dismiss-overlay-btn" style="display:none" onclick="dismissImageOverlay()">Dismiss from Display</button>
+                  <button class="btn btn-small btn-danger" onclick="deleteGalleryPreviewImage()">Delete</button>
+                  <button class="btn btn-small btn-secondary" onclick="closeGalleryPreview()">Close</button>
+                </div>
+              </div>
+              <!-- Image Grid -->
+              <div class="gallery-grid" id="gallery-grid">
+                <div class="ai-history-empty">No saved images. Enable "Save to disk" in the Schedule tab to build your gallery.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SUB: Voice Commands ────────────────────────── -->
+        <div class="ai-subtab-panel" id="ai-sub-voice">
+          <!-- Voice Status -->
+          <div class="tab-section">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title"><span class="tab-section-title-icon">🎤</span> Voice Commands</h3>
+              <div class="tab-section-actions">
+                <button class="btn btn-small btn-primary" onclick="startVoiceListening()" id="voice-start-btn">Start Listening</button>
+                <button class="btn btn-small btn-danger" onclick="stopVoiceListening()" id="voice-stop-btn" style="display:none">Stop</button>
+              </div>
+            </div>
+            <div class="tab-section-body">
+              <div class="voice-status-card" id="voice-status-card">
+                <div class="voice-state-indicator" id="voice-state-indicator">
+                  <span class="voice-state-dot disabled"></span>
+                  <span class="voice-state-text" id="voice-state-text">Disabled</span>
+                </div>
+                <div class="voice-stats">
+                  <span class="voice-stat" id="voice-command-count">Commands: 0</span>
+                  <span class="voice-stat" id="voice-last-command">Last: --</span>
+                </div>
+                <div class="voice-last-transcription" id="voice-last-transcription" style="display:none">
+                  <span class="voice-transcription-label">Last heard:</span>
+                  <span class="voice-transcription-text" id="voice-transcription-text"></span>
+                </div>
+                <div class="voice-last-transcription" id="voice-last-intent" style="display:none; color: #8bb4ff; margin-top: 4px; font-size: 0.85em;"></div>
+                <div class="voice-error" id="voice-error" style="display:none"></div>
+              </div>
+              <!-- Manual Trigger (Push-to-Talk) -->
+              <div class="voice-manual-trigger">
+                <button class="btn btn-primary voice-trigger-btn" onclick="manualVoiceTrigger()" id="voice-trigger-btn">
+                  🎤 Push to Talk
+                </button>
+                <span class="voice-trigger-hint">Click and speak your image prompt</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Voice Settings -->
+          <div class="tab-section">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title"><span class="tab-section-title-icon">⚙️</span> Voice Settings</h3>
+            </div>
+            <div class="tab-section-body">
+              <div class="ai-controls">
+                <div class="ai-control-group ai-control-wide">
+                  <label for="voice-speech-key">Azure Speech Key:</label>
+                  <input type="password" id="voice-speech-key" class="ai-input" placeholder="Enter your Azure Speech API key">
+                </div>
+              </div>
+              <div class="ai-controls">
+                <div class="ai-control-group">
+                  <label for="voice-speech-region">Region:</label>
+                  <input type="text" id="voice-speech-region" class="ai-input" placeholder="e.g. westeurope">
+                </div>
+                <div class="ai-control-group">
+                  <label for="voice-speech-language">Language:</label>
+                  <select id="voice-speech-language" class="ai-select">
+                    <option value="de-DE" selected>Deutsch (DE)</option>
+                    <option value="de-AT">Deutsch (AT)</option>
+                    <option value="de-CH">Deutsch (CH)</option>
+                    <option value="en-US">English (US)</option>
+                    <option value="en-GB">English (UK)</option>
+                    <option value="fr-FR">Français</option>
+                    <option value="es-ES">Español</option>
+                    <option value="it-IT">Italiano</option>
+                    <option value="nl-NL">Nederlands</option>
+                    <option value="pl-PL">Polski</option>
+                    <option value="pt-BR">Português (BR)</option>
+                    <option value="ja-JP">日本語</option>
+                    <option value="zh-CN">中文</option>
+                  </select>
+                </div>
+              </div>
+              <div class="ai-controls">
+              <div class="ai-control-group">
+                <label for="voice-audio-device">Microphone:</label>
+                <select id="voice-audio-device" class="ai-select" onchange="onAudioDeviceChange()">
+                  <option value="">System Default</option>
+                  <option value="__custom__">Custom device path...</option>
+                </select>
+                <button class="btn btn-small btn-secondary" onclick="refreshLocalCamDevices()" title="Refresh">↻</button>
+              </div>
+              <div class="ai-control-group ai-control-wide" id="voice-audio-custom-group" style="display:none">
+                <label for="voice-audio-custom">Device path:</label>
+                <input type="text" id="voice-audio-custom" class="ai-input" placeholder="e.g. plughw:3,0">
+              </div>
+                <div class="ai-control-group">
+                  <label for="voice-silence-timeout">Pause Tolerance:</label>
+                  <select id="voice-silence-timeout" class="ai-select" title="How long to wait during a pause before ending recognition">
+                    <option value="1500">1.5s (fast)</option>
+                    <option value="2500">2.5s</option>
+                    <option value="3500" selected>3.5s (default)</option>
+                    <option value="5000">5s (patient)</option>
+                    <option value="7000">7s (very patient)</option>
+                    <option value="10000">10s (max)</option>
+                  </select>
+                </div>
+                <div class="ai-control-group">
+                  <label for="voice-segmentation">End Detection:</label>
+                  <select id="voice-segmentation" class="ai-select" title="How to detect when you've finished speaking">
+                    <option value="Semantic" selected>Semantic (AI-based)</option>
+                    <option value="Default">Silence only</option>
+                    <option value="Time">Time-based</option>
+                  </select>
+                </div>
+                <div class="ai-control-group">
+                  <label for="voice-profanity">Profanity:</label>
+                  <select id="voice-profanity" class="ai-select" title="How to handle profanity in speech">
+                    <option value="raw" selected>Allow all (raw)</option>
+                    <option value="masked">Mask (***)</option>
+                    <option value="removed">Remove</option>
+                  </select>
+                </div>
+              </div>
+              <!-- TTS (Text-to-Speech) Settings -->
+              <div class="ai-controls">
+                <div class="ai-control-group">
+                  <label for="voice-tts-enabled">Voice Responses:</label>
+                  <select id="voice-tts-enabled" class="ai-select" title="Enable spoken responses via Azure TTS">
+                    <option value="true" selected>Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </div>
+                <div class="ai-control-group">
+                  <label for="voice-tts-voice">TTS Voice:</label>
+                  <select id="voice-tts-voice" class="ai-select" title="Azure TTS voice for spoken responses">
+                    <option value="de-DE-ConradNeural" selected>Conrad (DE, Male)</option>
+                    <option value="de-DE-KatjaNeural">Katja (DE, Female)</option>
+                    <option value="de-DE-AmalaNeural">Amala (DE, Female)</option>
+                    <option value="de-DE-FlorianMultilingualNeural">Florian (DE, Male, Multilingual)</option>
+                    <option value="de-DE-SeraphinaMultilingualNeural">Seraphina (DE, Female, Multilingual)</option>
+                    <option value="en-US-GuyNeural">Guy (EN, Male)</option>
+                    <option value="en-US-JennyNeural">Jenny (EN, Female)</option>
+                    <option value="en-US-AriaNeural">Aria (EN, Female)</option>
+                  </select>
+                </div>
+              </div>
+              <!-- Audio Ducking -->
+              <div class="ai-controls">
+                <div class="ai-control-group">
+                  <label for="voice-tts-ducking">Audio Ducking:</label>
+                  <select id="voice-tts-ducking" class="ai-select" title="Lower music volume while the assistant is speaking">
+                    <option value="true" selected>Enabled</option>
+                    <option value="false">Disabled</option>
+                  </select>
+                </div>
+                <div class="ai-control-group">
+                  <label for="voice-duck-volume">Duck Volume:</label>
+                  <select id="voice-duck-volume" class="ai-select" title="Music volume level during speech (lower = quieter music)">
+                    <option value="5">5%</option>
+                    <option value="10">10%</option>
+                    <option value="15" selected>15%</option>
+                    <option value="20">20%</option>
+                    <option value="25">25%</option>
+                    <option value="30">30%</option>
+                    <option value="50">50%</option>
+                  </select>
+                </div>
+              </div>
+              <!-- Music Playback Mode -->
+              <div class="ai-controls">
+                <div class="ai-control-group">
+                  <label for="voice-music-mode">Music Playback:</label>
+                  <select id="voice-music-mode" class="ai-select" title="Audio-only keeps the current display; Music Video overlays video on the matrix">
+                    <option value="audio" selected>Audio Only (preserve display)</option>
+                    <option value="video">Music Video (show on matrix)</option>
+                  </select>
+                </div>
+              </div>
+              <!-- Keyword Model Upload -->
+              <div class="ai-controls">
+                <div class="ai-control-group ai-control-wide">
+                  <label>Wake Word Model (.table):</label>
+                  <div class="voice-keyword-upload">
+                    <input type="file" id="voice-keyword-file" accept=".table" style="display:none" onchange="uploadKeywordModel(this)">
+                    <button class="btn btn-small btn-secondary" onclick="document.getElementById('voice-keyword-file').click()">Upload .table file</button>
+                    <span class="voice-keyword-status" id="voice-keyword-status">No model loaded</span>
+                  </div>
+                </div>
+              </div>
+              <button class="btn btn-small btn-primary" onclick="saveVoiceConfig()" style="margin-top:8px">Save Voice Settings</button>
+              <span class="voice-config-status" id="voice-config-status"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SUB: Schedule ─────────────────────────────── -->
+        <div class="ai-subtab-panel" id="ai-sub-schedule">
+          <div class="tab-section">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title"><span class="tab-section-title-icon">⏰</span> Scheduled Generation</h3>
+            </div>
+            <div class="tab-section-body">
+              <div class="ai-schedule-form">
+                <div class="ai-controls">
+                  <div class="ai-control-group">
+                    <label class="ai-checkbox-label">
+                      <input type="checkbox" id="ai-schedule-enabled" onchange="toggleAiSchedule()">
+                      Enable auto-generation
+                    </label>
+                  </div>
+                  <div class="ai-control-group">
+                    <label class="ai-checkbox-label">
+                      <input type="checkbox" id="ai-schedule-save" checked>
+                      Save images to disk
+                    </label>
+                  </div>
+                  <div class="ai-control-group">
+                    <label for="ai-schedule-interval">Interval:</label>
+                    <select id="ai-schedule-interval" class="ai-select">
+                      <option value="30">Every 30 min</option>
+                      <option value="60" selected>Every hour</option>
+                      <option value="120">Every 2 hours</option>
+                      <option value="240">Every 4 hours</option>
+                      <option value="480">Every 8 hours</option>
+                      <option value="1440">Every 24 hours</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="ai-prompt-area">
+                  <textarea id="ai-schedule-prompts" class="ai-prompt-input" rows="4" placeholder="Enter prompts (one per line). A random prompt will be picked each cycle.&#10;&#10;Example:&#10;A pixel art forest scene at dawn&#10;Retro neon city skyline&#10;Abstract geometric patterns in blue and gold"></textarea>
+                </div>
+                <div class="ai-controls">
+                  <div class="ai-control-group">
+                    <label for="ai-schedule-style">Style:</label>
+                    <select id="ai-schedule-style" class="ai-select">
+                      <option value="pixel-art" selected>Pixel Art</option>
+                      <option value="retro-8bit">Retro / 8-bit</option>
+                      <option value="neon-synthwave">Neon Synthwave</option>
+                      <option value="abstract">Abstract</option>
+                      <option value="random">Random</option>
+                    </select>
+                  </div>
+                  <div class="ai-control-group">
+                    <label for="ai-schedule-canvas">Canvas:</label>
+                    <select id="ai-schedule-canvas" class="ai-select">
+                      <option value="Main">Main</option>
+                    </select>
+                  </div>
+                </div>
+                <button class="btn btn-small btn-primary" onclick="saveAiSchedule()">Save Schedule</button>
+                <span class="ai-schedule-status" id="ai-schedule-status"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SUB: Settings ─────────────────────────────── -->
+        <div class="ai-subtab-panel" id="ai-sub-settings">
+          <div class="ai-settings-form">
+            <!-- Azure Connection -->
+            <div class="tab-section">
+              <div class="tab-section-header">
+                <h3 class="tab-section-title"><span class="tab-section-title-icon">☁️</span> Azure Connection</h3>
+              </div>
+              <div class="tab-section-body">
+                <div class="ai-controls">
+                  <div class="ai-control-group">
+                    <label for="ai-provider">Provider:</label>
+                    <select id="ai-provider" class="ai-select" onchange="toggleAiProviderFields()">
+                      <option value="azure" selected>Azure OpenAI</option>
+                      <option value="openai">OpenAI (Image only)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="ai-provider-fields" id="ai-azure-fields">
+                  <div class="ai-controls">
+                    <div class="ai-control-group ai-control-wide">
+                      <label for="ai-azure-endpoint">Endpoint:</label>
+                      <input type="text" id="ai-azure-endpoint" class="ai-input" placeholder="https://your-resource.openai.azure.com">
+                    </div>
+                  </div>
+                  <div class="ai-controls">
+                    <div class="ai-control-group ai-control-wide">
+                      <label for="ai-azure-key">API Key:</label>
+                      <input type="password" id="ai-azure-key" class="ai-input" placeholder="Enter your Azure OpenAI API key">
+                    </div>
+                  </div>
+                  <div class="ai-controls">
+                    <div class="ai-control-group ai-control-wide">
+                      <label for="ai-azure-api-version">API Version:</label>
+                      <input type="text" id="ai-azure-api-version" class="ai-input" placeholder="2025-04-01-preview" value="2025-04-01-preview">
+                    </div>
+                  </div>
+                </div>
+                <div class="ai-provider-fields" id="ai-openai-fields" style="display:none">
+                  <div class="ai-controls">
+                    <div class="ai-control-group ai-control-wide">
+                      <label for="ai-openai-key">API Key:</label>
+                      <input type="password" id="ai-openai-key" class="ai-input" placeholder="sk-...">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Image Model -->
+            <div class="tab-section">
+              <div class="tab-section-header">
+                <h3 class="tab-section-title"><span class="tab-section-title-icon">🖼️</span> Image Model</h3>
+              </div>
+              <div class="tab-section-body">
+                <div class="ai-provider-fields" id="ai-azure-image-fields">
+                  <div class="ai-controls">
+                    <div class="ai-control-group ai-control-wide">
+                      <label for="ai-azure-deployment">Azure Deployment:</label>
+                      <input type="text" id="ai-azure-deployment" class="ai-input" placeholder="gpt-image-1">
+                    </div>
+                  </div>
+                </div>
+                <div class="ai-provider-fields" id="ai-openai-image-fields" style="display:none">
+                  <div class="ai-controls">
+                    <div class="ai-control-group ai-control-wide">
+                      <label for="ai-openai-model">Model:</label>
+                      <select id="ai-openai-model" class="ai-select">
+                        <option value="dall-e-3">DALL-E 3</option>
+                        <option value="gpt-image-1">GPT Image 1</option>
+                        <option value="gpt-image-1-mini">GPT Image 1 Mini</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.8em; margin: 0.5em 0 0;">Used for AI art generation (text-to-image, image-to-image).</p>
+              </div>
+            </div>
+
+            <!-- Chat Model -->
+            <div class="tab-section">
+              <div class="tab-section-header">
+                <h3 class="tab-section-title"><span class="tab-section-title-icon">💬</span> Chat Model</h3>
+              </div>
+              <div class="tab-section-body">
+                <div class="ai-controls">
+                  <div class="ai-control-group ai-control-wide">
+                    <label for="ai-azure-chat-deployment">Azure Deployment:</label>
+                    <input type="text" id="ai-azure-chat-deployment" class="ai-input" placeholder="gpt-4o or gpt-5-mini">
+                  </div>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.8em; margin: 0.5em 0 0;">Used for voice assistant intent classification, Q&amp;A, and conversational AI. Requires Azure OpenAI.</p>
+              </div>
+            </div>
+
+            <button class="btn btn-small btn-primary" onclick="saveAiConfig()">Save All Settings</button>
+            <span class="ai-config-status" id="ai-config-status"></span>
+
+            <!-- Voice Image Generation Settings -->
+            <div class="tab-section" style="margin-top: 1rem;">
+              <div class="tab-section-header">
+                <h3 class="tab-section-title"><span class="tab-section-title-icon">🎙️</span> Voice Image Generation</h3>
+              </div>
+              <div class="tab-section-body">
+                <div class="ai-controls">
+                  <div class="ai-control-group">
+                    <label for="voice-default-style">Default Style:</label>
+                    <select id="voice-default-style" class="ai-select">
+                      <option value="" selected>None (freeform)</option>
+                      <option value="pixel-art">Pixel Art</option>
+                      <option value="retro-8bit">Retro / 8-bit</option>
+                      <option value="neon-synthwave">Neon Synthwave</option>
+                      <option value="abstract">Abstract</option>
+                      <option value="photograph">Photograph</option>
+                      <option value="watercolor">Watercolor</option>
+                      <option value="cyberpunk">Cyberpunk</option>
+                    </select>
+                  </div>
+                  <div class="ai-control-group">
+                    <label for="voice-save-images">Save to Gallery:</label>
+                    <select id="voice-save-images" class="ai-select" title="Automatically save voice-generated images to the AI Art gallery">
+                      <option value="true" selected>Yes (auto-save)</option>
+                      <option value="false">No</option>
+                    </select>
+                  </div>
+                  <div class="ai-control-group">
+                    <label for="voice-display-duration">Display Duration:</label>
+                    <select id="voice-display-duration" class="ai-select" title="How long a voice-generated image stays on the display">
+                      <option value="30">30 seconds</option>
+                      <option value="60" selected>1 minute</option>
+                      <option value="120">2 minutes</option>
+                      <option value="300">5 minutes</option>
+                      <option value="600">10 minutes</option>
+                    </select>
+                  </div>
+                </div>
+                <button class="btn btn-small btn-primary" onclick="saveVoiceImageSettings()">Save</button>
+                <span class="ai-voice-img-status" id="ai-voice-img-status"></span>
+                <p style="color: var(--text-muted); font-size: 0.8em; margin: 0.5em 0 0;">Controls how voice-generated images ("Hey Pixel, male...") are displayed and saved.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- END TAB: AI -->
+
+
+      <!-- ═══════════════════════════════════════════════════════════════════
+           TAB 4: MEDIA
+           Sub-tabbed layout: Player + Sources
+           ═══════════════════════════════════════════════════════════════════ -->
+      <div class="tab-panel" id="tab-media" role="tabpanel" aria-hidden="true">
+        
+        <!-- ── Player Status & Settings (always visible) ── -->
+        <div class="tab-section">
+          <div class="tab-section-body" style="padding: 0.75rem 1rem;">
+            <!-- FFmpeg Warning -->
+            <div class="media-warning" id="media-ffmpeg-warning" style="display: none; margin-bottom: 0.75rem;">
+              <span class="media-warning-icon">⚠️</span>
+              <span>FFmpeg not found. Install with: <code>sudo apt install ffmpeg</code></span>
+            </div>
+            
+            <!-- Target Canvas + AV Sync + Status in one compact row -->
+            <div class="media-player-settings">
+              <div class="media-canvas-selector">
+                <label for="media-target-canvas">Target Canvas:</label>
+                <select id="media-target-canvas" class="media-select">
+                  <option value="Main">Main (Default)</option>
+                </select>
+              </div>
+              <div class="media-sync-section" id="media-sync-section">
+                <span class="media-sync-label" title="Adjust if audio/video are out of sync. Positive = delay audio, negative = delay video">⏱️ A/V Sync</span>
+                <input type="range" id="media-sync-slider" class="media-sync-slider" 
+                       min="-5000" max="5000" value="0" step="100"
+                       oninput="setAudioSync(this.value)">
+                <span class="media-sync-value" id="media-sync-value">0ms</span>
+              </div>
+              <div class="media-scale-section" id="media-scale-section">
+                <span class="media-sync-label" title="Video scaling algorithm. 'Area' and 'Gauss' are softer, good for LED matrices and camera streams">🔍 Scale</span>
+                <select id="media-scale-filter" class="media-select" onchange="setScaleFilter(this.value)">
+                  <option value="auto">Auto</option>
+                  <option value="fast_bilinear">Fast Bilinear</option>
+                  <option value="bilinear">Bilinear</option>
+                  <option value="bicubic">Bicubic</option>
+                  <option value="lanczos">Lanczos (sharp)</option>
+                  <option value="area">Area (smooth)</option>
+                  <option value="gauss">Gaussian (soft)</option>
+                  <option value="sinc">Sinc (HQ)</option>
+                </select>
+              </div>
+            </div>
+            
+            <!-- Playback Status -->
+            <div class="media-status" id="media-status" style="margin-top: 0.5rem;">
+              <div class="media-status-indicator">
+                <span class="media-dot" id="media-dot"></span>
+                <span id="media-status-text">Stopped</span>
+              </div>
+              <div class="media-current-video">
+                <strong id="media-current-video">No media selected</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Media Sub-Navigation ── -->
+        <div class="media-nav" id="media-nav">
+          <button class="media-nav-btn active" data-media-page="favorites" onclick="switchMediaPage('favorites')">
+            <span class="media-nav-icon">⭐</span>
+            <span class="media-nav-label">Favorites</span>
+          </button>
+          <button class="media-nav-btn" data-media-page="local" onclick="switchMediaPage('local')">
+            <span class="media-nav-icon">📂</span>
+            <span class="media-nav-label">Local</span>
+          </button>
+          <button class="media-nav-btn" data-media-page="network" onclick="switchMediaPage('network')">
+            <span class="media-nav-icon">🌐</span>
+            <span class="media-nav-label">Network</span>
+          </button>
+          <button class="media-nav-btn" data-media-page="youtube" onclick="switchMediaPage('youtube')">
+            <span class="media-nav-icon">📺</span>
+            <span class="media-nav-label">Streams</span>
+          </button>
+          <button class="media-nav-btn" data-media-page="music" onclick="switchMediaPage('music')">
+            <span class="media-nav-icon">🎵</span>
+            <span class="media-nav-label">Music</span>
+          </button>
+          <button class="media-nav-btn" data-media-page="tools" onclick="switchMediaPage('tools')">
+            <span class="media-nav-icon">🔧</span>
+            <span class="media-nav-label">Tools</span>
+          </button>
+        </div>
+
+        <!-- ════════════════════════════════════════════
+             PAGE: Favorites & History
+             ════════════════════════════════════════════ -->
+        <div class="media-page active" id="media-page-favorites">
+          <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <!-- Favorites -->
+            <div class="favorites-section expanded" style="flex: 1; min-width: 300px;">
+              <div class="favorites-header">
+                <h3>⭐ Favorites <span class="favorites-count">(0)</span></h3>
+                <div class="autoplay-controls">
+                  <span class="autoplay-status" id="autoplay-status" style="display:none;"></span>
+                  <button class="autoplay-btn" id="autoplay-shuffle-btn" onclick="event.stopPropagation(); toggleAutoPlayShuffle()" title="Shuffle">🔀</button>
+                  <button class="autoplay-btn" id="autoplay-skip-btn" onclick="event.stopPropagation(); skipAutoPlay()" title="Skip" style="display:none;">⏭</button>
+                  <button class="autoplay-btn" id="autoplay-toggle-btn" onclick="event.stopPropagation(); toggleAutoPlay()" title="Auto-Play All">▶ Auto</button>
+                </div>
+                <span class="expand-icon">▼</span>
+              </div>
+              <div class="favorites-content">
+                <div class="favorites-list"></div>
+              </div>
+            </div>
+            
+            <!-- Recently Played -->
+            <div class="history-section expanded" style="flex: 1; min-width: 300px;">
+              <div class="history-header">
+                <h3>🕐 Recently Played <span class="history-count">(0)</span></h3>
+                <button class="history-clear-btn" onclick="event.stopPropagation(); clearHistory()">Clear</button>
+                <span class="expand-icon">▼</span>
+              </div>
+              <div class="history-content">
+                <div class="history-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════
+             PAGE: Local Media (Videos + Audio)
+             ════════════════════════════════════════════ -->
+        <div class="media-page" id="media-page-local">
+          <div class="tab-section">
+            <div class="tab-section-body">
+              <!-- Mini tab navigation for Videos/Audio -->
+              <div class="media-sub-tabs">
+                <button class="media-sub-tab active" data-media-tab="videos" onclick="switchMediaSubTab('videos')">
+                  🎬 Videos
+                </button>
+                <button class="media-sub-tab" data-media-tab="audio" onclick="switchMediaSubTab('audio')">
+                  🎵 Audio
+                </button>
+              </div>
+              
+              <!-- Videos sub-panel -->
+              <div class="media-sub-panel active" id="media-sub-videos">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                  <label class="btn btn-small btn-primary" style="margin: 0;">
+                    📤 Upload Video
+                    <input type="file" accept=".mp4,.webm,.mkv,.avi,.mov,.flv" onchange="uploadMediaVideo(this)" style="display: none;">
+                  </label>
+                  <span class="text-muted" style="font-size: 0.85rem;">MP4, WebM, MKV, AVI, MOV, FLV</span>
+                </div>
+                <div class="media-video-list" id="media-video-list">
+                  <div class="media-empty-state">
+                    <div class="media-empty-icon">🎬</div>
+                    <p>No videos yet</p>
+                    <p class="text-muted">Upload media files to get started</p>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Audio sub-panel -->
+              <div class="media-sub-panel" id="media-sub-audio" style="display: none;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                  <label class="btn btn-small btn-primary" style="margin: 0;">
+                    📤 Upload Audio
+                    <input type="file" accept=".mp3,.wav,.flac,.ogg,.aac,.m4a" onchange="uploadAudioFile(this)" style="display: none;">
+                  </label>
+                  <span class="text-muted" style="font-size: 0.85rem;">MP3, WAV, FLAC, OGG, AAC, M4A</span>
+                </div>
+                <div class="media-audio-list" id="media-audio-list">
+                  <div class="media-empty-state">
+                    <div class="media-empty-icon">🎵</div>
+                    <p>No audio files yet</p>
+                    <p class="text-muted">Upload audio files to play with visualizations</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════
+             PAGE: Network Shares (SMB)
+             ════════════════════════════════════════════ -->
+        <div class="media-page" id="media-page-network">
+          <div class="tab-section">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title">
+                <span class="tab-section-title-icon">🌐</span>
+                Network Shares
+              </h3>
+              <div class="tab-section-actions">
+                <button class="btn btn-small btn-primary" onclick="showShareForm()">+ Add Share</button>
+              </div>
+            </div>
+            <div class="tab-section-body">
+              <!-- SMB Support Warning -->
+              <div class="media-warning" id="network-smb-warning" style="display: none; margin-bottom: 1rem;"></div>
+              
+              <!-- Add/Edit Share Form -->
+              <div id="network-share-form" class="network-share-form">
+                <h4 id="share-form-title">➕ Add Network Share</h4>
+                <form id="network-share-form-inner" onsubmit="event.preventDefault(); document.getElementById('share-form-submit').click();" autocomplete="off">
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="share-name">Name</label>
+                      <input type="text" id="share-name" placeholder="My NAS Videos" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                      <label for="share-server">Server</label>
+                      <input type="text" id="share-server" placeholder="192.168.1.100 or nas.local" autocomplete="off">
+                    </div>
+                  </div>
+                  <div class="form-row full">
+                    <div class="form-group">
+                      <label for="share-path">Share Path</label>
+                      <input type="text" id="share-path" placeholder="videos or media/Movies" autocomplete="off">
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="share-username">Username (optional)</label>
+                      <input type="text" id="share-username" placeholder="guest" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                      <label for="share-password">Password (optional)</label>
+                      <input type="password" id="share-password" placeholder="Leave empty to keep existing" autocomplete="new-password">
+                    </div>
+                  </div>
+                  <div class="form-row full" id="share-domain-row">
+                    <div class="form-group">
+                      <label for="share-domain">Domain (optional)</label>
+                      <input type="text" id="share-domain" placeholder="WORKGROUP" autocomplete="off">
+                    </div>
+                  </div>
+                  <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="hideShareForm()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="share-form-submit" onclick="addNetworkShare(); return false;">Add Share</button>
+                  </div>
+                </form>
+              </div>
+              
+              <!-- Share List -->
+              <div class="network-share-list" id="network-share-list">
+                <div class="network-empty-state">
+                  <div class="empty-icon">🌐</div>
+                  <p>No network shares configured</p>
+                  <p class="text-muted">Add an SMB share to stream videos from your network</p>
+                </div>
+              </div>
+              
+              <!-- Video Browser (hidden by default) -->
+              <div class="network-video-browser" id="network-video-browser" style="display: none;">
+                <div class="network-browser-header">
+                  <h4 id="network-browser-title">📂 Videos</h4>
+                  <div class="network-browser-actions">
+                    <span id="network-cache-status" class="cache-status"></span>
+                    <button class="btn btn-small" onclick="refreshNetworkDirectory()" title="Refresh from network (bypass cache)">🔄</button>
+                    <button class="btn btn-small" onclick="clearNetworkCache()" title="Clear all directory cache">🗑️ Cache</button>
+                    <button class="btn btn-small btn-secondary" onclick="hideVideoBrowser()">Close</button>
+                  </div>
+                </div>
+                <!-- Filter Box -->
+                <div class="network-search-box" id="network-search-box" style="display: none;">
+                  <input type="text" id="network-search-input" placeholder="🔍 Filter current folder..." 
+                         oninput="handleNetworkSearchInput(this.dataset.shareId, this)" autocomplete="off">
+                </div>
+                <div class="network-video-list" id="network-video-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════
+             PAGE: Streams (YouTube + generic HTTP/RTSP)
+             ════════════════════════════════════════════ -->
+        <div class="media-page" id="media-page-youtube">
+          <div class="tab-section">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title">
+                <span class="tab-section-title-icon">📺</span>
+                Streams
+              </h3>
+              <div class="tab-section-actions">
+                <span id="youtube-status" class="text-muted">Ready</span>
+              </div>
+            </div>
+            <div class="tab-section-body">
+              <div id="youtube-unavailable" class="media-warning" style="display: none;">
+                <span class="media-warning-icon">⚠️</span>
+                <div>
+                  <strong>yt-dlp not available</strong><br>
+                  <span class="text-muted">Install with: <code>pip install yt-dlp</code> (required for YouTube only)</span>
+                </div>
+              </div>
+              <div id="youtube-controls">
+                <div class="youtube-input-row">
+                  <input type="text" id="youtube-url" class="form-control" placeholder="YouTube, HTTP, RTSP stream URL..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();playYouTubeVideo();}">
+                  <button class="btn btn-primary" onclick="playYouTubeVideo()">▶ Play</button>
+                </div>
+                <div class="youtube-info" id="youtube-info" style="display: none;">
+                  <div class="youtube-thumbnail" id="youtube-thumbnail"></div>
+                  <div class="youtube-details">
+                    <div class="youtube-title" id="youtube-title"></div>
+                    <div class="youtube-channel" id="youtube-channel"></div>
+                    <div class="youtube-duration" id="youtube-duration"></div>
+                    <div class="youtube-format" id="youtube-format"></div>
+                  </div>
+                </div>
+                <p class="text-muted" style="font-size: 0.8rem; margin-top: 0.75rem;">
+                  💡 YouTube URLs use yt-dlp for optimal format. HTTP/RTSP camera streams play directly via FFmpeg.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════
+             PAGE: Music Search (YouTube Music)
+             ════════════════════════════════════════════ -->
+        <div class="media-page" id="media-page-music">
+          <div class="tab-section">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title">
+                <span class="tab-section-title-icon">🎵</span>
+                Music Search
+              </h3>
+              <div class="tab-section-actions">
+                <span id="music-search-status" class="text-muted">Search YouTube Music</span>
+              </div>
+            </div>
+            <div class="tab-section-body">
+              <div class="youtube-input-row">
+                <input type="text" id="music-search-input" class="form-control" placeholder="Search for a song, artist or album..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();searchMusic();}">
+                <button class="btn btn-primary" onclick="searchMusic()">🔍 Search</button>
+              </div>
+              <div class="music-search-options" style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
+                <div class="music-mode-toggle">
+                  <button class="music-mode-btn active" id="music-mode-songs" onclick="setMusicMode('songs')">🎵 Songs</button>
+                  <button class="music-mode-btn" id="music-mode-videos" onclick="setMusicMode('videos')">🎬 Music Videos</button>
+                </div>
+                <label class="music-audio-only-label" id="music-audio-only-wrapper" style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: var(--color-text-secondary, #aaa); cursor: pointer;">
+                  <input type="checkbox" id="music-audio-only" style="cursor: pointer;">
+                  Audio only (no cover art on display)
+                </label>
+              </div>
+              <div id="music-search-results" style="margin-top: 0.75rem;">
+                <!-- Search results will be rendered here -->
+              </div>
+              <p class="text-muted" style="font-size: 0.8rem; margin-top: 0.75rem;">
+                🎵 Searches YouTube Music. Click a result to play it via yt-dlp. Also available via voice: "Hey Pixel, spiele [Lied] von [Künstler]".
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════
+             PAGE: Tools (Visualizer, MOD Music, Tips)
+             ════════════════════════════════════════════ -->
+        <div class="media-page" id="media-page-tools">
+          <!-- Audio Visualizer -->
+          <div class="tab-section collapsible">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title">
+                <span class="tab-section-title-icon">📊</span>
+                Audio Visualizer
+              </h3>
+              <div class="tab-section-actions">
+                <button class="btn btn-small btn-primary" id="visualizer-start-btn" onclick="startVisualizer()">Start Visualizer</button>
+                <button class="btn btn-small btn-danger" id="visualizer-stop-btn" onclick="stopVisualizer()" disabled>Stop</button>
+              </div>
+              <span class="tab-section-collapse-icon">▼</span>
+            </div>
+            <div class="tab-section-body">
+              <p class="text-muted" style="margin-bottom: 1rem;">Real-time audio visualization using FFT analysis. Captures system audio output.</p>
+              
+              <!-- Visualizer Status -->
+              <div class="visualizer-status" id="visualizer-status">
+                <span class="status-inactive">Not running</span>
+              </div>
+              
+              <!-- Canvas Selection -->
+              <div class="visualizer-controls">
+                <div class="visualizer-control-group">
+                  <label for="visualizer-canvas">Target Canvas:</label>
+                  <select id="visualizer-canvas" class="visualizer-select">
+                    <option value="">Loading...</option>
+                  </select>
+                </div>
+                
+                <div class="visualizer-control-group">
+                  <label for="visualizer-mode">Mode:</label>
+                  <select id="visualizer-mode" class="visualizer-select" onchange="onVisualizerModeChange()">
+                    <!-- Populated by JS -->
+                  </select>
+                </div>
+                
+                <div class="visualizer-control-group">
+                  <label for="visualizer-color">Colors:</label>
+                  <select id="visualizer-color" class="visualizer-select" onchange="onVisualizerModeChange()">
+                    <!-- Populated by JS -->
+                  </select>
+                </div>
+              </div>
+              
+              <!-- Sensitivity & Smoothing -->
+              <div class="visualizer-sliders">
+                <div class="visualizer-slider-group">
+                  <label>Sensitivity:</label>
+                  <input type="range" id="visualizer-sensitivity" min="0.2" max="3.0" step="0.1" value="1.0"
+                         oninput="onSensitivityChange(this.value)">
+                  <span id="visualizer-sensitivity-value">1.0x</span>
+                </div>
+                <div class="visualizer-slider-group">
+                  <label>Smoothing:</label>
+                  <input type="range" id="visualizer-smoothing" min="0" max="0.9" step="0.05" value="0.7"
+                         oninput="onSmoothingChange(this.value)">
+                  <span id="visualizer-smoothing-value">70%</span>
+                </div>
+              </div>
+              
+              <p class="text-muted" style="font-size: 0.8rem; margin-top: 0.75rem;">
+                💡 The visualizer captures whatever audio is currently playing through PulseAudio.
+              </p>
+            </div>
+          </div>
+
+          <!-- MOD Music -->
+          <div class="tab-section collapsible">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title">
+                <span class="tab-section-title-icon">🎵</span>
+                MOD Music
+              </h3>
+              <div class="tab-section-actions">
+                <span class="media-music-status" id="media-music-status">No music</span>
+              </div>
+              <span class="tab-section-collapse-icon">▼</span>
+            </div>
+            <div class="tab-section-body" id="media-music-section">
+              <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">MOD music replaces video audio for authentic demoscene experience</p>
+              <div class="media-music-controls">
+                <select id="media-mod-select" class="media-select" onchange="selectModFile(this.value)">
+                  <option value="">-- No music --</option>
+                </select>
+                <label class="btn btn-small btn-secondary">
+                  📤 Upload MOD
+                  <input type="file" accept=".mod,.xm,.s3m,.it,.stm,.mtm" onchange="uploadModFile(this)" style="display: none;">
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Camera Alert -->
+          <div class="tab-section collapsible">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title">
+                <span class="tab-section-title-icon">📹</span>
+                Camera Alert
+              </h3>
+              <div class="tab-section-actions">
+                <span class="alert-status-badge" id="alert-status-badge" style="display: none;">
+                  <span class="alert-pulse"></span> LIVE
+                </span>
+              </div>
+              <span class="tab-section-collapse-icon">▼</span>
+            </div>
+            <div class="tab-section-body">
+              <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">
+                Configure a camera stream that auto-displays when triggered by motion detection webhook.
+              </p>
+              
+              <div class="alert-config-form">
+                <div class="alert-config-row">
+                  <label for="alert-stream-url">Stream URL:</label>
+                  <input type="text" id="alert-stream-url" class="form-control" 
+                         placeholder="http://camera:8080/video or rtsp://..." autocomplete="off">
+                </div>
+                <div class="alert-config-row">
+                  <label for="alert-timeout">Auto-dismiss timeout:</label>
+                  <div class="alert-timeout-control">
+                    <input type="range" id="alert-timeout" min="5" max="120" step="5" value="30"
+                           oninput="document.getElementById('alert-timeout-value').textContent = this.value + 's'">
+                    <span id="alert-timeout-value">30s</span>
+                  </div>
+                </div>
+                <div class="alert-config-row">
+                  <label for="alert-scale-filter">Scale filter:</label>
+                  <select id="alert-scale-filter" class="form-control" style="max-width: 200px;">
+                    <option value="area">area (softer)</option>
+                    <option value="lanczos">lanczos (sharp)</option>
+                    <option value="bicubic">bicubic</option>
+                    <option value="bilinear">bilinear</option>
+                    <option value="fast_bilinear">fast_bilinear</option>
+                    <option value="gauss">gauss (blur)</option>
+                  </select>
+                </div>
+                <div class="alert-config-actions">
+                  <button class="btn btn-small btn-primary" onclick="saveAlertConfig()">💾 Save Config</button>
+                  <button class="btn btn-small btn-secondary" onclick="testAlertTrigger()">🔔 Test Trigger</button>
+                  <button class="btn btn-small btn-danger" id="alert-dismiss-btn" onclick="dismissAlert()" style="display: none;">✋ Dismiss</button>
+                </div>
+              </div>
+              
+              <div class="alert-webhook-info">
+                <p class="text-muted" style="font-size: 0.8rem; margin-top: 0.75rem;">
+                  📡 <strong>Webhook URL:</strong> <code>POST http://&lt;host&gt;:5000/api/alert/trigger</code><br>
+                  Configure your camera to call this endpoint on motion detection. No body or parameters needed.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Resources & Tips -->
+          <div class="tab-section collapsible collapsed">
+            <div class="tab-section-header">
+              <h3 class="tab-section-title">
+                <span class="tab-section-title-icon">💡</span>
+                Resources & Tips
+              </h3>
+              <span class="tab-section-collapse-icon">▼</span>
+            </div>
+            <div class="tab-section-body">
+              <ul style="margin: 0; padding-left: 1.25rem; color: var(--color-text-secondary);">
+                <li><a href="https://pouet.net" target="_blank">Pouet.net</a> - The demoscene database</li>
+                <li><a href="https://demozoo.org" target="_blank">Demozoo</a> - Archive with videos</li>
+                <li><a href="https://www.youtube.com/results?search_query=demoscene" target="_blank">YouTube</a> - Search "demoscene"</li>
+                <li><a href="https://modarchive.org" target="_blank">ModArchive</a> - MOD music files</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- END TAB: MEDIA -->
+
+
+      <!-- ═══════════════════════════════════════════════════════════════════
+           TAB 5: EFFECTS
+           Filters + Brightness controls
+           ═══════════════════════════════════════════════════════════════════ -->
+      <div class="tab-panel" id="tab-effects" role="tabpanel" aria-hidden="true">
+        
+        <!-- Active Filters -->
+        <div class="tab-section">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">✨</span>
+              Active Filters
+            </h3>
+            <div class="tab-section-actions">
+              <button id="add-filter-btn" class="btn btn-small btn-primary">Add Filter</button>
+              <button id="clear-all-filters-btn" class="btn btn-small btn-danger">Clear All</button>
+            </div>
+          </div>
+          <div class="tab-section-body">
+            <div id="active-filters" class="filter-list">
+              <div class="skeleton-card" style="height: 80px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Per-Canvas Brightness -->
+        <div class="tab-section">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">☀️</span>
+              Canvas Brightness
+            </h3>
+          </div>
+          <div class="tab-section-body">
+            <div id="canvas-brightness-controls" class="canvas-brightness-section">
+              <!-- Per-canvas brightness sliders will be added here dynamically -->
+              <p class="text-muted">Per-canvas brightness controls will appear here when canvases are active.</p>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- END TAB: EFFECTS -->
+
+
+      <!-- ═══════════════════════════════════════════════════════════════════
+           TAB: CONSOLE
+           Live backend log viewer
+           ═══════════════════════════════════════════════════════════════════ -->
+      <div class="tab-panel" id="tab-console" role="tabpanel" aria-hidden="true">
+        <div class="tab-section">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🖥️</span>
+              System Console
+            </h3>
+            <div class="tab-section-actions">
+              <span id="console-line-count" class="text-muted" style="font-size: 0.75rem;">0 lines</span>
+            </div>
+          </div>
+          <div class="tab-section-body" style="padding: 0;">
+            <div class="console-toolbar">
+              <input type="text" class="console-filter" placeholder="🔍 Filter logs..." 
+                     oninput="filterConsoleLogs(this.value)" autocomplete="off">
+              <button class="console-toolbar-btn" id="console-pause-btn" onclick="toggleConsolePause()">⏸ Pause</button>
+              <button class="console-toolbar-btn" onclick="clearConsoleLog()">🗑️ Clear</button>
+              <button class="console-toolbar-btn" onclick="scrollConsoleToBottom()">⬇ Bottom</button>
+              <div class="console-status">
+                <div class="console-autoscroll active" id="console-autoscroll" title="Auto-scroll active"></div>
+              </div>
+            </div>
+            <div class="console-output" id="console-output"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════════
+           TAB 6: SETTINGS
+           Audio output, Bluetooth, Hardware configuration
+           ═══════════════════════════════════════════════════════════════════ -->
+      <div class="tab-panel" id="tab-settings" role="tabpanel" aria-hidden="true">
+
+        <!-- Active output (only one at a time) -->
+        <div class="tab-section">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🔌</span>
+              Active Output
+            </h3>
+          </div>
+          <div class="tab-section-body">
+            <p class="settings-hint" style="margin-bottom: 0.75rem;">
+              Click a card to edit that output’s settings. Nothing is switched until you save and confirm,
+              or press <strong>Use this output</strong>. Live switch when the canvas size matches; GPIO always needs a restart.
+            </p>
+            <div class="output-mode-picker" id="output-mode-picker">
+              <label class="output-mode-card" data-mode="network">
+                <input type="radio" name="output-mode" value="network" onchange="selectOutputPanel(this.value)">
+                <span class="output-mode-title">Network</span>
+                <span class="output-mode-desc">UDP → RP2350 panel</span>
+                <span class="output-mode-badge output-mode-badge-live">Live</span>
+                <span class="output-mode-badge output-mode-badge-saved">Next start</span>
+              </label>
+              <label class="output-mode-card" data-mode="hdmi">
+                <input type="radio" name="output-mode" value="hdmi" onchange="selectOutputPanel(this.value)">
+                <span class="output-mode-title">HDMI</span>
+                <span class="output-mode-desc">Framebuffer / sender card</span>
+                <span class="output-mode-badge output-mode-badge-live">Live</span>
+                <span class="output-mode-badge output-mode-badge-saved">Next start</span>
+              </label>
+              <label class="output-mode-card" data-mode="spi">
+                <input type="radio" name="output-mode" value="spi" onchange="selectOutputPanel(this.value)">
+                <span class="output-mode-title">SPI</span>
+                <span class="output-mode-desc">SPI master → RP2040</span>
+                <span class="output-mode-badge output-mode-badge-live">Live</span>
+                <span class="output-mode-badge output-mode-badge-saved">Next start</span>
+              </label>
+              <label class="output-mode-card" data-mode="gpio">
+                <input type="radio" name="output-mode" value="gpio" onchange="selectOutputPanel(this.value)">
+                <span class="output-mode-title">Hardware</span>
+                <span class="output-mode-desc">rpi-rgb-led-matrix GPIO</span>
+                <span class="output-mode-badge output-mode-badge-live">Live</span>
+                <span class="output-mode-badge output-mode-badge-saved">Next start</span>
+              </label>
+              <label class="output-mode-card" data-mode="simulation">
+                <input type="radio" name="output-mode" value="simulation" onchange="selectOutputPanel(this.value)">
+                <span class="output-mode-title">Simulation</span>
+                <span class="output-mode-desc">Preview only, no hardware</span>
+                <span class="output-mode-badge output-mode-badge-live">Live</span>
+                <span class="output-mode-badge output-mode-badge-saved">Next start</span>
+              </label>
+            </div>
+            <div class="output-mode-status" id="output-mode-status">Loading…</div>
+          </div>
+        </div>
+
+        <!-- Global settings (all outputs) -->
+        <div class="tab-section collapsible">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🌐</span>
+              Global
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small btn-primary" onclick="saveAppSettings()">Save</button>
+            </div>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <div class="settings-grid">
+              <div class="settings-group">
+                <h4 class="settings-group-title">Canvas</h4>
+                <div class="settings-row">
+                  <label for="app-display-width">Width</label>
+                  <input type="number" id="app-display-width" class="settings-input" min="8" max="1024" value="256">
+                  <span class="settings-hint">pixels (restart if changed)</span>
+                </div>
+                <div class="settings-row">
+                  <label for="app-display-height">Height</label>
+                  <input type="number" id="app-display-height" class="settings-input" min="8" max="1024" value="128">
+                  <span class="settings-hint">pixels (restart if changed)</span>
+                </div>
+                <div class="settings-row">
+                  <label for="app-target-fps">Target FPS</label>
+                  <input type="number" id="app-target-fps" class="settings-input" min="1" max="120" value="60">
+                  <span class="settings-hint">live, no restart</span>
+                </div>
+                <div class="settings-row">
+                  <label for="app-verbose-logging">Verbose logging</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="app-verbose-logging">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="settings-hint">detailed console output</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Network output -->
+        <div class="tab-section collapsible output-panel" id="out-network">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">📡</span>
+              Network
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small" data-switch-output="network" onclick="requestOutputSwitch('network')">Use this output</button>
+              <button class="btn btn-small" onclick="applyNetworkConfig(false)">Apply (live)</button>
+              <button class="btn btn-small btn-primary" onclick="applyNetworkConfig(true)">Save</button>
+            </div>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <p class="settings-hint" style="margin-bottom: 0.75rem;" id="netcfg-status">
+              UDP target for the RP2350 panel. IP/port/pacing apply immediately.
+            </p>
+            <div class="settings-grid">
+              <div class="settings-group">
+                <h4 class="settings-group-title">Target</h4>
+                <div class="settings-row">
+                  <label for="net-host">Panel IP</label>
+                  <input type="text" id="net-host" class="settings-input" placeholder="192.168.10.181" autocomplete="off">
+                  <span class="settings-hint">current DHCP / static IP — or pick a panel below</span>
+                </div>
+                <div class="settings-row">
+                  <label for="net-port">Port</label>
+                  <input type="number" id="net-port" class="settings-input" min="1" max="65535" value="7777">
+                  <span class="settings-hint">UDP listen port</span>
+                </div>
+                <input type="hidden" id="net-panel-id" value="">
+                <div class="net-bound" id="net-bound" hidden>
+                  <span id="net-bound-label"></span>
+                  <button type="button" class="btn btn-small" onclick="unbindPanel()">Unbind</button>
+                </div>
+              </div>
+              <div class="settings-group">
+                <h4 class="settings-group-title">Stream</h4>
+                <div class="settings-row">
+                  <label for="net-mbps">Pacing (Mbit/s)</label>
+                  <input type="number" id="net-mbps" class="settings-input" min="1" max="200" step="1" value="19">
+                  <span class="settings-hint">keep below the panel drain rate</span>
+                </div>
+                <div class="settings-row">
+                  <label for="net-bits">Colour bits</label>
+                  <select id="net-bits" class="settings-select">
+                    <option value="8">8 (triple-buffer)</option>
+                    <option value="10">10</option>
+                    <option value="13">13</option>
+                    <option value="14">14 (double-buffer)</option>
+                  </select>
+                  <span class="settings-hint">must match firmware mode</span>
+                </div>
+                <div class="settings-row">
+                  <label for="net-swap">Swap R/B</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="net-swap">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="settings-hint">panel wiring colour order</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-group" style="margin-top: 1rem;">
+              <h4 class="settings-group-title">Find panel</h4>
+              <p class="settings-hint" style="margin-bottom: 0.75rem;">
+                UDP 7778 + <code>panel-xxxxxx.local</code>. Binding remembers the chip, not the IP —
+                DHCP can change without editing this page. Does not switch the active output.
+              </p>
+              <div class="settings-row settings-row-actions">
+                <button type="button" class="btn btn-small btn-primary" id="net-scan-btn" onclick="scanPanels()">Scan LAN</button>
+              </div>
+              <div id="net-scan-status" class="settings-hint" style="margin: 0.5rem 0;"></div>
+              <div id="net-panel-list" class="net-panel-list"></div>
+            </div>
+
+            <div class="settings-group" style="margin-top: 1rem;">
+              <h4 class="settings-group-title">Seam correction</h4>
+              <p class="settings-hint" style="margin-bottom: 0.75rem;">
+                Per-column, per-channel correction for driver-cascade seams (default 63 / 127 / 191 / 255).
+                Gain &lt; 1 dims highlights, Lift &gt; 0 raises shadows. Live when Network is the active output.
+              </p>
+              <div class="settings-row settings-row-actions">
+                <button class="btn btn-small" onclick="applySeam(false)">Apply (live)</button>
+                <button class="btn btn-small btn-primary" onclick="applySeam(true)">Save seams</button>
+              </div>
+              <div id="seam-rows"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- HDMI output -->
+        <div class="tab-section collapsible output-panel" id="out-hdmi">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🖥️</span>
+              HDMI
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small" data-switch-output="hdmi" onclick="requestOutputSwitch('hdmi')">Use this output</button>
+              <button class="btn btn-small btn-primary" onclick="saveHdmiSettings()">Save</button>
+            </div>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <p class="settings-hint" style="margin-bottom: 0.75rem;">
+              Writes the composed frame into the Linux framebuffer so a sender card can capture it.
+              Offset, scale and R/B swap apply live when HDMI is the active output.
+            </p>
+            <div class="settings-grid">
+              <div class="settings-group">
+                <h4 class="settings-group-title">Framebuffer</h4>
+                <div class="settings-row">
+                  <label for="hdmi-device">Device</label>
+                  <input type="text" id="hdmi-device" class="settings-input" placeholder="/dev/fb0">
+                  <span class="settings-hint">usually /dev/fb0</span>
+                </div>
+                <div class="settings-row">
+                  <label for="hdmi-offset-x">Offset X</label>
+                  <input type="number" id="hdmi-offset-x" class="settings-input" min="0" value="0">
+                  <span class="settings-hint">pixels from left</span>
+                </div>
+                <div class="settings-row">
+                  <label for="hdmi-offset-y">Offset Y</label>
+                  <input type="number" id="hdmi-offset-y" class="settings-input" min="0" value="0">
+                  <span class="settings-hint">pixels from top</span>
+                </div>
+                <div class="settings-row">
+                  <label for="hdmi-scale">Scale</label>
+                  <input type="number" id="hdmi-scale" class="settings-input" min="1" max="8" value="1">
+                  <span class="settings-hint">nearest-neighbour upscale</span>
+                </div>
+              </div>
+              <div class="settings-group">
+                <h4 class="settings-group-title">Wall</h4>
+                <div class="settings-row">
+                  <label for="hdmi-wall-w">Wall width</label>
+                  <input type="number" id="hdmi-wall-w" class="settings-input" min="0" value="0">
+                  <span class="settings-hint">0 = use global width</span>
+                </div>
+                <div class="settings-row">
+                  <label for="hdmi-wall-h">Wall height</label>
+                  <input type="number" id="hdmi-wall-h" class="settings-input" min="0" value="0">
+                  <span class="settings-hint">0 = use global height</span>
+                </div>
+                <div class="settings-row">
+                  <label for="hdmi-swap">Swap R/B</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="hdmi-swap">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="settings-hint">if the wall shows R/B swapped</span>
+                </div>
+                <div class="settings-row">
+                  <label for="hdmi-clear">Clear on start</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="hdmi-clear" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="settings-hint">black fill outside the wall region</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SPI output -->
+        <div class="tab-section collapsible output-panel" id="out-spi">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">↔️</span>
+              SPI
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small" data-switch-output="spi" onclick="requestOutputSwitch('spi')">Use this output</button>
+              <button class="btn btn-small btn-primary" onclick="saveSpiSettings()">Save</button>
+            </div>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <p class="settings-hint" style="margin-bottom: 0.75rem;">
+              Pi is SPI master, RP2040 receiver drives the panel. Clock and R/B swap apply live when SPI is active.
+            </p>
+            <div class="settings-grid">
+              <div class="settings-group">
+                <h4 class="settings-group-title">Bus</h4>
+                <div class="settings-row">
+                  <label for="spi-device">Device</label>
+                  <input type="text" id="spi-device" class="settings-input" placeholder="/dev/spidev0.0">
+                  <span class="settings-hint">spidev path</span>
+                </div>
+                <div class="settings-row">
+                  <label for="spi-speed">Speed (Hz)</label>
+                  <input type="number" id="spi-speed" class="settings-input" min="1000000" max="50000000" step="1000000" value="40000000">
+                  <span class="settings-hint">typically 20–40 MHz</span>
+                </div>
+                <div class="settings-row">
+                  <label for="spi-swap">Swap R/B</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="spi-swap">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="settings-hint">payload colour order</span>
+                </div>
+              </div>
+              <div class="settings-group">
+                <h4 class="settings-group-title">Wall</h4>
+                <div class="settings-row">
+                  <label for="spi-wall-w">Wall width</label>
+                  <input type="number" id="spi-wall-w" class="settings-input" min="0" value="256">
+                  <span class="settings-hint">firmware currently expects 256</span>
+                </div>
+                <div class="settings-row">
+                  <label for="spi-wall-h">Wall height</label>
+                  <input type="number" id="spi-wall-h" class="settings-input" min="0" value="128">
+                  <span class="settings-hint">firmware currently expects 128</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hardware (rpi-rgb-led-matrix) -->
+        <div class="tab-section collapsible output-panel" id="out-gpio">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🔧</span>
+              Hardware (rpi-rgb-led-matrix)
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small" data-switch-output="gpio" onclick="requestOutputSwitch('gpio')">Use this output</button>
+              <button class="btn btn-small btn-primary" onclick="saveMatrixConfig()">Save</button>
+            </div>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <p class="settings-hint" style="margin-bottom: 0.75rem;">
+              Hzeller GPIO backend. Rows/Cols are the <strong>HUB75 panel</strong> (usually 32 or 64), not the 256×128 network wall.
+              Brightness applies live; geometry, mapping and PWM need a restart.
+            </p>
+            <div class="settings-grid">
+              <div class="settings-group">
+                <h4 class="settings-group-title">Panel</h4>
+                <div class="settings-row">
+                  <label for="matrix-rows">Rows per panel</label>
+                  <input type="number" id="matrix-rows" class="settings-input" min="8" max="64" value="64">
+                  <span class="settings-hint">scan rows of one panel (32 or 64 for FM6126A)</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-cols">Columns per panel</label>
+                  <input type="number" id="matrix-cols" class="settings-input" min="16" max="128" value="64">
+                  <span class="settings-hint">columns of one panel (usually 32 or 64)</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-chain">Chain length</label>
+                  <input type="number" id="matrix-chain" class="settings-input" min="1" max="16" value="6">
+                  <span class="settings-hint">panels daisy-chained</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-parallel">Parallel chains</label>
+                  <input type="number" id="matrix-parallel" class="settings-input" min="1" max="3" value="3">
+                  <span class="settings-hint">independent chains (max 3)</span>
+                </div>
+                <div class="settings-calculated">
+                  <span class="settings-calculated-label">Calculated:</span>
+                  <span class="settings-calculated-value" id="matrix-calculated-resolution">384 × 192</span>
+                </div>
+              </div>
+              <div class="settings-group">
+                <h4 class="settings-group-title">Drive</h4>
+                <div class="settings-row">
+                  <label for="matrix-gpio-slowdown">GPIO slowdown</label>
+                  <input type="number" id="matrix-gpio-slowdown" class="settings-input" min="0" max="10" value="4">
+                  <span class="settings-hint">Pi 4 typically 4–5</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-pwm-bits">PWM bits</label>
+                  <input type="number" id="matrix-pwm-bits" class="settings-input" min="1" max="11" value="11">
+                  <span class="settings-hint">colour depth 1–11</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-pwm-lsb">PWM LSB (ns)</label>
+                  <input type="number" id="matrix-pwm-lsb" class="settings-input" min="50" max="3000" value="130">
+                  <span class="settings-hint">higher = better colour, lower fps</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-pwm-dither">PWM dither bits</label>
+                  <input type="number" id="matrix-pwm-dither" class="settings-input" min="0" max="2" value="0">
+                  <span class="settings-hint">0–2</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-brightness">Brightness %</label>
+                  <input type="number" id="matrix-brightness" class="settings-input" min="1" max="100" value="100">
+                  <span class="settings-hint">live when hardware is active</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-limit-hz">Limit refresh (Hz)</label>
+                  <input type="number" id="matrix-limit-hz" class="settings-input" min="0" max="300" value="0">
+                  <span class="settings-hint">0 = unlimited</span>
+                </div>
+              </div>
+              <div class="settings-group">
+                <h4 class="settings-group-title">Mapping</h4>
+                <div class="settings-row">
+                  <label for="matrix-panel-type">Panel type</label>
+                  <select id="matrix-panel-type" class="settings-select">
+                    <option value="">Library default</option>
+                    <option value="FM6126A">FM6126A</option>
+                    <option value="FM6127">FM6127</option>
+                    <option value="ICN2038S">ICN2038S</option>
+                    <option value="MBI5124">MBI5124</option>
+                    <option value="ICND1065L">ICND1065L</option>
+                  </select>
+                  <span class="settings-hint">init sequence</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-hardware-mapping">Hardware mapping</label>
+                  <select id="matrix-hardware-mapping" class="settings-select">
+                    <option value="regular">Regular</option>
+                    <option value="adafruit-hat">Adafruit HAT</option>
+                    <option value="adafruit-hat-pwm">Adafruit HAT PWM</option>
+                    <option value="regular-pi1">Regular (Pi1)</option>
+                    <option value="classic">Classic</option>
+                    <option value="classic-pi1">Classic (Pi1)</option>
+                  </select>
+                  <span class="settings-hint">GPIO pinout</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-rgb-seq">RGB sequence</label>
+                  <input type="text" id="matrix-rgb-seq" class="settings-input" placeholder="RGB">
+                  <span class="settings-hint">e.g. RGB, RBG, BGR</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-pixel-mapper">Pixel mapper</label>
+                  <input type="text" id="matrix-pixel-mapper" class="settings-input" placeholder="">
+                  <span class="settings-hint">e.g. U-mapper;Rotate:90</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-row-addr">Row address type</label>
+                  <input type="number" id="matrix-row-addr" class="settings-input" min="0" max="5" value="0">
+                  <span class="settings-hint">0 = direct, 1 = AB, …</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-scan">Scan mode</label>
+                  <select id="matrix-scan" class="settings-select">
+                    <option value="0">Progressive</option>
+                    <option value="1">Interlaced</option>
+                  </select>
+                  <span class="settings-hint">row scan</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-mux">Multiplexing</label>
+                  <input type="number" id="matrix-mux" class="settings-input" min="0" max="17" value="0">
+                  <span class="settings-hint">0 = direct</span>
+                </div>
+              </div>
+              <div class="settings-group">
+                <h4 class="settings-group-title">Flags</h4>
+                <div class="settings-row">
+                  <label for="matrix-no-pulse">Disable HW pulsing</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="matrix-no-pulse">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="settings-hint">when OE is not GPIO 18</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-no-busy">Disable busy-wait</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="matrix-no-busy">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="settings-hint">sleep instead of spin</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-show-refresh">Show refresh rate</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="matrix-show-refresh">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="settings-hint">console overlay</span>
+                </div>
+                <div class="settings-row">
+                  <label for="matrix-inverse">Inverse colours</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="matrix-inverse">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="settings-hint">invert all pixels</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Simulation output -->
+        <div class="tab-section collapsible output-panel" id="out-simulation">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">👁️</span>
+              Simulation
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small btn-primary" data-switch-output="simulation" onclick="requestOutputSwitch('simulation')">Use this output</button>
+            </div>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <p class="settings-hint">
+              Preview in the web UI only — no panel, HDMI or GPIO. Canvas size comes from Global width/height.
+              Switching to simulation is live.
+            </p>
+          </div>
+        </div>
+
+        <!-- Image Correction (global, live, ALL output modes) -->
+        <div class="tab-section collapsible collapsed" id="imgcorr-section">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🎚️</span>
+              Image Correction
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small" id="reset-imgcorr-btn" onclick="resetImageCorrection()">Reset</button>
+              <button class="btn btn-small btn-primary" id="save-imgcorr-btn" onclick="saveImageCorrection()">Save</button>
+            </div>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <p class="settings-hint" style="margin-bottom: 0.75rem;" id="imgcorr-status">
+              Applied to every output and the web preview — live, no restart.
+            </p>
+            <div class="settings-grid">
+              <div class="settings-group">
+                <h4 class="settings-group-title">Tone &amp; Levels</h4>
+                <div class="settings-row">
+                  <label for="ic-curve">Curve</label>
+                  <select id="ic-curve" class="settings-select" onchange="onImageCorrectionInput()">
+                    <option value="none">none (linear)</option>
+                    <option value="gamma">gamma</option>
+                    <option value="cie1931">cie1931</option>
+                  </select>
+                  <span class="settings-hint">tone curve</span>
+                </div>
+                <div class="settings-row">
+                  <label for="ic-gamma">Gamma <span id="ic-gamma-val">2.20</span></label>
+                  <input type="range" id="ic-gamma" min="0.5" max="4" step="0.05" value="2.2"
+                         oninput="onImageCorrectionInput()">
+                  <span class="settings-hint">when curve = gamma</span>
+                </div>
+                <div class="settings-row">
+                  <label for="ic-contrast">Contrast <span id="ic-contrast-val">1.00</span></label>
+                  <input type="range" id="ic-contrast" min="0.5" max="2.5" step="0.05" value="1"
+                         oninput="onImageCorrectionInput()">
+                  <span class="settings-hint">&gt;1 more contrast</span>
+                </div>
+                <div class="settings-row">
+                  <label for="ic-brightness">Brightness <span id="ic-brightness-val">1.00</span></label>
+                  <input type="range" id="ic-brightness" min="0.1" max="2" step="0.05" value="1"
+                         oninput="onImageCorrectionInput()">
+                  <span class="settings-hint">master multiplier</span>
+                </div>
+              </div>
+              <div class="settings-group">
+                <h4 class="settings-group-title">White Balance</h4>
+                <div class="settings-row">
+                  <label for="ic-gainr">Gain R <span id="ic-gainr-val">1.00</span></label>
+                  <input type="range" id="ic-gainr" min="0" max="2" step="0.02" value="1"
+                         oninput="onImageCorrectionInput()">
+                  <span class="settings-hint">red</span>
+                </div>
+                <div class="settings-row">
+                  <label for="ic-gaing">Gain G <span id="ic-gaing-val">1.00</span></label>
+                  <input type="range" id="ic-gaing" min="0" max="2" step="0.02" value="1"
+                         oninput="onImageCorrectionInput()">
+                  <span class="settings-hint">green</span>
+                </div>
+                <div class="settings-row">
+                  <label for="ic-gainb">Gain B <span id="ic-gainb-val">1.00</span></label>
+                  <input type="range" id="ic-gainb" min="0" max="2" step="0.02" value="1"
+                         oninput="onImageCorrectionInput()">
+                  <span class="settings-hint">blue</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Preview -->
+        <div class="tab-section collapsible collapsed">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">📺</span>
+              Live Preview
+              <span class="badge badge-small" id="preview-sim-badge" style="display: none; margin-left: 0.5rem;">SIM</span>
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small btn-primary" id="preview-toggle-btn" onclick="togglePreview()">Start</button>
+            </div>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <p class="settings-hint" style="margin-bottom: 0.75rem;">
+              Live view of the LED matrix output. Available in all modes with zero overhead when not active.
+            </p>
+            <div id="preview-container" style="display: flex; flex-direction: column; align-items: center;">
+              <div id="preview-placeholder" style="display: flex; align-items: center; justify-content: center; background: #111; border-radius: 8px; width: 384px; height: 192px; color: #666; font-size: 0.85rem;">
+                Click "Start" to begin live preview
+              </div>
+              <img id="preview-stream" style="display: none; border-radius: 8px; image-rendering: pixelated; background: #000;" alt="Live Preview">
+            </div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 0.75rem;">
+              <label for="preview-scale" style="font-size: 0.8rem; color: #888; white-space: nowrap;">Scale:</label>
+              <input type="range" id="preview-scale" min="1" max="4" step="0.5" value="1" style="width: 120px;" oninput="setPreviewScale(this.value)">
+              <span id="preview-scale-label" style="font-size: 0.8rem; color: #888; min-width: 2.5rem;">1x</span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 0.25rem; font-size: 0.8rem; color: #888;">
+              <span id="preview-status-text">Stopped</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Audio Output & Bluetooth -->
+        <div class="tab-section collapsible collapsed" id="settings-audio">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🔊</span>
+              Audio Output & Bluetooth
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small btn-secondary" onclick="refreshAudioStatus()">Refresh</button>
+            </div>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <!-- System Status -->
+            <div class="audio-system-status" id="audio-system-status">
+              <div class="audio-status-loading">Loading audio system status...</div>
+            </div>
+            
+            <!-- Audio Output Selector -->
+            <div class="audio-output-section" id="audio-output-section" style="display: none;">
+              <h4 class="audio-section-title">📢 Audio Output</h4>
+              <div class="audio-output-list" id="audio-output-list">
+                <!-- Audio sinks will be populated here -->
+              </div>
+            </div>
+            
+            <!-- Bluetooth Devices -->
+            <div class="bluetooth-section" id="bluetooth-section" style="display: none;">
+              <h4 class="audio-section-title">📶 Bluetooth Audio</h4>
+              
+              <!-- Paired/Known Devices -->
+              <div class="bluetooth-subsection">
+                <div class="bluetooth-subsection-header">
+                  <h5>📱 Paired Devices <span id="bluetooth-paired-count" class="badge"></span></h5>
+                </div>
+                <div class="bluetooth-devices" id="bluetooth-paired-devices">
+                  <p class="text-muted">No paired Bluetooth devices</p>
+                </div>
+              </div>
+              
+              <!-- Scan Section -->
+              <div class="bluetooth-subsection">
+                <div class="bluetooth-subsection-header">
+                  <h5>🔍 Find New Devices</h5>
+                  <button class="btn btn-small btn-primary" onclick="scanBluetoothDevices()" id="bluetooth-scan-btn">
+                    Scan
+                  </button>
+                </div>
+                <div class="bluetooth-discovered" id="bluetooth-discovered" style="display: none;">
+                  <div id="bluetooth-discovered-list"></div>
+                </div>
+                <p class="text-muted" id="bluetooth-scan-hint">Click "Scan" to find nearby Bluetooth speakers and headphones.</p>
+              </div>
+            </div>
+            
+            <!-- Not Available Warning -->
+            <div class="audio-not-available" id="audio-not-available" style="display: none;">
+              <div class="media-warning">
+                <span class="media-warning-icon">ℹ️</span>
+                <span>PulseAudio not detected. Install with: <code>sudo apt install pulseaudio pulseaudio-module-bluetooth</code></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Home Assistant -->
+        <div class="tab-section collapsible collapsed" id="ha-section">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🏠</span>
+              Home Assistant
+            </h3>
+            <div class="tab-section-actions">
+              <button class="btn btn-small btn-primary" onclick="saveHomeAssistant()">Save &amp; reconnect</button>
+            </div>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <p class="settings-hint" style="margin-bottom: 0.75rem;" id="ha-status">
+              Long-lived token stays on the server. Saving reconnects immediately.
+            </p>
+            <div class="settings-grid">
+              <div class="settings-group">
+                <div class="settings-row">
+                  <label for="ha-enabled">Enabled</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="ha-enabled">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="settings-hint" id="ha-connected-hint">disconnected</span>
+                </div>
+                <div class="settings-row">
+                  <label for="ha-baseurl">Base URL</label>
+                  <input type="text" id="ha-baseurl" class="settings-input" placeholder="http://homeassistant.local:8123" autocomplete="off">
+                  <span class="settings-hint">http(s)://host:8123</span>
+                </div>
+                <div class="settings-row">
+                  <label for="ha-token">Long-lived token</label>
+                  <input type="password" id="ha-token" class="settings-input" placeholder="eyJ…" autocomplete="off">
+                  <span class="settings-hint">HA profile → tokens</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- HTTPS Certificate -->
+        <div class="tab-section collapsible collapsed">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🔒</span>
+              HTTPS Certificate
+            </h3>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <!-- Current Certificate Info -->
+            <div id="cert-info-container">
+              <div class="cert-info" id="cert-info-grid">
+                <div class="cert-info-row">
+                  <span class="system-info-label">Subject</span>
+                  <span class="system-info-value" id="cert-subject">Loading...</span>
+                </div>
+                <div class="cert-info-row">
+                  <span class="system-info-label">Issuer</span>
+                  <span class="system-info-value" id="cert-issuer">Loading...</span>
+                </div>
+                <div class="cert-info-row">
+                  <span class="system-info-label">Type</span>
+                  <span class="system-info-value" id="cert-type">Loading...</span>
+                </div>
+                <div class="cert-info-row">
+                  <span class="system-info-label">Valid until</span>
+                  <span class="system-info-value" id="cert-expiry">Loading...</span>
+                </div>
+                <div class="cert-info-row">
+                  <span class="system-info-label">Thumbprint</span>
+                  <span class="system-info-value mono" id="cert-thumbprint">Loading...</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Upload Custom Certificate -->
+            <div class="settings-group" style="margin-top: 1rem;">
+              <h4 class="settings-group-title">Upload Custom Certificate</h4>
+              <p class="settings-hint" style="margin-bottom: 0.75rem;">
+                Upload a .pfx or .p12 certificate file to replace the self-signed certificate.
+                The server must be restarted for changes to take effect.
+              </p>
+              <div class="settings-row">
+                <label for="cert-file">Certificate File (.pfx)</label>
+                <input type="file" id="cert-file" accept=".pfx,.p12" class="settings-input" style="padding: 0.3rem;">
+              </div>
+              <div class="settings-row">
+                <label for="cert-password">Certificate Password</label>
+                <input type="password" id="cert-password" class="settings-input" placeholder="Enter certificate password">
+              </div>
+              <div class="settings-row settings-row-actions">
+                <button class="btn btn-small btn-primary" onclick="uploadCertificate()">Upload Certificate</button>
+                <button class="btn btn-small btn-secondary" onclick="regenerateCertificate()">Regenerate Self-Signed</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- System Info -->
+        <div class="tab-section collapsible collapsed">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">ℹ️</span>
+              System Information
+            </h3>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <div class="system-info-grid" id="system-info-grid">
+              <div class="system-info-item">
+                <span class="system-info-label">FFmpeg</span>
+                <span class="system-info-value" id="sys-ffmpeg-status">Checking...</span>
+              </div>
+              <div class="system-info-item">
+                <span class="system-info-label">PulseAudio</span>
+                <span class="system-info-value" id="sys-pulseaudio-status">Checking...</span>
+              </div>
+              <div class="system-info-item">
+                <span class="system-info-label">Bluetooth</span>
+                <span class="system-info-value" id="sys-bluetooth-status">Checking...</span>
+              </div>
+              <div class="system-info-item wide">
+                <span class="system-info-label">Config file</span>
+                <span class="system-info-value mono" id="sys-config-path">appsettings.json</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- END TAB: SETTINGS -->
+
+    </div><!-- END TAB CONTENT WRAPPER -->
+
+    <!-- Filter Form Modal (static - do not remove from DOM) -->
+    <div id="filter-form-container" class="modal-overlay static-modal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="filter-form-title">Add Filter</h2>
+          <button class="modal-close" onclick="hideFilterForm()">✕</button>
+        </div>
+        <div class="modal-body" id="filter-form-body">
+          <div id="filter-form"></div>
+        </div>
+        <div class="modal-footer" id="filter-form-footer">
+          <!-- Buttons will be added dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Expanded Brightness Controls Modal (hidden by default) -->
+    <div class="brightness-expanded" id="brightness-expanded" style="display: none;">
+      <div class="brightness-expanded-content">
+        <div class="brightness-expanded-header">
+          <h4>Brightness Settings</h4>
+          <button class="btn btn-small btn-ghost" onclick="toggleQuickSettingsExpand()">Close</button>
+        </div>
+        <div id="canvas-brightness-controls-modal" class="canvas-brightness-section">
+          <!-- Per-canvas brightness sliders will be added here dynamically -->
+        </div>
+      </div>
+    </div>
+
+  </div><!-- END CONTAINER -->
+
+  <!-- Splash screen (loads first) -->
+  <script src="/js/ui/splash.js?v=20260208a"></script>
+  
+  <!-- Modular JS - Core modules -->
+  <script src="/js/constants.js?v=20260208a"></script>
+  <script src="/js/core/api.js?v=20260208a"></script>
+  <script src="/js/utils/helpers.js?v=20260208a"></script>
+  <script src="/js/ui/toast.js?v=20260208a"></script>
+  <script src="/js/ui/modal.js?v=20260208a"></script>
+  <script src="/js/ui/theme.js?v=20260817a"></script>
+  <script src="/js/ui/tabs.js?v=20260208c"></script>
+  <script src="/js/ui/navigation.js?v=20260208a"></script>
+  
+  <!-- Modular JS - Features -->
+  <script src="/js/features/draw-mode.js?v=20260208a"></script>
+  <script src="/js/features/night-mode.js?v=20260208a"></script>
+  <script src="/js/features/scheduler.js?v=20260208a"></script>
+  <script src="/js/features/canvas-stack.js?v=20260208a"></script>
+  <script src="/js/features/brightness.js?v=20260208a"></script>
+  <!-- Site Footer -->
+  <footer class="app-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="footer-logo">verpixeld</span>
+        <span class="footer-tagline">LED Matrix Control System</span>
+      </div>
+      <div class="footer-meta">
+        <span>&copy; 2022&ndash;2026 Jan R. Wrage</span>
+        <span class="footer-sep">&middot;</span>
+        <span>Built with FFmpeg, yt-dlp &amp; .NET</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/features/saved-layouts.js?v=20260208a"></script>
+  <script src="/js/features/playlist.js?v=20260623a"></script>
+  <script src="/js/features/canvas-editor.js?v=20260208a"></script>
+  <script src="/js/features/layer-editor.js?v=20260625b"></script>
+  <script src="/js/features/system-control.js?v=20260208a"></script>
+  <script src="/js/features/filter-management.js?v=20260208a"></script>
+  <script src="/js/features/extension-management.js?v=20260625a"></script>
+  <script src="/js/features/layout-management.js?v=20260208a"></script>
+  <script src="/js/features/camera-stream.js?v=20260624a"></script>
+  <script src="/js/features/media-player.js?v=20260208a"></script>
+  <script src="/js/features/network-shares.js?v=20260208a"></script>
+  <script src="/js/features/audio-output.js?v=20260208a"></script>
+  <script src="/js/features/favorites.js?v=20260208a"></script>
+  <script src="/js/features/visualizer.js?v=20260208a"></script>
+  <script src="/js/features/console-log.js?v=20260208a"></script>
+  <script src="/js/features/image-upload.js?v=20260208c"></script>
+  <script src="/js/features/ai-art.js?v=20260208c"></script>
+  <script src="/js/features/voice-commands.js?v=20260208c"></script>
+  <script src="/js/features/live-preview.js?v=20260208a"></script>
+  <script src="/js/features/settings.js?v=20260818b"></script>
+  <script src="/js/core/init.js?v=20260208a"></script>
+</body>
+</html>

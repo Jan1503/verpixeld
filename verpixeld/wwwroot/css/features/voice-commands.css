@@ -1,0 +1,154 @@
+/* ═══════════════════════════════════════════════════════════════
+   Voice Commands & Local Camera Styles
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Voice Status Card */
+.voice-status-card {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.voice-state-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.voice-state-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.voice-state-dot.idle {
+  background: var(--color-success);
+  animation: voicePulse 2s ease-in-out infinite;
+}
+
+.voice-state-dot.listening {
+  background: var(--color-accent);
+  animation: voicePulse 0.5s ease-in-out infinite;
+}
+
+.voice-state-dot.generating {
+  background: var(--color-warning);
+  animation: voicePulse 1s ease-in-out infinite;
+}
+
+.voice-state-dot.displaying {
+  background: var(--color-success);
+}
+
+.voice-state-dot.error {
+  background: var(--color-danger);
+}
+
+.voice-state-dot.waitingforkeyword {
+  background: var(--color-warning);
+}
+
+@keyframes voicePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+
+.voice-state-text {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.voice-stats {
+  display: flex;
+  gap: var(--spacing-md);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.voice-last-transcription {
+  margin-top: var(--spacing-xs);
+  padding-top: var(--spacing-xs);
+  border-top: 1px solid var(--color-border);
+}
+
+.voice-transcription-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.voice-transcription-text {
+  font-size: var(--font-size-sm);
+  color: var(--color-accent);
+  font-style: italic;
+}
+
+.voice-error {
+  margin-top: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: rgba(255, 80, 80, 0.1);
+  border: 1px solid rgba(255, 80, 80, 0.3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  color: var(--color-danger);
+  font-family: var(--font-mono);
+}
+
+/* Manual Trigger Button */
+.voice-manual-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.voice-trigger-btn {
+  font-size: var(--font-size-md) !important;
+  padding: 10px 20px !important;
+  min-width: 160px;
+}
+
+.voice-trigger-btn:disabled {
+  opacity: 0.6;
+}
+
+.voice-trigger-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Keyword Upload */
+.voice-keyword-upload {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.voice-keyword-status {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.voice-config-status {
+  font-size: var(--font-size-xs);
+  color: var(--color-success);
+  margin-left: var(--spacing-sm);
+  font-family: var(--font-mono);
+}
+
+/* Local Camera Status */
+.localcam-status {
+  font-size: var(--font-size-xs);
+  color: var(--color-success);
+  margin-left: var(--spacing-sm);
+  font-family: var(--font-mono);
+}

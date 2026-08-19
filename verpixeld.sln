@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.1.11312.151
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "verpixeld", "verpixeld\verpixeld.csproj", "{17D6ECEF-94EA-4C26-BCCC-3044CFBE02B0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RPiRgbLEDMatrix", "..\..\!Repos\rpi-rgb-led-matrix\bindings\c#\RPiRgbLEDMatrix.csproj", "{0588EE56-6FC2-B9A9-84F4-99588222D4FE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{17D6ECEF-94EA-4C26-BCCC-3044CFBE02B0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{17D6ECEF-94EA-4C26-BCCC-3044CFBE02B0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{17D6ECEF-94EA-4C26-BCCC-3044CFBE02B0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{17D6ECEF-94EA-4C26-BCCC-3044CFBE02B0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0588EE56-6FC2-B9A9-84F4-99588222D4FE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0588EE56-6FC2-B9A9-84F4-99588222D4FE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0588EE56-6FC2-B9A9-84F4-99588222D4FE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0588EE56-6FC2-B9A9-84F4-99588222D4FE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {62BED672-129F-4058-82FB-4DC4A4028ABF}
+	EndGlobalSection
+EndGlobal

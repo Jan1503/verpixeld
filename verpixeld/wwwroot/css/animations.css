@@ -1,0 +1,103 @@
+/* ============================================================================
+   RGB DISPLAY CONTROL PANEL - ANIMATIONS
+   Keyframes, Page Load Animations, Reduced Motion
+   ============================================================================ */
+
+/* ============================================================================
+   STAGGERED PAGE LOAD ANIMATIONS
+   ============================================================================ */
+
+.animate-in {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeSlideIn 0.5s ease-out forwards;
+}
+
+.animate-in[data-anim-delay="0"] { animation-delay: 0.05s; }
+.animate-in[data-anim-delay="1"] { animation-delay: 0.1s; }
+.animate-in[data-anim-delay="2"] { animation-delay: 0.15s; }
+.animate-in[data-anim-delay="3"] { animation-delay: 0.2s; }
+.animate-in[data-anim-delay="4"] { animation-delay: 0.25s; }
+.animate-in[data-anim-delay="5"] { animation-delay: 0.3s; }
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Staggered stat items */
+.filter-stats .stat-item {
+  opacity: 0;
+  transform: translateY(15px) scale(0.95);
+  animation: statFadeIn 0.4s ease-out forwards;
+}
+
+.filter-stats .stat-item[data-anim-delay="1"] { animation-delay: 0.15s; }
+.filter-stats .stat-item[data-anim-delay="2"] { animation-delay: 0.25s; }
+.filter-stats .stat-item[data-anim-delay="3"] { animation-delay: 0.35s; }
+
+@keyframes statFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(15px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Section entrance animations */
+.section.collapsible,
+.dashboard-card.collapsible {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: sectionFadeIn 0.5s ease-out forwards;
+}
+
+.section.collapsible[data-anim-delay="1"],
+.dashboard-card.collapsible[data-anim-delay="1"] {
+  animation-delay: 0.2s;
+}
+
+.section.collapsible[data-anim-delay="2"],
+.dashboard-card.collapsible[data-anim-delay="2"] {
+  animation-delay: 0.35s;
+}
+
+.section.collapsible[data-anim-delay="3"],
+.dashboard-card.collapsible[data-anim-delay="3"] {
+  animation-delay: 0.5s;
+}
+
+@keyframes sectionFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================================================
+   REDUCED MOTION PREFERENCE
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in,
+  .filter-stats .stat-item,
+  .section.collapsible,
+  .dashboard-card.collapsible {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}
