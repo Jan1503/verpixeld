@@ -487,7 +487,7 @@ Common stack:
 1. **Clone the siblings**
    ```bash
    git clone https://github.com/Jan1503/verpixeld.git
-   git clone https://github.com/Jan1503/canvasmanagement.git
+   git clone https://github.com/Jan1503/canvasmanagement.git CanvasManagement
    git clone https://github.com/Jan1503/pixplane.git
    # Copy the template, then edit OutputMode / Network.Host / Matrix size.
    cp verpixeld/appsettings.example.json verpixeld/appsettings.json
