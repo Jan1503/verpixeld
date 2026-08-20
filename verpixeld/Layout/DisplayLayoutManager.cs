@@ -178,6 +178,7 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         var zOrder = old.ZOrder;
         var opacity = old.Opacity;
         var brightness = old.Brightness;
+        var panelBits = old.PanelColorBits;
         var hidden = old.IsHidden;
         var transparent = old.TransparentBackground;
 
@@ -190,6 +191,7 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         var canvas = _canvasManager.GetCanvas(x, y, width, height, zOrder, name);
         canvas.Opacity = opacity;
         canvas.Brightness = brightness;
+        canvas.PanelColorBits = panelBits;
         canvas.TransparentBackground = transparent;
         if (hidden) canvas.Hide();
         else canvas.Show();

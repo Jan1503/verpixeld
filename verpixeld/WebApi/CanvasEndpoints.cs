@@ -40,6 +40,7 @@ public static class CanvasEndpoints
                         height = c.Height,
                         zOrder = c.ZOrder,
                         opacity = c.Opacity,
+                        panelColorBits = c.PanelColorBits,
                         isVisible = !c.IsHidden,
                         transparentBackground = c.TransparentBackground
                     })
@@ -113,6 +114,33 @@ public static class CanvasEndpoints
 
                 canvas.Opacity = opacity;
                 return Results.Json(new ApiResponse<string>(true, $"Opacity updated to {opacity:P0}"));
+            }
+            catch (Exception ex)
+            {
+                return Results.Json(new ApiResponse<string>(false, Error: ex.Message));
+            }
+        });
+
+        // Preferred panel colour depth for this canvas (network output only; 8 or 14).
+        app.MapPut("/api/canvas/{canvasName}/colorbits", async (string canvasName, HttpContext context) =>
+        {
+            try
+            {
+                if (layoutManager == null)
+                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
+
+                using var reader = new StreamReader(context.Request.Body);
+                var body = await reader.ReadToEndAsync();
+                var jsonDoc = JsonDocument.Parse(body);
+                var bits = jsonDoc.RootElement.GetProperty("panelColorBits").GetInt32();
+
+                var canvas = ResolveCanvas(canvasName);
+                if (canvas == null)
+                    return Results.Json(new ApiResponse<string>(false, Error: $"Canvas '{canvasName}' not found"));
+
+                canvas.PanelColorBits = bits;
+                return Results.Json(new ApiResponse<string>(true,
+                    $"Panel colour depth set to {canvas.PanelColorBits}-bit"));
             }
             catch (Exception ex)
             {
@@ -409,12 +437,16 @@ public static class CanvasEndpoints
                 var opacity = 1.0f;
                 if (root.TryGetProperty("opacity", out var opacityElement))
                     opacity = Math.Clamp((float)opacityElement.GetDouble(), 0.0f, 1.0f);
+                var panelBits = 14;
+                if (root.TryGetProperty("panelColorBits", out var bitsElement))
+                    panelBits = bitsElement.GetInt32();
 
                 if (layoutManager.HasCanvas(name))
                     return Results.Json(new ApiResponse<string>(false, Error: $"Canvas '{name}' already exists"));
 
                 var canvas = layoutManager.CreateCustomCanvas(name, x, y, width, height, zOrder);
                 canvas.Opacity = opacity;
+                canvas.PanelColorBits = panelBits;
 
                 // A brand-new canvas must not inherit a rotation config left over (in the global store) from a
                 // previous layout that happened to use the same canvas name — that resurrected old content.
@@ -449,6 +481,7 @@ public static class CanvasEndpoints
                     height = canvas.Height,
                     zOrder = canvas.ZOrder,
                     opacity = canvas.Opacity,
+                    panelColorBits = canvas.PanelColorBits,
                     isVisible = !canvas.IsHidden,
                     transparentBackground = canvas.TransparentBackground
                 }));

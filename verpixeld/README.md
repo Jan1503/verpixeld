@@ -525,7 +525,7 @@ Common stack:
    "App": { "OutputMode": "network", "DisplayWidth": 256, "DisplayHeight": 128 }
    "Network": { "Port": 7777, "ColorBits": 14, "PanelId": "<chip-id or empty>" }
    ```
-   `ColorBits` must match the firmware (`8` or `14`). Empty `PanelId` uses `Network.Host`; a bound id is re-resolved at boot (DHCP-safe).
+   `ColorBits` is the boot default (`8` or `14`) and must match the firmware at startup. After that, verpixeld live-switches the panel to the highest `panelColorBits` of visible canvases (network output only). Empty `PanelId` uses `Network.Host`; a bound id is re-resolved at boot (DHCP-safe).
 
 6. **systemd** — see [Raspberry Pi Setup Guide](docs/RASPBERRY_PI_SETUP.md). For updates, [UPDATE.md](../../CanvasManagement/UPDATE.md).
 

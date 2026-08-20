@@ -99,6 +99,13 @@ public class CanvasConfiguration
     public double Opacity { get; set; } = 1.0;
 
     /// <summary>
+    ///     Preferred network-panel colour depth for this canvas (8 or 14). Default 14. Ignored by
+    ///     HDMI / SPI / GPIO / simulation; the wall uses the max of visible canvases.
+    /// </summary>
+    [JsonPropertyName("panelColorBits")]
+    public int PanelColorBits { get; set; } = 14;
+
+    /// <summary>
     ///     X position (for custom overlay canvases)
     /// </summary>
     [JsonPropertyName("x")]

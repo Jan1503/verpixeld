@@ -193,6 +193,7 @@ public class LayoutLoaderService : ILayoutLoaderService
             // Restore properties
             canvas.Brightness = (float)canvasConfig.Brightness;
             canvas.Opacity = (float)canvasConfig.Opacity;
+            canvas.PanelColorBits = canvasConfig.PanelColorBits;
             canvas.TransparentBackground = canvasConfig.TransparentBackground;
             _canvasManager.SetCanvasZOrder(canvas, canvasConfig.ZOrder);
 

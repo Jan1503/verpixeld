@@ -25,6 +25,8 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     private PanelColorSettings _color;
     private byte[] _srcBuf = [];
     private readonly object _lock = new();   // guards _streamer swaps vs the render-loop thread
+    private int _switching;                  // 0 idle, 1 live depth switch in flight
+    private int _desiredBits;
 
     public int Width { get; }
     public int Height { get; }
@@ -138,10 +140,26 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
                           $"paced to {_options.TargetMbps:0.#} Mbit/s.");
     }
 
+    /// <summary>
+    ///     Live 8/14-bit switch driven by visible canvases. Stops UDP, asks the panel for <c>livemode</c>
+    ///     (firmware 1.7+, no reboot), then reopens the streamer. No-op when already at <paramref name="colorBits"/>.
+    ///     Does not persist to appsettings — Network.ColorBits remains the boot default.
+    /// </summary>
+    public void SyncLiveColorBits(int colorBits)
+    {
+        var bits = colorBits >= 14 ? 14 : 8;
+        if (bits == _options.ColorBits && Volatile.Read(ref _switching) == 0) return;
+        _desiredBits = bits;
+        if (Interlocked.CompareExchange(ref _switching, 1, 0) != 0) return;
+        _ = Task.Run(() => SwitchLiveAsync(bits));
+    }
+
     public void RenderFrame(SKBitmap bitmap)
     {
         if (bitmap.Width != Width || bitmap.Height != Height)
             throw new ArgumentException($"Bitmap size ({bitmap.Width}x{bitmap.Height}) != wall ({Width}x{Height})");
+
+        if (Volatile.Read(ref _switching) != 0) return; // don't send across an 8/14 live switch
 
         lock (_lock)   // don't let a live Reconfigure() dispose the streamer mid-send
         {
@@ -156,6 +174,49 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
             Marshal.Copy(src, _srcBuf, 0, needed);
 
             _streamer.SendFrameBgra(_srcBuf, rowBytes); // SKBitmap is BGRA8888, exactly what the DLL wants
+        }
+    }
+
+    private async Task SwitchLiveAsync(int bits)
+    {
+        var previous = _options.ColorBits;
+        try
+        {
+            lock (_lock)
+            {
+                _streamer?.Dispose();
+                _streamer = null;
+            }
+
+            Console.WriteLine($"[NET] live colour depth {previous}-bit -> {bits}-bit (panel livemode)...");
+            await PanelControl.SetColorModeLiveAsync(_options.Host, bits).ConfigureAwait(false);
+
+            lock (_lock)
+            {
+                _options.ColorBits = bits;
+                _streamer = NewStreamer();
+                _seamStamp = SafeStamp();
+            }
+            Console.WriteLine($"[NET] live colour depth now {bits}-bit");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[NET] live colour switch failed: {ex.Message}");
+            lock (_lock)
+            {
+                if (_streamer == null)
+                {
+                    _options.ColorBits = previous;
+                    _streamer = NewStreamer();
+                    _seamStamp = SafeStamp();
+                }
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _switching, 0);
+            var want = _desiredBits >= 14 ? 14 : 8;
+            if (want != _options.ColorBits) SyncLiveColorBits(want);
         }
     }
 

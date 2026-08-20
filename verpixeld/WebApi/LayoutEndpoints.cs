@@ -543,6 +543,7 @@ public static class LayoutEndpoints
                     {
                         canvasConfig.ZOrder = liveCanvas.ZOrder;
                         canvasConfig.Opacity = liveCanvas.Opacity;
+                        canvasConfig.PanelColorBits = liveCanvas.PanelColorBits;
                         canvasConfig.Brightness = liveCanvas.Brightness;
                         canvasConfig.X = liveCanvas.XPos;
                         canvasConfig.Y = liveCanvas.YPos;

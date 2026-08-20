@@ -110,6 +110,8 @@ public class RenderLoopService : IRenderService, IDisposable
             if (!_matrixRenderer.HandlesColorCorrection)
                 _imageCorrection?.Apply(bitmap);
 
+            MaybeSyncNetworkColorDepth();
+
             // Render to matrix hardware
             _matrixRenderer.RenderFrame(bitmap);
 
@@ -154,6 +156,28 @@ public class RenderLoopService : IRenderService, IDisposable
         {
             Console.WriteLine($"[RENDER ERROR] {ex.Message}");
         }
+    }
+
+    // Network wall only: 8-bit/triple when every visible canvas asked for 8, otherwise 14-bit/double.
+    // Hidden / fully-transparent canvases do not vote. HDMI / SPI / GPIO / simulation have no streamer.
+    private void MaybeSyncNetworkColorDepth()
+    {
+        var net = (_matrixRenderer as OutputRuntime)?.As<NetworkMatrixRenderer>()
+                  ?? _matrixRenderer as NetworkMatrixRenderer;
+        net?.SyncLiveColorBits(DesiredPanelColorBits(_canvasManager));
+    }
+
+    private static int DesiredPanelColorBits(CanvasManager cm)
+    {
+        var any = false;
+        foreach (var (_, canvas) in cm.GetCanvases)
+        {
+            if (canvas.IsHidden || canvas.Opacity < 0.01f) continue;
+            any = true;
+            if (canvas.PanelColorBits >= 14) return 14;
+        }
+
+        return any ? 8 : 14;
     }
 
     protected virtual void Dispose(bool disposing)

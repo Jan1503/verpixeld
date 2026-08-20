@@ -294,6 +294,14 @@ function renderInspector() {
         <span id="le-opacity-val" class="le-sel-lbl">${pct}%</span>
       </div>
       <div class="le-row">
+        <span class="le-sel-lbl">Panel depth</span>
+        <select id="le-bits" onchange="layerEditorSetPanelBits(this.value)">
+          <option value="14" ${(c.panelColorBits ?? 14) !== 8 ? 'selected' : ''}>14-bit (video)</option>
+          <option value="8" ${(c.panelColorBits ?? 14) === 8 ? 'selected' : ''}>8-bit (fast)</option>
+        </select>
+      </div>
+      <p class="le-hint">Network wall only. The panel uses the highest depth of visible canvases; HDMI / SPI / GPIO / simulation ignore this.</p>
+      <div class="le-row">
         <span class="le-sel-lbl">Z-order ${c.zOrder}</span>
         <button class="le-ico" onclick="layerEditorZ('up')" title="Bring forward">▲</button>
         <button class="le-ico" onclick="layerEditorZ('down')" title="Send back">▼</button>
@@ -629,6 +637,19 @@ async function layerEditorSetOpacity(value) {
     await window.api.put('/api/canvas/' + encodeURIComponent(name) + '/opacity', { opacity });
   } catch (e) {
     console.error('Opacity update failed:', e);
+  }
+}
+
+async function layerEditorSetPanelBits(value) {
+  const name = layerEditor.selected;
+  if (!name) return;
+  const panelColorBits = parseInt(value, 10) >= 14 ? 14 : 8;
+  const rec = layerEditor.canvases.find(c => c.name === name);
+  if (rec) rec.panelColorBits = panelColorBits;
+  try {
+    await window.api.put('/api/canvas/' + encodeURIComponent(name) + '/colorbits', { panelColorBits });
+  } catch (e) {
+    console.error('Panel depth update failed:', e);
   }
 }
 
@@ -1389,6 +1410,7 @@ window.layerEditorRemove = layerEditorRemove;
 window.layerEditorZ = layerEditorZ;
 window.layerEditorSetTransparent = layerEditorSetTransparent;
 window.layerEditorSetOpacity = layerEditorSetOpacity;
+window.layerEditorSetPanelBits = layerEditorSetPanelBits;
 window.layerEditorToggleDraw = layerEditorToggleDraw;
 window.layerEditorPreset = layerEditorPreset;
 window.leSaveScene = leSaveScene;
