@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using PixPlane;
 using verpixeld.Hardware;
 
@@ -13,6 +14,13 @@ public static class SeamEndpoints
 {
     private static readonly string DefaultSeamFile = Path.Combine(AppContext.BaseDirectory, "seam_correction.json");
 
+    private static readonly JsonSerializerOptions SeamJsonRead = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions SeamJsonWrite = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
     public static void MapSeamEndpoints(this WebApplication app, IMatrixRenderer renderer)
     {
         NetworkMatrixRenderer? Current() =>
@@ -24,10 +32,14 @@ public static class SeamEndpoints
             {
                 var net = Current();
                 var src = net != null ? net.GetSeamColumns() : LoadSeamFromFile();
-                var cols = new List<object>();
-                foreach (var c in src)
-                    cols.Add(new { x = c.X, gainR = c.GainR, gainG = c.GainG, gainB = c.GainB, liftR = c.LiftR, liftG = c.LiftG, liftB = c.LiftB });
-                return ApiResponse.Ok(new { supported = true, columns = cols, live = net != null });
+                var preview = net?.SeamPreviewGrey ?? -1;
+                return ApiResponse.Ok(new
+                {
+                    supported = true,
+                    columns = src.Select(ToDto),
+                    live = net != null,
+                    previewLevel = preview
+                });
             }
             catch (Exception ex) { return ApiResponse.Error(ex); }
         });
@@ -48,12 +60,7 @@ public static class SeamEndpoints
                     {
                         var x = (int)GetD(e, "x", -1);
                         if (x < 0 || x >= 256) continue;
-                        list.Add(new SeamColumn
-                        {
-                            X = x,
-                            GainR = Clamp(GetD(e, "gainR", 1.0)), GainG = Clamp(GetD(e, "gainG", 1.0)), GainB = Clamp(GetD(e, "gainB", 1.0)),
-                            LiftR = ClampLift(GetD(e, "liftR", 0.0)), LiftG = ClampLift(GetD(e, "liftG", 0.0)), LiftB = ClampLift(GetD(e, "liftB", 0.0))
-                        });
+                        list.Add(ParseColumn(e, x));
                     }
                 }
 
@@ -63,10 +70,14 @@ public static class SeamEndpoints
 
                 Console.WriteLine($"[API] Seam correction: {list.Count} columns, save={save}, live={net != null}");
 
-                var outCols = new List<object>();
-                foreach (var c in list)
-                    outCols.Add(new { x = c.X, gainR = c.GainR, gainG = c.GainG, gainB = c.GainB, liftR = c.LiftR, liftG = c.LiftG, liftB = c.LiftB });
-                return ApiResponse.Ok(new { supported = true, columns = outCols, saved = save, live = net != null });
+                return ApiResponse.Ok(new
+                {
+                    supported = true,
+                    columns = list.Select(ToDto),
+                    saved = save,
+                    live = net != null,
+                    previewLevel = net?.SeamPreviewGrey ?? -1
+                });
             }
             catch (Exception ex)
             {
@@ -74,6 +85,96 @@ public static class SeamEndpoints
                 return ApiResponse.Error(ex);
             }
         });
+
+        app.MapPost("/api/settings/seam/preview", async (HttpContext context) =>
+        {
+            try
+            {
+                using var reader = new StreamReader(context.Request.Body);
+                using var doc = JsonDocument.Parse(await reader.ReadToEndAsync());
+                var root = doc.RootElement;
+                var level = -1;
+                if (root.TryGetProperty("level", out var el) && el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out var n))
+                    level = n;
+
+                var net = Current();
+                if (net == null)
+                    return ApiResponse.Ok(new { supported = false, live = false, previewLevel = -1 });
+
+                net.SetSeamPreview(level);
+                Console.WriteLine($"[API] Seam grey preview: {(level < 0 ? "off" : level.ToString())}");
+                return ApiResponse.Ok(new { supported = true, live = true, previewLevel = net.SeamPreviewGrey });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[API] Error setting seam preview: {ex.Message}");
+                return ApiResponse.Error(ex);
+            }
+        });
+    }
+
+    private static object ToDto(SeamColumn c) => new
+    {
+        x = c.X,
+        gainR = c.GainR,
+        gainG = c.GainG,
+        gainB = c.GainB,
+        liftR = c.LiftR,
+        liftG = c.LiftG,
+        liftB = c.LiftB,
+        knots = c.SampleUiKnots().Select(k => new { @in = k.In, @out = k.Out })
+    };
+
+    private static SeamColumn ParseColumn(JsonElement e, int x)
+    {
+        var col = new SeamColumn
+        {
+            X = x,
+            GainR = Clamp(GetD(e, "gainR", 1.0)),
+            GainG = Clamp(GetD(e, "gainG", 1.0)),
+            GainB = Clamp(GetD(e, "gainB", 1.0)),
+            LiftR = ClampLift(GetD(e, "liftR", 0.0)),
+            LiftG = ClampLift(GetD(e, "liftG", 0.0)),
+            LiftB = ClampLift(GetD(e, "liftB", 0.0)),
+            Knots = ReadKnots(e),
+            Lut = ReadLut(e, "lut"),
+            LutR = ReadLut(e, "lutR"),
+            LutG = ReadLut(e, "lutG"),
+            LutB = ReadLut(e, "lutB")
+        };
+        return col;
+    }
+
+    private static List<SeamKnot>? ReadKnots(JsonElement e)
+    {
+        if (!e.TryGetProperty("knots", out var arr) || arr.ValueKind != JsonValueKind.Array) return null;
+        var list = new List<SeamKnot>();
+        foreach (var k in arr.EnumerateArray())
+        {
+            list.Add(new SeamKnot
+            {
+                In = (int)GetD(k, "in", 0),
+                Out = (int)GetD(k, "out", 0)
+            });
+        }
+        return list.Count > 0 ? list : null;
+    }
+
+    private static int[]? ReadLut(JsonElement e, string name)
+    {
+        if (!e.TryGetProperty(name, out var arr) || arr.ValueKind != JsonValueKind.Array) return null;
+        var n = arr.GetArrayLength();
+        if (n != 256) return null;
+        var lut = new int[256];
+        var i = 0;
+        foreach (var v in arr.EnumerateArray())
+        {
+                var val = i;
+                if (v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n32))
+                    val = Math.Clamp(n32, 0, 255);
+                lut[i++] = val;
+        }
+        return lut;
     }
 
     private static double Clamp(double v) => v < 0 ? 0 : v > 4 ? 4 : v;
@@ -82,48 +183,23 @@ public static class SeamEndpoints
     private static double GetD(JsonElement e, string name, double fallback) =>
         e.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.Number && el.TryGetDouble(out var v) ? v : fallback;
 
-    private sealed class SeamCol
-    {
-        public int X { get; set; } = -1;
-        public double GainR { get; set; } = 1;
-        public double GainG { get; set; } = 1;
-        public double GainB { get; set; } = 1;
-        public double LiftR { get; set; }
-        public double LiftG { get; set; }
-        public double LiftB { get; set; }
-    }
-
-    private sealed class SeamConfig { public List<SeamCol> Columns { get; set; } = []; }
+    private sealed class SeamConfig { public List<SeamColumn> Columns { get; set; } = []; }
 
     private static List<SeamColumn> LoadSeamFromFile()
     {
         try
         {
             if (!File.Exists(DefaultSeamFile)) return DefaultColumns();
-            var cfg = JsonSerializer.Deserialize<SeamConfig>(File.ReadAllText(DefaultSeamFile),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            var list = new List<SeamColumn>();
-            foreach (var c in cfg?.Columns ?? [])
-                list.Add(new SeamColumn
-                {
-                    X = c.X, GainR = c.GainR, GainG = c.GainG, GainB = c.GainB,
-                    LiftR = c.LiftR, LiftG = c.LiftG, LiftB = c.LiftB
-                });
-            return list.Count > 0 ? list : DefaultColumns();
+            var cfg = JsonSerializer.Deserialize<SeamConfig>(File.ReadAllText(DefaultSeamFile), SeamJsonRead);
+            return cfg?.Columns is { Count: > 0 } cols ? cols : DefaultColumns();
         }
         catch { return DefaultColumns(); }
     }
 
     private static void WriteSeamFile(IReadOnlyList<SeamColumn> cols)
     {
-        var cfg = new SeamConfig();
-        foreach (var c in cols)
-            cfg.Columns.Add(new SeamCol
-            {
-                X = c.X, GainR = c.GainR, GainG = c.GainG, GainB = c.GainB,
-                LiftR = c.LiftR, LiftG = c.LiftG, LiftB = c.LiftB
-            });
-        File.WriteAllText(DefaultSeamFile, JsonSerializer.Serialize(cfg, new JsonSerializerOptions { WriteIndented = true }));
+        var cfg = new SeamConfig { Columns = cols.ToList() };
+        File.WriteAllText(DefaultSeamFile, JsonSerializer.Serialize(cfg, SeamJsonWrite));
     }
 
     private static List<SeamColumn> DefaultColumns()

@@ -2093,9 +2093,22 @@
             <div class="settings-group" style="margin-top: 1rem;">
               <h4 class="settings-group-title">Seam correction</h4>
               <p class="settings-hint" style="margin-bottom: 0.75rem;">
-                Per-column, per-channel correction for driver-cascade seams (default 63 / 127 / 191 / 255).
-                Gain &lt; 1 dims highlights, Lift &gt; 0 raises shadows. Live when Network is the active output.
+                Per-column correction for the scan-home columns (default 63 / 127 / 191 / 255).
+                The 9-point curve remaps 8-bit source on those columns so you can invert the nonlinear first-line (darker shadows <em>and</em> brighter highlights). Gain/lift still apply after the curve (set them to 1.0 / 0 while matching). Grey preview fills the wall from this host — firmware <code>t f</code> bypasses the curve.
               </p>
+              <div class="seam-preview-row">
+                <label for="seam-grey">Wall grey</label>
+                <input type="range" id="seam-grey" min="0" max="255" value="128">
+                <span id="seam-grey-val" class="settings-value">off</span>
+                <button class="btn btn-small" type="button" onclick="setSeamPreview(-1)">Preview off</button>
+              </div>
+              <div class="seam-curve-head">
+                <span class="seam-curve-title">Tone curve (shared by all seam columns)</span>
+                <button class="btn btn-small" type="button" onclick="resetSeamCurve()">Reset curve</button>
+                <button class="btn btn-small" type="button" onclick="resetSeamGainLift()">Gain/lift → 1 / 0</button>
+              </div>
+              <canvas id="seam-curve-plot" class="seam-curve-plot" width="512" height="128"></canvas>
+              <div id="seam-knots" class="seam-knots"></div>
               <div class="settings-row settings-row-actions">
                 <button class="btn btn-small" onclick="applySeam(false)">Apply (live)</button>
                 <button class="btn btn-small btn-primary" onclick="applySeam(true)">Save seams</button>

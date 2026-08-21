@@ -721,9 +721,172 @@ async function loadSeam() {
     const r = await api.get('/api/settings/seam');
     const v = r.data || r;
     renderSeamRows(v.columns || []);
+    renderSeamKnots((v.columns && v.columns[0] && v.columns[0].knots) || []);
+    setSeamGreyLabel(v.previewLevel);
+    const grey = document.getElementById('seam-grey');
+    if (grey && v.previewLevel >= 0) grey.value = String(v.previewLevel);
+    bindSeamGrey();
   } catch (error) {
     console.error('[SETTINGS] Failed to load seam correction:', error);
   }
+}
+
+const SEAM_KNOT_INS = [0, 32, 64, 96, 128, 160, 192, 224, 255];
+let seamPreviewOn = false;
+let seamGreyBound = false;
+let seamCurveTimer = 0;
+
+function bindSeamGrey() {
+  const grey = document.getElementById('seam-grey');
+  if (!grey || seamGreyBound) return;
+  seamGreyBound = true;
+  grey.addEventListener('input', () => {
+    const n = parseInt(grey.value);
+    setSeamGreyLabel(n);
+    setSeamPreview(n);
+  });
+}
+
+function setSeamGreyLabel(level) {
+  const el = document.getElementById('seam-grey-val');
+  if (!el) return;
+  if (level == null || level < 0) {
+    el.textContent = 'off';
+    seamPreviewOn = false;
+  } else {
+    el.textContent = String(level);
+    seamPreviewOn = true;
+  }
+}
+
+async function setSeamPreview(level) {
+  try {
+    await api.post('/api/settings/seam/preview', { level: level < 0 ? -1 : level });
+    setSeamGreyLabel(level);
+  } catch (error) {
+    window.toast?.error('Seam', error.message || 'Preview failed');
+  }
+}
+
+function identityKnots() {
+  return SEAM_KNOT_INS.map(i => ({ in: i, out: i }));
+}
+
+function renderSeamKnots(knots) {
+  const host = document.getElementById('seam-knots');
+  if (!host) return;
+  const byIn = new Map();
+  (knots || []).forEach(k => byIn.set(Number(k.in), Number(k.out)));
+  const pts = SEAM_KNOT_INS.map(i => ({
+    in: i,
+    out: Number.isFinite(byIn.get(i)) ? Math.max(0, Math.min(255, byIn.get(i))) : i
+  }));
+  host.innerHTML = pts.map((p, i) => `
+    <div class="seam-knot">
+      <label>in ${p.in}</label>
+      <input type="range" id="seam-knot-r-${i}" min="0" max="255" value="${p.out}">
+      <input type="number" id="seam-knot-n-${i}" min="0" max="255" value="${p.out}">
+    </div>`).join('');
+  pts.forEach((_, i) => {
+    const r = document.getElementById('seam-knot-r-' + i);
+    const n = document.getElementById('seam-knot-n-' + i);
+    const sync = (fromRange) => {
+      const v = Math.max(0, Math.min(255, parseInt((fromRange ? r : n).value) || 0));
+      r.value = String(v);
+      n.value = String(v);
+      drawSeamCurve();
+      scheduleSeamCurveApply();
+    };
+    r.addEventListener('input', () => sync(true));
+    n.addEventListener('input', () => sync(false));
+  });
+  drawSeamCurve();
+}
+
+function readSeamKnots() {
+  return SEAM_KNOT_INS.map((inp, i) => {
+    const n = parseInt(document.getElementById('seam-knot-n-' + i)?.value);
+    return { in: inp, out: Number.isFinite(n) ? Math.max(0, Math.min(255, n)) : inp };
+  });
+}
+
+function expandSeamKnots(knots) {
+  const map = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) map[i] = i;
+  const pts = (knots || []).map(k => ({
+    in: Math.max(0, Math.min(255, Number(k.in) || 0)),
+    out: Math.max(0, Math.min(255, Number(k.out) || 0))
+  })).sort((a, b) => a.in - b.in);
+  if (!pts.length) return map;
+  if (pts[0].in !== 0) pts.unshift({ in: 0, out: pts[0].out });
+  if (pts[pts.length - 1].in !== 255) pts.push({ in: 255, out: pts[pts.length - 1].out });
+  for (let s = 0; s < pts.length - 1; s++) {
+    const a = pts[s], b = pts[s + 1];
+    const span = Math.max(1, b.in - a.in);
+    for (let x = a.in; x <= b.in; x++) {
+      map[x] = Math.round(a.out + (x - a.in) / span * (b.out - a.out));
+    }
+  }
+  return map;
+}
+
+function drawSeamCurve() {
+  const c = document.getElementById('seam-curve-plot');
+  if (!c || !c.getContext) return;
+  const ctx = c.getContext('2d');
+  const w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = 'rgba(148,163,184,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, h - 1);
+  ctx.lineTo(w, 0);
+  ctx.stroke();
+  const map = expandSeamKnots(readSeamKnots());
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 256; i++) {
+    const x = i / 255 * (w - 1);
+    const y = h - 1 - map[i] / 255 * (h - 1);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.fillStyle = '#f8fafc';
+  SEAM_KNOT_INS.forEach((inp, idx) => {
+    const out = parseInt(document.getElementById('seam-knot-n-' + idx)?.value) || inp;
+    const x = inp / 255 * (w - 1);
+    const y = h - 1 - out / 255 * (h - 1);
+    ctx.beginPath();
+    ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function scheduleSeamCurveApply() {
+  clearTimeout(seamCurveTimer);
+  seamCurveTimer = setTimeout(() => applySeam(false), 80);
+}
+
+function resetSeamCurve() {
+  renderSeamKnots(identityKnots());
+  applySeam(false);
+}
+
+function resetSeamGainLift() {
+  const host = document.getElementById('seam-rows');
+  const n = parseInt(host?.dataset.count) || 0;
+  for (let i = 0; i < n; i++) {
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    set('seam-gr-' + i, '1.000');
+    set('seam-gg-' + i, '1.000');
+    set('seam-gb-' + i, '1.000');
+    set('seam-lr-' + i, '0.000');
+    set('seam-lg-' + i, '0.000');
+    set('seam-lb-' + i, '0.000');
+  }
+  applySeam(false);
 }
 
 function renderSeamRows(cols) {
@@ -763,6 +926,7 @@ function fmt3(v) {
 async function applySeam(save) {
   const host = document.getElementById('seam-rows');
   const n = parseInt(host?.dataset.count) || 0;
+  const knots = readSeamKnots();
   const columns = [];
   for (let i = 0; i < n; i++) {
     const x = parseInt(document.getElementById('seam-x-' + i)?.value);
@@ -774,12 +938,13 @@ async function applySeam(save) {
       gainB: parseFloat(document.getElementById('seam-gb-' + i)?.value) || 1,
       liftR: parseFloat(document.getElementById('seam-lr-' + i)?.value) || 0,
       liftG: parseFloat(document.getElementById('seam-lg-' + i)?.value) || 0,
-      liftB: parseFloat(document.getElementById('seam-lb-' + i)?.value) || 0
+      liftB: parseFloat(document.getElementById('seam-lb-' + i)?.value) || 0,
+      knots
     });
   }
   try {
     await api.post('/api/settings/seam', { columns, save: !!save });
-    window.toast?.success('Seam', save ? 'Saved & applied' : 'Applied');
+    if (save) window.toast?.success('Seam', 'Saved & applied');
   } catch (error) {
     window.toast?.error('Seam', error.message || 'Failed to apply seam correction');
   }
@@ -792,6 +957,9 @@ window.saveSpiSettings = saveSpiSettings;
 window.saveHomeAssistant = saveHomeAssistant;
 window.loadSeam = loadSeam;
 window.applySeam = applySeam;
+window.setSeamPreview = setSeamPreview;
+window.resetSeamCurve = resetSeamCurve;
+window.resetSeamGainLift = resetSeamGainLift;
 window.loadNetworkConfig = loadNetworkConfig;
 window.applyNetworkConfig = applyNetworkConfig;
 window.scanPanels = scanPanels;
@@ -818,5 +986,7 @@ window.addEventListener('tabChanged', (e) => {
     loadNetworkConfig();
     loadSeam();
     loadCertificateInfo();
+  } else if (seamPreviewOn) {
+    setSeamPreview(-1);
   }
 });

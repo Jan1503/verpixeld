@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using PixPlane;
 using SkiaSharp;
 using verpixeld.Configuration;
@@ -27,6 +28,8 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     private readonly object _lock = new();   // guards _streamer swaps vs the render-loop thread
     private int _switching;                  // 0 idle, 1 live depth switch in flight
     private int _desiredBits;
+    private List<SeamColumn> _liveSeam = [];
+    private volatile int _previewGrey = -1;  // -1 = off; 0..255 = solid grey on the wall (curve matching)
 
     public int Width { get; }
     public int Height { get; }
@@ -171,7 +174,27 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
             var rowBytes = bitmap.RowBytes;
             var needed = rowBytes * Height;
             if (_srcBuf.Length != needed) _srcBuf = new byte[needed];
-            Marshal.Copy(src, _srcBuf, 0, needed);
+            var preview = _previewGrey;
+            if (preview >= 0)
+            {
+                var g = (byte)preview;
+                for (var y = 0; y < Height; y++)
+                {
+                    var row = y * rowBytes;
+                    for (var x = 0; x < Width; x++)
+                    {
+                        var o = row + x * 4;
+                        _srcBuf[o] = g;
+                        _srcBuf[o + 1] = g;
+                        _srcBuf[o + 2] = g;
+                        _srcBuf[o + 3] = 255;
+                    }
+                }
+            }
+            else
+            {
+                Marshal.Copy(src, _srcBuf, 0, needed);
+            }
 
             _streamer.SendFrameBgra(_srcBuf, rowBytes); // SKBitmap is BGRA8888, exactly what the DLL wants
         }
@@ -231,8 +254,27 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         }
     }
 
-    /// <summary>Current per-column seam correction (read from the hot-reloaded file) for the web GUI.</summary>
-    public IReadOnlyList<SeamColumn> GetSeamColumns() => LoadSeamColumns();
+    /// <summary>Current per-column seam correction (live values if set, otherwise the JSON file).</summary>
+    public IReadOnlyList<SeamColumn> GetSeamColumns()
+    {
+        lock (_lock)
+        {
+            if (_liveSeam.Count > 0) return _liveSeam;
+            var loaded = LoadSeamColumns();
+            _liveSeam = loaded;
+            return loaded;
+        }
+    }
+
+    /// <summary>
+    ///     Solid grey fill on the wall (0..255) so the seam curve can be matched against the neighbour
+    ///     column. −1 turns it off and the composed frame is sent again. Host-side only — firmware test
+    ///     patterns bypass this LUT.
+    /// </summary>
+    public int SeamPreviewGrey => _previewGrey;
+
+    public void SetSeamPreview(int grey8) =>
+        _previewGrey = grey8 < 0 ? -1 : Math.Clamp(grey8, 0, 255);
 
     /// <summary>
     ///     Live update of the per-column seam correction from the web GUI. Applies immediately to the
@@ -241,7 +283,11 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     /// </summary>
     public void SetSeam(IReadOnlyList<SeamColumn> columns, bool persist)
     {
-        lock (_lock) _streamer?.UpdateSeam(columns);
+        lock (_lock)
+        {
+            _liveSeam = columns.ToList();
+            _streamer?.UpdateSeam(_liveSeam);
+        }
         if (persist)
         {
             WriteSeamFile(columns);
@@ -251,18 +297,14 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
 
     // ---- seam correction hot-reload (verpixeld convenience) ---------------------------------
 
-    private sealed class SeamCol
-    {
-        public int X { get; set; } = -1;
-        public double GainR { get; set; } = 1.0;
-        public double GainG { get; set; } = 1.0;
-        public double GainB { get; set; } = 1.0;
-        public double LiftR { get; set; }
-        public double LiftG { get; set; }
-        public double LiftB { get; set; }
-    }
+    private sealed class SeamConfig { public List<SeamColumn> Columns { get; set; } = []; }
 
-    private sealed class SeamConfig { public List<SeamCol> Columns { get; set; } = []; }
+    private static readonly JsonSerializerOptions SeamJsonRead = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions SeamJsonWrite = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
 
     private DateTime SafeStamp() { try { return File.GetLastWriteTimeUtc(_seamFile); } catch { return DateTime.MinValue; } }
 
@@ -271,16 +313,8 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         try
         {
             if (!File.Exists(_seamFile)) { WriteSeamTemplate(); }
-            var cfg = JsonSerializer.Deserialize<SeamConfig>(File.ReadAllText(_seamFile),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            var list = new List<SeamColumn>();
-            foreach (var c in cfg?.Columns ?? [])
-                list.Add(new SeamColumn
-                {
-                    X = c.X, GainR = c.GainR, GainG = c.GainG, GainB = c.GainB,
-                    LiftR = c.LiftR, LiftG = c.LiftG, LiftB = c.LiftB
-                });
-            return list;
+            var cfg = JsonSerializer.Deserialize<SeamConfig>(File.ReadAllText(_seamFile), SeamJsonRead);
+            return cfg?.Columns is { Count: > 0 } cols ? cols : [];
         }
         catch (Exception ex)
         {
@@ -294,20 +328,16 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         var stamp = SafeStamp();
         if (stamp == _seamStamp) return;
         _seamStamp = stamp;
-        _streamer?.UpdateSeam(LoadSeamColumns());
+        var cols = LoadSeamColumns();
+        _liveSeam = cols;
+        _streamer?.UpdateSeam(cols);
         Console.WriteLine($"[NET] seam correction reloaded from {_seamFile}");
     }
 
     private void WriteSeamFile(IReadOnlyList<SeamColumn> cols)
     {
-        var cfg = new SeamConfig();
-        foreach (var c in cols)
-            cfg.Columns.Add(new SeamCol
-            {
-                X = c.X, GainR = c.GainR, GainG = c.GainG, GainB = c.GainB,
-                LiftR = c.LiftR, LiftG = c.LiftG, LiftB = c.LiftB
-            });
-        File.WriteAllText(_seamFile, JsonSerializer.Serialize(cfg, new JsonSerializerOptions { WriteIndented = true }));
+        var cfg = new SeamConfig { Columns = cols.ToList() };
+        File.WriteAllText(_seamFile, JsonSerializer.Serialize(cfg, SeamJsonWrite));
         Console.WriteLine($"[NET] seam written to {_seamFile} ({cfg.Columns.Count} columns)");
     }
 
@@ -315,12 +345,12 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     {
         // Default the four scan-home boundary columns to the tuned gain/lift so a fresh install is already
         // corrected (contrast compression on cols 63/127/191/255). Hot-reloadable - edit to taste.
-        SeamCol Col(int x) => new()
+        SeamColumn Col(int x) => new()
         {
             X = x, GainR = 0.85, GainG = 0.85, GainB = 0.85, LiftR = 0.004, LiftG = 0.004, LiftB = 0.004
         };
         var cfg = new SeamConfig { Columns = [Col(63), Col(127), Col(191), Col(255)] };
-        File.WriteAllText(_seamFile, JsonSerializer.Serialize(cfg, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(_seamFile, JsonSerializer.Serialize(cfg, SeamJsonWrite));
         Console.WriteLine($"[NET] wrote seam-correction template to {_seamFile}");
     }
 

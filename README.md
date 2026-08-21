@@ -76,7 +76,7 @@ Whether you want to show the time, display weather information, run animations, 
 - 📺 **Live Matrix Preview** — Real-time MJPEG stream of the LED matrix output viewable from the web UI, with scalable pixelated rendering
 - 🖥️ **Simulation Mode** — Run the full application without physical LED hardware for development and testing
 - 🔒 **Certificate Management** — Upload custom HTTPS certificates or regenerate self-signed ones through the web interface
-- 📡 **Network panels** — Discover (`VPXD` UDP 7778), bind by chip-id (DHCP-safe), identify-flash, and stream 8/14-bit planes with live seam correction
+- 📡 **Network panels** — Discover (`VPXD` UDP 7778), bind by chip-id (DHCP-safe), identify-flash, live 8/14-bit depth from visible canvases, and a 9-point seam curve for the ICND scan-home columns
 - 🖥️ **HDMI / SPI outputs** — Drive a sender card via framebuffer, or an RP2040 SPI bridge
 - 🪟 **DeskCast** — Windows region/window capture straight to the panel (PixPlane) or into verpixeld via the Network Stream Player (TPM2.NET)
 
@@ -99,11 +99,64 @@ verpixeld-panel/     RP2350 + W6300 firmware
 | [verpixeld](https://github.com/Jan1503/verpixeld) | This application |
 | [canvasmanagement](https://github.com/Jan1503/canvasmanagement) | Canvas engine, extensions, filters, `deploy.ps1` |
 | [pixplane](https://github.com/Jan1503/pixplane) | Panel protocol (stream, discovery, `/cmd`) |
-| [verpixeld-panel](https://github.com/Jan1503/verpixeld-panel) | ICND1065L firmware 1.3 |
+| [verpixeld-panel](https://github.com/Jan1503/verpixeld-panel) | ICND1065L firmware 1.7 |
 | [deskcast](https://github.com/Jan1503/deskcast) | Windows desktop → panel or verpixeld |
 | [rpi-rgb-led-matrix](https://github.com/hzeller/rpi-rgb-led-matrix) | GPIO HUB75 driver (not vendored) |
 
 CanvasManagement is the shared framework ([Jan1503/canvasmanagement](https://github.com/Jan1503/canvasmanagement)).
+
+---
+
+## Scan-home seam correction
+
+The four columns **63, 127, 191 and 255** on the 256×128 ICND wall do not match their neighbours. Highlights are too hot, shadows are too dead. That is a **known hardware issue**, not a bug in the composer.
+
+### Why those four columns
+
+The wall is two stacked 128×128 modules, 64-scan, with landscape mapping (`cfg_landscape + cfg_rot_cw + cfg_flip_x + cfg_flip_y`). `rowaddr 0` of each 1/64 scan group lands on those X coordinates. It is the **same physical first-line offset, shown four times** — not four module joints.
+
+The offset is **nonlinear** (an S-curve): darker than the neighbour in the shadows *and* brighter in the highlights. Gain+lift (`out = in * Gain + Lift`) can squash contrast but cannot invert that curve. Chip registers (REG03 and similar) were already exhausted. Extra 595 slots, OE blanks or mux-phase tweaks on the RP2350 desynchronise the 595 from the ICND and add ghosts. The line cannot be made physically linear in firmware.
+
+### What verpixeld does instead
+
+[PixPlane](https://github.com/Jan1503/pixplane) remaps the 8-bit source **on those columns only**, before gamma:
+
+```
+9-point curve → 256-entry 8-bit LUT  →  global colour LUT  →  optional dither  →  Gain / Lift
+```
+
+Settings → Output → Network → **Seam correction**:
+
+1. Set **Gain/lift → 1 / 0** so only the curve is in play.
+2. Turn **Wall grey** on (host fills the wall — firmware `t f` bypasses the LUT and cannot calibrate it).
+3. Nudge the knot for that grey (`in 128`, `in 32`, …) until column 63 matches 62. Repeat at a few levels.
+4. **Save seams** writes `seam_correction.json` next to the app (hot-reloaded). The four columns share one curve.
+
+Old JSON with only gain/lift still loads. You can also paste a full 256-entry `lut` / `lutR` array. DeskCast has the same PixPlane curve in its Seam window.
+
+<!-- PHOTO seam-uncorrected: wall grey ramp, four scan-home columns -->
+<!-- PHOTO seam-corrected: same after the 9-point curve -->
+<!-- PHOTO seam-ui: Settings seam curve + wall-grey slider -->
+
+This remains a **workaround**. The hardware is still wrong; the host just sends different PWM on those columns so they *look* like the rest of the wall.
+
+## Live 8/14-bit colour depth
+
+14-bit video looks right; 8-bit clocks and games run at a higher fps with fewer UDP drops. The RP2350 cannot keep both framebuffer layouts in 520 KB SRAM (14-bit×2 ≈ 448 KB, 8-bit×3 ≈ 384 KB), so older firmware needed a **reboot** to switch.
+
+Firmware **1.7** adds `livemode 8|14`: reallocate RAM, no flash write, no reboot. verpixeld uses that whenever the **visible** canvases change:
+
+| Canvas | Counts toward wall depth? |
+|--------|---------------------------|
+| Visible, opacity ≥ ~0.01 | Yes (`PanelColorBits` 8 or 14, default 14) |
+| Hidden, or nearly transparent | No |
+| HDMI / SPI / GPIO / simulation | Property ignored (those outputs are 8-bit bitmaps) |
+
+Wall bits = **max** of the visible set. One 14-bit video canvas forces the whole panel to 14-bit; hide it and a clock-only layout can drop back to 8-bit without restarting verpixeld or the panel.
+
+Sequence (network output only): stop UDP → `livemode` → wait until `/status` reports the new `bits` → reopen the streamer. `Network.ColorBits` in `appsettings.json` is still the **boot** default and must match firmware at process start. Live switches are not persisted — a power cycle comes back at that boot value.
+
+Per-canvas control: studio inspector / canvas JSON `panelColorBits`. The type lives on `ICanvas` in [CanvasManagement](https://github.com/Jan1503/canvasmanagement). PixPlane’s `SetColorModeLiveAsync` is the HTTP call; `SetColorModeAsync` remains save+reboot for a permanent default.
 
 ---
 
@@ -119,7 +172,8 @@ CanvasManagement is the shared framework ([Jan1503/canvasmanagement](https://git
 | **Hot Reload** | Change content and settings without restarting |
 | **Output backends** | `gpio` / `network` / `hdmi` / `spi` / `simulation` — pick in Settings |
 | **Panel discovery** | LAN scan + bind by `PanelId`; identify flash on the wall |
-| **Seam correction** | Per-column gain/lift for ICND scan-home columns (network path) |
+| **Seam correction** | 9-point 8-bit remap (+ optional gain/lift) for ICND scan-home columns 63/127/191/255 — see [Scan-home seam correction](#scan-home-seam-correction) |
+| **Live colour depth** | 8/14-bit switch from visible canvases, no panel reboot (firmware 1.7+) — see [Live 8/14-bit colour depth](#live-814-bit-colour-depth) |
 | **Image correction** | Global gamma / contrast / brightness / white-balance (all modes) |
 
 ### 🧩 Extensions (Content Plugins)
@@ -591,7 +645,8 @@ verpixeld exposes a comprehensive REST API for integration with external systems
 | `PUT` | `/api/settings/output` | Switch output mode (`gpio` / `network` / `hdmi` / `spi` / `simulation`) |
 | `GET` | `/api/settings/network/discover` | LAN scan for verpixeld-panel (UDP 7778 + HTTP `/status`) |
 | `POST` | `/api/settings/network/identify` | Flash the bound panel |
-| `GET`/`POST` | `/api/settings/seam` | Per-column seam correction (network path) |
+| `GET`/`POST` | `/api/settings/seam` | Per-column seam curve + gain/lift (network path) |
+| `POST` | `/api/settings/seam/preview` | Host-side wall grey (`{ "level": 0..255 }` or `-1` to stop) |
 | `GET` | `/health` | Health check endpoint |
 
 ### Camera Alert Webhook
