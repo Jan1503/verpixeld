@@ -66,7 +66,7 @@ Whether you want to show the time, display weather information, run animations, 
 - 🔊 **Bluetooth Audio** — Output audio to Bluetooth speakers via PulseAudio
 - 📹 **Camera Motion Alerts** — Auto-switch to a camera feed when motion is detected
 - 🖼️ **Image & Video Upload** — Upload photos or stream video clips from any device to the display
-- 🏠 **Home Assistant Integration** — Sensor tiles, grid, graphs, energy ring, weather sky, media now-playing, climate arc, waste pickups, plus persistent-notification toasts on the wall
+- 🏠 **Home Assistant Integration** — Live tiles (sensor, grid, graph, energy, weather, now-playing, climate, waste, **departures**), configurable wall toasts, and the wall itself as an MQTT device (notify, layout, brightness, night mode)
 - 🧲 **Live Layer Editor** — Drag, resize, reorder and configure canvases directly over the live display preview, with per-canvas transparent backgrounds
 - 🕒 **Rich Clocks & Extensions** — Flexible Digital Clock (12/24h, BDF/seven-segment, glow, colour cycle) plus many extensions: games (Pac-Man, Snake, Pong, Tetris, Space Invaders, Dino, Flappy Bird), Weather, News Ticker, Now Playing, Falling Sand, and more
 - 🤖 **AI Art Generation** — Generate images with Azure OpenAI or OpenAI, with image-to-image stylization, gallery storage, and scheduled auto-generation
@@ -104,6 +104,48 @@ verpixeld-panel/     RP2350 + W6300 firmware
 | [rpi-rgb-led-matrix](https://github.com/hzeller/rpi-rgb-led-matrix) | GPIO HUB75 driver (not vendored) |
 
 CanvasManagement is the shared framework ([Jan1503/canvasmanagement](https://github.com/Jan1503/canvasmanagement)).
+
+---
+
+## What's new
+
+Dated from the public GitHub history so you can follow what landed when. Newest first.
+
+### 2026-08-22 — Home Assistant: wall as a device, and better toasts
+
+The wall can register as an MQTT device in Home Assistant (needs the MQTT integration / Mosquitto addon). Settings → Home Assistant → **Expose as HA device**.
+
+| Entity | What it does |
+|--------|----------------|
+| `notify.verpixeld_wall` | Send a toast from automations (`notify.send_message`). MQTT notify entities have **no state**, so HA shows this as “unknown” — that is expected. |
+| `text.verpixeld_toast` | Text field on a dashboard: type, submit, toast on the wall |
+| `sensor.verpixeld_last_toast` | Last toast text; attributes hold title, severity, time |
+| `select.verpixeld_layout` | Load a saved layout |
+| `number.verpixeld_brightness` | Global brightness 0–100% |
+| `switch.verpixeld_night_mode` | Enable the night-mode **schedule** (not “dim right now”) |
+| `binary_sensor.verpixeld_night_active` | `on` only while the configured night window is in effect |
+
+Wall toasts (persistent notifications, MQTT notify, dashboard text, or REST) are configurable: duration, BDF font, colours, default severity. Prefix HA `notification_id` with `error:`, `warning:`, `success:` or `info:` (or put `[error]` in the title) to pick the accent. Test from Settings without going through HA.
+
+REST fallbacks: `POST /api/homeassistant/notify`, `POST /api/homeassistant/toast`.
+
+Departure boards live in [CanvasManagement](https://github.com/Jan1503/canvasmanagement) as the **HA Departures** tile (HVV / HAFAS / RMV line badges).
+
+### 2026-08-22 — Seam LUTs per colour depth, plugin hot-reload
+
+Settings → Output → Network → **Seam correction** has separate **14-bit** and **8-bit** curves. Opening a tab live-locks the panel to that depth (`livemode`) so you calibrate the LUT you actually use. Plugin DLLs load from a memory copy; Settings → Plugins → **Reload plugins** (or `POST /api/plugins/reload`) picks up a new extension/filter without restarting the process.
+
+### 2026-08-21 — 9-point scan-home seam curve
+
+The ICND columns 63 / 127 / 191 / 255 get a 9-point 8-bit remap (plus optional gain/lift) before gamma. Host-side **Wall grey** fills the panel so you can match a neighbour column without the firmware test pattern bypassing the LUT. See [Scan-home seam correction](#scan-home-seam-correction).
+
+### 2026-08-20 — Live 8/14-bit colour depth
+
+Network walls follow the **max** `PanelColorBits` of visible canvases and switch with firmware 1.7 `livemode` — no panel reboot. Hide a 14-bit video canvas and a clock-only layout can drop back to 8-bit. See [Live 8/14-bit colour depth](#live-814-bit-colour-depth).
+
+### 2026-08-19 — Public host
+
+Initial public import: .NET 10 host, web UI, GPIO / network / HDMI / SPI / simulation outputs, media, voice, and the [CanvasManagement](https://github.com/Jan1503/canvasmanagement) sibling for canvases, extensions and filters.
 
 ---
 
@@ -190,18 +232,25 @@ Extensions are dynamically loaded plugins that provide content for canvases:
 
 ### 🏠 Home Assistant Integration
 
-Pull live state from Home Assistant over its WebSocket API (long-lived token, kept server-side):
+Pull live state from Home Assistant over its WebSocket API (long-lived token, kept server-side). Tiles are CanvasManagement plugins; the connection, toasts and MQTT device live in the host.
 
-- **HA Sensor** — one entity as a tile: value + unit + icon, threshold colouring, on/off badge, "last changed" age, state remapping, optional history sparkline
-- **HA Grid** — several entities on one canvas (compact dashboard)
-- **HA Graph** — a history line/area chart for a numeric entity (e.g. temperature/power), seeded from the HA History API and updated live
+**Tiles** (assign an extension to a canvas; searchable entity picker, `mdi:` icons):
+
+- **HA Sensor** — one entity: value + unit + icon, threshold colouring, on/off badge, “last changed” age, state remapping, optional history sparkline
+- **HA Grid** — several entities on one canvas
+- **HA Graph** — history line/area for a numeric entity, seeded from the HA History API
 - **HA Energy** — house / solar / grid / battery as a ring or split bar
 - **HA Weather** — `weather.*` condition + temperature with an animated sky (Open-Meteo Weather remains as a no-HA fallback)
 - **HA Now Playing** — `media_player.*` title / artist / progress
 - **HA Climate** — `climate.*` current vs setpoint arc, coloured by `hvac_action`
 - **HA Waste** — next bin dates from HA date sensors
-- **Toasts** — HA persistent notifications as a short overlay banner (no token in layouts)
-- **Searchable entity picker** in the web UI; icons drawn from the entity's `mdi:` icon / domain
+- **HA Departures** — HVV / HAFAS / RMV-style board (coloured line badges, destination, countdown or clock time). Needs a sensor whose `departures` / `next` attribute is a JSON list
+
+**Wall toasts** — HA persistent notifications as a bottom banner (z=340). Settings → Home Assistant → Toast: enable, duration, BDF font, colours, default severity. Per-toast severity from `notification_id` prefix (`error:`, `warning:`, `success:`, `info:`) or `[error]` in the title.
+
+**MQTT device** — with Mosquitto / MQTT integration, the wall appears under **Devices → verpixeld**. Notify + dashboard text for toasts, layout select, brightness, night-mode schedule switch, night-active binary sensor. Native HA notification drawer (the bell) stays HA-side; use `persistent_notification` if you want both the bell and the wall.
+
+**REST:** `GET /api/homeassistant/status`, `GET /api/homeassistant/entities`, `POST /api/homeassistant/toast`, `POST /api/homeassistant/notify`.
 
 ### 🧲 Live Layer Editor
 
@@ -225,7 +274,7 @@ Automated layout switching based on time with daily/weekly schedules, priorities
 
 ### 🌙 Night Mode
 
-Automatic brightness management with configurable time ranges and gradual transitions.
+Automatic brightness management with configurable time ranges (default 22:00–07:00), day/night brightness, and a gradual transition. The Home Assistant switch only **enables the schedule**; `binary_sensor.verpixeld_night_active` is `on` while that window is actually in effect. Outside the window the panel stays at day brightness (often 100%).
 
 ### 📷 Camera Streaming
 
@@ -454,7 +503,7 @@ Manage HTTPS certificates through the web interface:
 │             (Multi-layer composition, z-ordering & filters)     │
 │                                                                 │
 │  z=100: Extensions   z=200: Media   z=250: AI/Gallery Overlay   │
-│  z=300: CameraAlert  z=350: VoiceFeedback                       │
+│  z=300: CameraAlert  z=340: HA Toast  z=350: VoiceFeedback      │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
@@ -657,6 +706,10 @@ verpixeld exposes a comprehensive REST API for integration with external systems
 | `POST` | `/api/settings/seam/mode` | Lock panel to 8/14 while calibrating (`{ "bits": 8\|14\|0 }`) |
 | `POST` | `/api/settings/seam/preview` | Host-side wall grey (`{ "level": 0..255 }` or `-1` to stop) |
 | `POST` | `/api/plugins/reload` | Unload+reload extension and filter DLLs; restore running canvases |
+| `GET` | `/api/homeassistant/status` | HA connection, entity count, MQTT device snapshot |
+| `GET` | `/api/homeassistant/entities` | Known HA entities (`?q=` / `?domain=`) |
+| `POST` | `/api/homeassistant/toast` | Queue a wall toast (does not go through HA) |
+| `POST` | `/api/homeassistant/notify` | Same overlay as MQTT `notify.verpixeld_wall` (REST / `notify.rest`) |
 | `GET` | `/health` | Health check endpoint |
 
 ### Camera Alert Webhook
