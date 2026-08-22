@@ -195,6 +195,8 @@ public class LayoutLoaderService : ILayoutLoaderService
             canvas.Opacity = (float)canvasConfig.Opacity;
             canvas.PanelColorBits = canvasConfig.PanelColorBits;
             canvas.TransparentBackground = canvasConfig.TransparentBackground;
+            if (canvasConfig.Hidden) canvas.Hide();
+            else canvas.Show();
             _canvasManager.SetCanvasZOrder(canvas, canvasConfig.ZOrder);
 
             Console.WriteLine($"[{source}] Restored '{canvasName}': " +

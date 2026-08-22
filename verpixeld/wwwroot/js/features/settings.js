@@ -716,25 +716,87 @@ async function unbindPanel() {
   renderPanelList(lastPanelScan);
 }
 
-async function loadSeam() {
+const SEAM_KNOT_INS = [0, 32, 64, 96, 128, 160, 192, 224, 255];
+let seamPreviewOn = false;
+let seamGreyBound = false;
+let seamCurveTimer = 0;
+let seamActiveBits = 14;
+let seamSwitching = false;
+
+function profileColumns(v, bits) {
+  const key = String(bits === 8 ? 8 : 14);
+  const fromProfile = v?.profiles?.[key]?.columns;
+  if (Array.isArray(fromProfile) && fromProfile.length) return fromProfile;
+  return v?.columns || [];
+}
+
+function updateSeamTabUi() {
+  document.querySelectorAll('.seam-bit-tab').forEach(btn => {
+    const b = parseInt(btn.dataset.seamBits, 10);
+    btn.classList.toggle('active', b === seamActiveBits);
+    btn.disabled = seamSwitching;
+  });
+  const hint = document.getElementById('seam-mode-hint');
+  if (!hint) return;
+  hint.textContent = seamSwitching
+    ? `Switching panel to ${seamActiveBits}-bit…`
+    : `Panel locked to ${seamActiveBits}-bit while this tab is open. Leaving Settings returns to canvas depth.`;
+}
+
+function applySeamPayload(v) {
+  const cols = profileColumns(v, seamActiveBits);
+  renderSeamRows(cols);
+  renderSeamKnots((cols[0] && cols[0].knots) || []);
+  setSeamGreyLabel(v.previewLevel);
+  const grey = document.getElementById('seam-grey');
+  if (grey && v.previewLevel >= 0) grey.value = String(v.previewLevel);
+  bindSeamGrey();
+  updateSeamTabUi();
+}
+
+async function loadSeam(opts) {
   try {
     const r = await api.get('/api/settings/seam');
     const v = r.data || r;
-    renderSeamRows(v.columns || []);
-    renderSeamKnots((v.columns && v.columns[0] && v.columns[0].knots) || []);
-    setSeamGreyLabel(v.previewLevel);
-    const grey = document.getElementById('seam-grey');
-    if (grey && v.previewLevel >= 0) grey.value = String(v.previewLevel);
-    bindSeamGrey();
+    if (v.calibrateBits === 8 || v.calibrateBits === 14) seamActiveBits = v.calibrateBits;
+    else if (v.bits === 8 || v.bits === 14) seamActiveBits = v.bits;
+    applySeamPayload(v);
+    if (opts?.lock) await lockSeamMode(seamActiveBits);
   } catch (error) {
     console.error('[SETTINGS] Failed to load seam correction:', error);
   }
 }
 
-const SEAM_KNOT_INS = [0, 32, 64, 96, 128, 160, 192, 224, 255];
-let seamPreviewOn = false;
-let seamGreyBound = false;
-let seamCurveTimer = 0;
+async function lockSeamMode(bits) {
+  const r = await api.post('/api/settings/seam/mode', { bits });
+  const v = r.data || r;
+  if (v.bits === 8 || v.bits === 14) seamActiveBits = bits;
+  if (v.columns) applySeamPayload({ ...v, profiles: { [String(bits)]: { columns: v.columns } } });
+  else updateSeamTabUi();
+}
+
+async function releaseSeamMode() {
+  try { await api.post('/api/settings/seam/mode', { bits: 0 }); }
+  catch (error) { console.warn('[SETTINGS] Seam mode release failed:', error); }
+}
+
+async function selectSeamBits(bits) {
+  bits = bits === 8 ? 8 : 14;
+  if (seamSwitching) return;
+  seamSwitching = true;
+  updateSeamTabUi();
+  try {
+    if (document.getElementById('seam-rows')?.dataset.count)
+      await applySeam(false);
+    seamActiveBits = bits;
+    await lockSeamMode(bits);
+  } catch (error) {
+    window.toast?.error('Seam', error.message || 'Failed to switch panel depth');
+  } finally {
+    seamSwitching = false;
+    updateSeamTabUi();
+  }
+}
 
 function bindSeamGrey() {
   const grey = document.getElementById('seam-grey');
@@ -943,8 +1005,8 @@ async function applySeam(save) {
     });
   }
   try {
-    await api.post('/api/settings/seam', { columns, save: !!save });
-    if (save) window.toast?.success('Seam', 'Saved & applied');
+    await api.post('/api/settings/seam', { columns, save: !!save, bits: seamActiveBits });
+    if (save) window.toast?.success('Seam', `Saved ${seamActiveBits}-bit curve`);
   } catch (error) {
     window.toast?.error('Seam', error.message || 'Failed to apply seam correction');
   }
@@ -957,6 +1019,7 @@ window.saveSpiSettings = saveSpiSettings;
 window.saveHomeAssistant = saveHomeAssistant;
 window.loadSeam = loadSeam;
 window.applySeam = applySeam;
+window.selectSeamBits = selectSeamBits;
 window.setSeamPreview = setSeamPreview;
 window.resetSeamCurve = resetSeamCurve;
 window.resetSeamGainLift = resetSeamGainLift;
@@ -979,14 +1042,47 @@ window.uploadCertificate = uploadCertificate;
 window.regenerateCertificate = regenerateCertificate;
 window.loadCertificateInfo = loadCertificateInfo;
 
+async function reloadPlugins() {
+  const btn = document.getElementById('plugin-reload-btn');
+  const status = document.getElementById('plugin-reload-status');
+  if (btn) btn.disabled = true;
+  if (status) status.textContent = 'Reloading…';
+  try {
+    const r = await api.post('/api/plugins/reload');
+    const v = r.data || r;
+    const ext = v.extensions || {};
+    const filt = v.filters || {};
+    const fail = [...(ext.failed || []), ...(filt.failed || [])];
+    const msg = `${ext.available ?? 0} extensions, ${filt.available ?? 0} filters`
+      + (fail.length ? ` — ${fail.length} restore failed` : '');
+    if (status) status.textContent = msg;
+    if (fail.length) window.toast?.error('Plugins', fail[0]);
+    else window.toast?.success('Plugins', 'Reloaded — ' + msg);
+    window.dispatchEvent(new CustomEvent('pluginsReloaded', { detail: v }));
+  } catch (error) {
+    if (status) status.textContent = error.message || 'Reload failed';
+    window.toast?.error('Plugins', error.message || 'Reload failed');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+window.reloadPlugins = reloadPlugins;
+
 window.addEventListener('tabChanged', (e) => {
   if (e.detail?.tab === 'settings') {
     loadCurrentSettings();
     loadImageCorrection();
     loadNetworkConfig();
-    loadSeam();
+    loadSeam({ lock: true });
     loadCertificateInfo();
-  } else if (seamPreviewOn) {
-    setSeamPreview(-1);
+  } else {
+    if (seamPreviewOn) setSeamPreview(-1);
+    releaseSeamMode();
   }
+});
+
+window.addEventListener('pagehide', () => {
+  if (seamPreviewOn) setSeamPreview(-1);
+  releaseSeamMode();
 });

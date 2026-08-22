@@ -338,6 +338,48 @@
   display: none !important;
 }
 
+.seam-bit-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0 0 0.65rem;
+  padding: 0.25rem;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  width: fit-content;
+}
+
+.seam-bit-tab {
+  padding: 0.4rem 0.9rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.seam-bit-tab:hover {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+.seam-bit-tab.active {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.seam-bit-tab:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+#seam-mode-hint {
+  margin: 0 0 0.85rem;
+}
+
 /* Seam table */
 .seam-table {
   width: 100%;

@@ -1,6 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using PixPlane;
 using SkiaSharp;
 using verpixeld.Configuration;
@@ -28,7 +26,9 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     private readonly object _lock = new();   // guards _streamer swaps vs the render-loop thread
     private int _switching;                  // 0 idle, 1 live depth switch in flight
     private int _desiredBits;
-    private List<SeamColumn> _liveSeam = [];
+    private int _calibrateBits;              // 0 = canvas-driven; 8 or 14 = Settings tab lock
+    private List<SeamColumn> _seam8 = [];
+    private List<SeamColumn> _seam14 = [];
     private volatile int _previewGrey = -1;  // -1 = off; 0..255 = solid grey on the wall (curve matching)
 
     public int Width { get; }
@@ -50,6 +50,12 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     public int Port => _options.Port;
     public double TargetMbps => _options.TargetMbps;
     public int ColorBits => _options.ColorBits;
+
+    /// <summary>
+    ///     When 8 or 14, the Settings seam tab owns the panel depth (canvas votes are ignored).
+    ///     0 = follow visible canvases again.
+    /// </summary>
+    public int SeamCalibrateBits => _calibrateBits;
 
     public NetworkMatrixRenderer(int wallWidth, int wallHeight, NetworkOptions options,
         ImageCorrectionService? correction = null)
@@ -98,6 +104,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         lock (_lock)
         {
             if (_streamer != null) return;
+            LoadSeamUnlocked();
             _streamer = NewStreamer();
             _seamStamp = SafeStamp();
         }
@@ -115,8 +122,13 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         WallWidth = Width,
         WallHeight = Height,
         Color = _color,
-        Seam = LoadSeamColumns()
+        Seam = ActiveSeam()
     });
+
+    private List<SeamColumn> ActiveSeam() =>
+        SeamCorrectionStore.NormalizeBits(_options.ColorBits) == SeamCorrectionStore.Bits14
+            ? (_seam14.Count > 0 ? _seam14 : SeamCorrectionStore.DefaultColumns())
+            : (_seam8.Count > 0 ? _seam8 : SeamCorrectionStore.IdentityColumns());
 
     /// <summary>
     ///     Live update of the network target (IP / port / pacing / colour depth) from the web GUI, with no
@@ -254,16 +266,49 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         }
     }
 
-    /// <summary>Current per-column seam correction (live values if set, otherwise the JSON file).</summary>
-    public IReadOnlyList<SeamColumn> GetSeamColumns()
+    /// <summary>Seam profile for <paramref name="bits"/> (8 or 14). Null bits → calibrate lock, else live panel depth.</summary>
+    public IReadOnlyList<SeamColumn> GetSeamColumns(int? bits = null)
     {
         lock (_lock)
         {
-            if (_liveSeam.Count > 0) return _liveSeam;
-            var loaded = LoadSeamColumns();
-            _liveSeam = loaded;
-            return loaded;
+            EnsureSeamLoaded();
+            var b = bits ?? (_calibrateBits is 8 or 14 ? _calibrateBits : _options.ColorBits);
+            return GetProfileUnlocked(b);
         }
+    }
+
+    /// <summary>
+    ///     Pin the panel to 8- or 14-bit while the Settings seam tab is open, or pass 0 to
+    ///     hand depth back to visible canvases. Does not persist.
+    /// </summary>
+    public void SetSeamCalibrateBits(int bits) =>
+        _calibrateBits = bits is 8 or 14 ? bits : 0;
+
+    /// <summary>Wait until the panel streamer is at <paramref name="colorBits"/> (live <c>livemode</c>).</summary>
+    public async Task EnsureColorBitsAsync(int colorBits, CancellationToken ct = default)
+    {
+        var bits = SeamCorrectionStore.NormalizeBits(colorBits);
+        _desiredBits = bits;
+        var start = DateTime.UtcNow;
+        while (Volatile.Read(ref _switching) != 0)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (DateTime.UtcNow - start > TimeSpan.FromSeconds(8)) break;
+            await Task.Delay(50, ct).ConfigureAwait(false);
+        }
+
+        if (bits == _options.ColorBits && Volatile.Read(ref _switching) == 0) return;
+        if (Interlocked.CompareExchange(ref _switching, 1, 0) != 0)
+        {
+            while (Volatile.Read(ref _switching) != 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                await Task.Delay(50, ct).ConfigureAwait(false);
+            }
+            return;
+        }
+
+        await SwitchLiveAsync(bits).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -277,50 +322,58 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         _previewGrey = grey8 < 0 ? -1 : Math.Clamp(grey8, 0, 255);
 
     /// <summary>
-    ///     Live update of the per-column seam correction from the web GUI. Applies immediately to the
-    ///     running streamer; when <paramref name="persist"/> is set it also rewrites seam_correction.json
-    ///     (and bumps the hot-reload stamp so the file watcher won't re-apply our own write).
+    ///     Live update of one bit-depth profile. Applies immediately when that depth is on the wall;
+    ///     when <paramref name="persist"/> is set it rewrites both profiles in seam_correction.json.
     /// </summary>
-    public void SetSeam(IReadOnlyList<SeamColumn> columns, bool persist)
+    public void SetSeam(IReadOnlyList<SeamColumn> columns, bool persist, int? bits = null)
     {
         lock (_lock)
         {
-            _liveSeam = columns.ToList();
-            _streamer?.UpdateSeam(_liveSeam);
+            EnsureSeamLoaded();
+            var b = bits ?? (_calibrateBits is 8 or 14 ? _calibrateBits : _options.ColorBits);
+            if (SeamCorrectionStore.NormalizeBits(b) == SeamCorrectionStore.Bits14)
+                _seam14 = columns.ToList();
+            else
+                _seam8 = columns.ToList();
+            if (SeamCorrectionStore.NormalizeBits(_options.ColorBits) == SeamCorrectionStore.NormalizeBits(b))
+                _streamer?.UpdateSeam(columns);
         }
         if (persist)
         {
-            WriteSeamFile(columns);
+            WriteSeamFile();
             lock (_lock) _seamStamp = SafeStamp();
         }
     }
 
     // ---- seam correction hot-reload (verpixeld convenience) ---------------------------------
 
-    private sealed class SeamConfig { public List<SeamColumn> Columns { get; set; } = []; }
-
-    private static readonly JsonSerializerOptions SeamJsonRead = new() { PropertyNameCaseInsensitive = true };
-    private static readonly JsonSerializerOptions SeamJsonWrite = new()
-    {
-        WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
-
     private DateTime SafeStamp() { try { return File.GetLastWriteTimeUtc(_seamFile); } catch { return DateTime.MinValue; } }
 
-    private List<SeamColumn> LoadSeamColumns()
+    private void EnsureSeamLoaded()
     {
-        try
+        if (_seam8.Count > 0 || _seam14.Count > 0) return;
+        LoadSeamUnlocked();
+    }
+
+    private List<SeamColumn> GetProfileUnlocked(int bits) =>
+        SeamCorrectionStore.NormalizeBits(bits) == SeamCorrectionStore.Bits14
+            ? (_seam14.Count > 0 ? _seam14 : SeamCorrectionStore.DefaultColumns())
+            : (_seam8.Count > 0 ? _seam8 : SeamCorrectionStore.IdentityColumns());
+
+    private void LoadSeamUnlocked()
+    {
+        if (!File.Exists(_seamFile))
         {
-            if (!File.Exists(_seamFile)) { WriteSeamTemplate(); }
-            var cfg = JsonSerializer.Deserialize<SeamConfig>(File.ReadAllText(_seamFile), SeamJsonRead);
-            return cfg?.Columns is { Count: > 0 } cols ? cols : [];
+            _seam8 = SeamCorrectionStore.IdentityColumns();
+            _seam14 = SeamCorrectionStore.DefaultColumns();
+            WriteSeamUnlocked();
+            Console.WriteLine($"[NET] wrote seam-correction template to {_seamFile}");
+            return;
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[NET] seam load failed: {ex.Message}");
-            return [];
-        }
+
+        var store = SeamCorrectionStore.Load(_seamFile);
+        _seam8 = store.Profile8;
+        _seam14 = store.Profile14;
     }
 
     private void MaybeReloadSeam()
@@ -328,30 +381,23 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         var stamp = SafeStamp();
         if (stamp == _seamStamp) return;
         _seamStamp = stamp;
-        var cols = LoadSeamColumns();
-        _liveSeam = cols;
-        _streamer?.UpdateSeam(cols);
+        LoadSeamUnlocked();
+        _streamer?.UpdateSeam(ActiveSeam());
         Console.WriteLine($"[NET] seam correction reloaded from {_seamFile}");
     }
 
-    private void WriteSeamFile(IReadOnlyList<SeamColumn> cols)
+    private void WriteSeamFile()
     {
-        var cfg = new SeamConfig { Columns = cols.ToList() };
-        File.WriteAllText(_seamFile, JsonSerializer.Serialize(cfg, SeamJsonWrite));
-        Console.WriteLine($"[NET] seam written to {_seamFile} ({cfg.Columns.Count} columns)");
+        lock (_lock) WriteSeamUnlocked();
+        Console.WriteLine($"[NET] seam written to {_seamFile} (8-bit {_seam8.Count} / 14-bit {_seam14.Count} columns)");
     }
 
-    private void WriteSeamTemplate()
+    private void WriteSeamUnlocked()
     {
-        // Default the four scan-home boundary columns to the tuned gain/lift so a fresh install is already
-        // corrected (contrast compression on cols 63/127/191/255). Hot-reloadable - edit to taste.
-        SeamColumn Col(int x) => new()
-        {
-            X = x, GainR = 0.85, GainG = 0.85, GainB = 0.85, LiftR = 0.004, LiftG = 0.004, LiftB = 0.004
-        };
-        var cfg = new SeamConfig { Columns = [Col(63), Col(127), Col(191), Col(255)] };
-        File.WriteAllText(_seamFile, JsonSerializer.Serialize(cfg, SeamJsonWrite));
-        Console.WriteLine($"[NET] wrote seam-correction template to {_seamFile}");
+        var store = new SeamCorrectionStore();
+        store.Set(8, _seam8.Count > 0 ? _seam8 : SeamCorrectionStore.IdentityColumns());
+        store.Set(14, _seam14.Count > 0 ? _seam14 : SeamCorrectionStore.DefaultColumns());
+        store.Save(_seamFile);
     }
 
     public void Shutdown() { Dispose(); Console.WriteLine("[NET] renderer shut down"); }

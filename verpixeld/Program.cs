@@ -76,6 +76,7 @@ public class Program
 
     // Home Assistant connection (WebSocket → entity state bridge)
     private static HomeAssistantService? _homeAssistantService;
+    private static HaToastService? _haToastService;
 
     // Layout (scene) playlist rotation
     private static LayoutPlaylistService _layoutPlaylistService = null!;
@@ -111,17 +112,23 @@ public class Program
         InitializeHardware();
         InitializeCanvas();
 
-        // Show initialization screen (this includes 5 second countdown)        
-        await ShowIntro();
+        // Bind Kestrel as soon as the API has its services. Intro + default layout still run on the
+        // wall, but the GUI is reachable during that wait instead of after it.
+        var (app, shutdownCts) = CreateWebApplication();
+        await app.StartAsync();
+        Console.WriteLine("[WEB] Listening — intro and default layout continue in the background");
 
-        // Start local program
-        await StartLocalMode();
-
-        // Give local mode a moment to start before web server takes over
-        await Task.Delay(500);
-
-        // Start web server
-        await StartWebServer();
+        try
+        {
+            await ShowIntro();
+            await StartLocalMode();
+            await app.WaitForShutdownAsync(shutdownCts.Token);
+        }
+        finally
+        {
+            await app.StopAsync();
+            Console.WriteLine("Application shutdown complete.");
+        }
     }
 
     private static void ParseCommandLineArgs(string[] args)
@@ -273,8 +280,8 @@ public class Program
 
         _frameStreamService = new FrameStreamService(_renderService);
 
-        _extensionDiscovery = new ExtensionDiscoveryService();
-        _filterDiscovery = new FilterDiscoveryService();
+        _extensionDiscovery = ExtensionDiscoveryService.Default;
+        _filterDiscovery = FilterDiscoveryService.Default;
         _extensionDiscovery.LoadAssemblies();
         _filterDiscovery.LoadAssemblies();
         Console.WriteLine("[INIT] Discovery services initialized");
@@ -343,6 +350,7 @@ public class Program
                         ?? new HomeAssistantOptions();
         _homeAssistantService = new HomeAssistantService(haOptions);
         _homeAssistantService.Start();
+        _haToastService = new HaToastService(_cm, w, h);
 
         BdfFontRegistry.LoadFontsFromCommonLocations();
 
@@ -430,7 +438,7 @@ public class Program
         Console.WriteLine("[STARTUP] Layout scheduler started");
     }
 
-    private static async Task StartWebServer()
+    private static (WebApplication App, CancellationTokenSource Shutdown) CreateWebApplication()
     {
         // ============================================================================
         // WEB API FOR REMOTE CONTROL
@@ -558,6 +566,7 @@ public class Program
         app.MapPreviewEndpoints();
         app.MapNowPlayingEndpoints();
         app.MapHomeAssistantEndpoints();
+        app.MapGeoEndpoints();
         app.MapPlaylistEndpoints(_layoutPlaylistService);
         app.MapCanvasRotationEndpoints(_canvasRotationService);
 
@@ -615,6 +624,7 @@ public class Program
             healthMonitor.Stop();
             _voiceCommandService.Stop();
             _homeAssistantService?.Stop();
+            _haToastService?.Dispose();
             _scheduleManager.Stop();
             _nightModeManager.Dispose();
             _alertService.Dispose();
@@ -627,8 +637,7 @@ public class Program
             shutdownCts.Cancel();
         };
 
-        await app.RunAsync(shutdownCts.Token);
-        Console.WriteLine("Application shutdown complete.");
+        return (app, shutdownCts);
     }
 
     private static void ConfigureLogging(WebApplicationBuilder builder, bool verbose)

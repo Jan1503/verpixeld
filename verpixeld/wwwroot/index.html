@@ -32,7 +32,7 @@
     <link rel="stylesheet" href="/css/features/image-upload.css?v=20260208c">
     <link rel="stylesheet" href="/css/features/ai-art.css?v=20260208c">
     <link rel="stylesheet" href="/css/features/voice-commands.css?v=20260208c">
-    <link rel="stylesheet" href="/css/features/settings.css?v=20260818a">
+    <link rel="stylesheet" href="/css/features/settings.css?v=20260822a">
     <link rel="stylesheet" href="/css/responsive.css?v=20260208a">
     <link rel="stylesheet" href="/css/animations.css?v=20260208a">
     <link rel="stylesheet" href="/css/splash.css?v=20260208a">
@@ -2094,8 +2094,13 @@
               <h4 class="settings-group-title">Seam correction</h4>
               <p class="settings-hint" style="margin-bottom: 0.75rem;">
                 Per-column correction for the scan-home columns (default 63 / 127 / 191 / 255).
-                The 9-point curve remaps 8-bit source on those columns so you can invert the nonlinear first-line (darker shadows <em>and</em> brighter highlights). Gain/lift still apply after the curve (set them to 1.0 / 0 while matching). Grey preview fills the wall from this host — firmware <code>t f</code> bypasses the curve.
+                8-bit and 14-bit each have their own curve — switching the tab forces the panel into that depth so you match what you see. The 9-point curve remaps 8-bit source on those columns. Gain/lift still apply after the curve (set them to 1.0 / 0 while matching). Grey preview fills the wall from this host — firmware <code>t f</code> bypasses the curve.
               </p>
+              <div class="seam-bit-tabs" role="tablist">
+                <button type="button" class="seam-bit-tab active" data-seam-bits="14" onclick="selectSeamBits(14)">14-bit</button>
+                <button type="button" class="seam-bit-tab" data-seam-bits="8" onclick="selectSeamBits(8)">8-bit</button>
+              </div>
+              <p class="settings-hint" id="seam-mode-hint">Panel follows this tab while you edit. Leaving Settings returns to canvas depth.</p>
               <div class="seam-preview-row">
                 <label for="seam-grey">Wall grey</label>
                 <input type="range" id="seam-grey" min="0" max="255" value="128">
@@ -2714,6 +2719,32 @@
           </div>
         </div>
 
+        <!-- Plugins -->
+        <div class="tab-section collapsible">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">🔌</span>
+              Plugins
+            </h3>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <div class="settings-group">
+              <h4 class="settings-group-title">Hot reload</h4>
+              <p class="settings-hint" style="margin-bottom: 0.75rem;">
+                Copy new extension or filter DLLs into <code>Extensions/</code> or <code>Filters/</code>, then reload.
+                Running canvases and filters are stopped, the plugins are loaded from disk, and the previous
+                assignments come back. Host assemblies (<code>Interfaces</code>, SkiaSharp) stay with verpixeld —
+                if those changed, restart the process. Video/native plugins may need a restart if they pin the old ALC.
+              </p>
+              <div class="settings-row settings-row-actions">
+                <button type="button" class="btn btn-small btn-primary" id="plugin-reload-btn" onclick="reloadPlugins()">Reload plugins</button>
+                <span class="settings-hint" id="plugin-reload-status"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- System Info -->
         <div class="tab-section collapsible collapsed">
           <div class="tab-section-header">
@@ -2817,10 +2848,10 @@
   <script src="/js/features/saved-layouts.js?v=20260208a"></script>
   <script src="/js/features/playlist.js?v=20260623a"></script>
   <script src="/js/features/canvas-editor.js?v=20260208a"></script>
-  <script src="/js/features/layer-editor.js?v=20260625b"></script>
+  <script src="/js/features/layer-editor.js?v=20260821d"></script>
   <script src="/js/features/system-control.js?v=20260208a"></script>
   <script src="/js/features/filter-management.js?v=20260208a"></script>
-  <script src="/js/features/extension-management.js?v=20260625a"></script>
+  <script src="/js/features/extension-management.js?v=20260821c"></script>
   <script src="/js/features/layout-management.js?v=20260208a"></script>
   <script src="/js/features/camera-stream.js?v=20260624a"></script>
   <script src="/js/features/media-player.js?v=20260208a"></script>
@@ -2833,7 +2864,7 @@
   <script src="/js/features/ai-art.js?v=20260208c"></script>
   <script src="/js/features/voice-commands.js?v=20260208c"></script>
   <script src="/js/features/live-preview.js?v=20260208a"></script>
-  <script src="/js/features/settings.js?v=20260818b"></script>
+  <script src="/js/features/settings.js?v=20260822b"></script>
   <script src="/js/core/init.js?v=20260208a"></script>
 </body>
 </html>

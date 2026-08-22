@@ -164,7 +164,11 @@ public class RenderLoopService : IRenderService, IDisposable
     {
         var net = (_matrixRenderer as OutputRuntime)?.As<NetworkMatrixRenderer>()
                   ?? _matrixRenderer as NetworkMatrixRenderer;
-        net?.SyncLiveColorBits(DesiredPanelColorBits(_canvasManager));
+        if (net == null) return;
+        var want = net.SeamCalibrateBits is 8 or 14
+            ? net.SeamCalibrateBits
+            : DesiredPanelColorBits(_canvasManager);
+        net.SyncLiveColorBits(want);
     }
 
     private static int DesiredPanelColorBits(CanvasManager cm)

@@ -99,16 +99,14 @@ public static class LayoutEndpoints
                 await Task.Delay(200);
                 Console.WriteLine("[API] All content stopped, applying new layout...");
 
-                // All canvases are about to be destroyed and rebuilt. Stop rotation timers first so
-                // they don't Advance() against canvases mid-teardown.
-                ctx.RotationService?.StopAllTimers();
+                // A profile is a blank canvas structure, not a saved scene. Drop per-canvas rotation
+                // playlists so Studio's Content pane (and later assigns) don't inherit the previous
+                // layout's steps — same as loading a saved layout, which then re-imports from JSON.
+                ctx.RotationService?.ClearAll();
 
                 // Apply new layout
                 ctx.LayoutManager!.ApplyLayout(profile);
                 ctx.CurrentLayout = profile;
-
-                // Restart only rotations whose canvases exist in the new layout (keep configs for the rest).
-                ctx.RotationService?.SyncToLiveCanvases();
 
                 // Update prime canvas reference
                 ctx.PrimeCanvas = ctx.LayoutManager.GetCanvas("Main")
@@ -553,6 +551,7 @@ public static class LayoutEndpoints
                                                    liveCanvas.Width == ctx.CanvasManager.Width &&
                                                    liveCanvas.Height == ctx.CanvasManager.Height);
                         canvasConfig.TransparentBackground = liveCanvas.TransparentBackground;
+                        canvasConfig.Hidden = liveCanvas.IsHidden;
                     }
 
                     // Extract current parameters from the REAL extension instance (the [ExtensionParameter]

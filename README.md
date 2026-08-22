@@ -66,7 +66,7 @@ Whether you want to show the time, display weather information, run animations, 
 - 🔊 **Bluetooth Audio** — Output audio to Bluetooth speakers via PulseAudio
 - 📹 **Camera Motion Alerts** — Auto-switch to a camera feed when motion is detected
 - 🖼️ **Image & Video Upload** — Upload photos or stream video clips from any device to the display
-- 🏠 **Home Assistant Integration** — Live sensor tiles, a multi-entity dashboard grid, and history graphs (temperature, power, …) via the HA WebSocket + History API, with a searchable entity picker
+- 🏠 **Home Assistant Integration** — Sensor tiles, grid, graphs, energy ring, weather sky, media now-playing, climate arc, waste pickups, plus persistent-notification toasts on the wall
 - 🧲 **Live Layer Editor** — Drag, resize, reorder and configure canvases directly over the live display preview, with per-canvas transparent backgrounds
 - 🕒 **Rich Clocks & Extensions** — Flexible Digital Clock (12/24h, BDF/seven-segment, glow, colour cycle) plus many extensions: games (Pac-Man, Snake, Pong, Tetris, Space Invaders, Dino, Flappy Bird), Weather, News Ticker, Now Playing, Falling Sand, and more
 - 🤖 **AI Art Generation** — Generate images with Azure OpenAI or OpenAI, with image-to-image stylization, gallery storage, and scheduled auto-generation
@@ -125,14 +125,15 @@ The offset is **nonlinear** (an S-curve): darker than the neighbour in the shado
 9-point curve → 256-entry 8-bit LUT  →  global colour LUT  →  optional dither  →  Gain / Lift
 ```
 
-Settings → Output → Network → **Seam correction**:
+Settings → Output → Network → **Seam correction** has two tabs (**14-bit** / **8-bit**). Each depth has its own curve — 14-bit video and 8-bit clocks do not match with one LUT. Opening a tab live-switches the panel to that depth (`livemode`); leaving Settings hands depth back to the visible canvases.
 
-1. Set **Gain/lift → 1 / 0** so only the curve is in play.
-2. Turn **Wall grey** on (host fills the wall — firmware `t f` bypasses the LUT and cannot calibrate it).
-3. Nudge the knot for that grey (`in 128`, `in 32`, …) until column 63 matches 62. Repeat at a few levels.
-4. **Save seams** writes `seam_correction.json` next to the app (hot-reloaded). The four columns share one curve.
+1. Pick the tab you want to match. Wait until the hint says the panel is locked to that depth.
+2. Set **Gain/lift → 1 / 0** so only the curve is in play.
+3. Turn **Wall grey** on (host fills the wall — firmware `t f` bypasses the LUT and cannot calibrate it).
+4. Nudge the knot for that grey (`in 128`, `in 32`, …) until column 63 matches 62. Repeat at a few levels.
+5. **Save seams** writes that tab into `seam_correction.json` (hot-reloaded). The four columns share one curve per depth.
 
-Old JSON with only gain/lift still loads. You can also paste a full 256-entry `lut` / `lutR` array. DeskCast has the same PixPlane curve in its Seam window.
+A legacy file with only `columns` becomes the **14-bit** profile; 8-bit starts as identity. The file also keeps a top-level `columns` array (14-bit) so older readers still load something. You can paste a full 256-entry `lut` / `lutR` array. DeskCast still has a single PixPlane curve.
 
 <!-- PHOTO seam-uncorrected: wall grey ramp, four scan-home columns -->
 <!-- PHOTO seam-corrected: same after the 9-point curve -->
@@ -194,12 +195,19 @@ Pull live state from Home Assistant over its WebSocket API (long-lived token, ke
 - **HA Sensor** — one entity as a tile: value + unit + icon, threshold colouring, on/off badge, "last changed" age, state remapping, optional history sparkline
 - **HA Grid** — several entities on one canvas (compact dashboard)
 - **HA Graph** — a history line/area chart for a numeric entity (e.g. temperature/power), seeded from the HA History API and updated live
+- **HA Energy** — house / solar / grid / battery as a ring or split bar
+- **HA Weather** — `weather.*` condition + temperature with an animated sky (Open-Meteo Weather remains as a no-HA fallback)
+- **HA Now Playing** — `media_player.*` title / artist / progress
+- **HA Climate** — `climate.*` current vs setpoint arc, coloured by `hvac_action`
+- **HA Waste** — next bin dates from HA date sensors
+- **Toasts** — HA persistent notifications as a short overlay banner (no token in layouts)
 - **Searchable entity picker** in the web UI; icons drawn from the entity's `mdi:` icon / domain
 
 ### 🧲 Live Layer Editor
 
 - Drag, resize and reorder canvases directly over the live MJPEG preview
-- Per-canvas **opacity**, **z-order**, **rename**, and **transparent background** (alpha compositing reveals layers beneath)
+- Per-canvas **opacity**, **z-order**, **rename**, **hide**, and **transparent background** (alpha compositing reveals layers beneath)
+- Align / fit tools in the inspector; snap defaults to 4 px; stage refits on window resize
 - Extensions reflow to the new size automatically
 
 ### 🎨 Visual Filters
@@ -645,8 +653,10 @@ verpixeld exposes a comprehensive REST API for integration with external systems
 | `PUT` | `/api/settings/output` | Switch output mode (`gpio` / `network` / `hdmi` / `spi` / `simulation`) |
 | `GET` | `/api/settings/network/discover` | LAN scan for verpixeld-panel (UDP 7778 + HTTP `/status`) |
 | `POST` | `/api/settings/network/identify` | Flash the bound panel |
-| `GET`/`POST` | `/api/settings/seam` | Per-column seam curve + gain/lift (network path) |
+| `GET`/`POST` | `/api/settings/seam` | Per-depth seam curve + gain/lift (`bits`: 8 or 14; network path) |
+| `POST` | `/api/settings/seam/mode` | Lock panel to 8/14 while calibrating (`{ "bits": 8\|14\|0 }`) |
 | `POST` | `/api/settings/seam/preview` | Host-side wall grey (`{ "level": 0..255 }` or `-1` to stop) |
+| `POST` | `/api/plugins/reload` | Unload+reload extension and filter DLLs; restore running canvases |
 | `GET` | `/health` | Health check endpoint |
 
 ### Camera Alert Webhook

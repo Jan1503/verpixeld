@@ -205,7 +205,12 @@ public class CanvasRotationService
         }
     }
 
-    /// <summary>Sets an item's config; if that item is currently displayed, re-applies it live.</summary>
+    /// <summary>
+    ///     Sets an item's config. If that item is currently displayed, push the new values into the
+    ///     running extension (same path as the live Params editor) instead of tearing it down and
+    ///     constructing a fresh instance — otherwise media extensions restart from the beginning
+    ///     every time the parameter page is saved or closed.
+    /// </summary>
     public void SetStepConfig(string canvas, int index, Dictionary<string, object>? config)
     {
         RotationStep? step = null;
@@ -219,8 +224,16 @@ public class CanvasRotationService
             active = _index.TryGetValue(canvas, out var i) && i == index;
         }
 
-        if (active && step != null)
-            _content.AssignExtension(canvas, step.Extension, ConfigNormalizer.Normalize(config));
+        if (!active || step == null) return;
+
+        var cfg = ConfigNormalizer.Normalize(config);
+        var existing = _content.GetContent(canvas);
+        var sameExtension = existing is { ContentType: ContentType.DynamicExtension, ExtensionDisplayName: { } name }
+                            && string.Equals(name, step.Extension, StringComparison.OrdinalIgnoreCase);
+        if (sameExtension && cfg != null)
+            _content.UpdateConfiguration(canvas, cfg);
+        else
+            _content.AssignExtension(canvas, step.Extension, cfg);
     }
 
     public void DuplicateStep(string canvas, int index)
@@ -242,11 +255,27 @@ public class CanvasRotationService
     public async Task<bool> ApplyStep(string canvas, int index)
     {
         RotationStep step;
+        var alreadyShowing = false;
         lock (_lock)
         {
             if (!_configs.TryGetValue(canvas, out var cfg) || index < 0 || index >= cfg.Steps.Count) return false;
+            alreadyShowing = _index.TryGetValue(canvas, out var i) && i == index;
             step = cfg.Steps[index];
             _index[canvas] = index;
+        }
+
+        // Opening the parameter page calls apply-step so edits preview live. If this step is
+        // already on the canvas, rebuilding it would restart playback (trailers, YouTube, video, …).
+        if (alreadyShowing)
+        {
+            var type = (step.Type ?? "extension").ToLowerInvariant();
+            if (type is "media" or "camera")
+                return true;
+
+            var existing = _content.GetContent(canvas);
+            if (existing is { ContentType: ContentType.DynamicExtension, ExtensionDisplayName: { } name }
+                && string.Equals(name, step.Extension, StringComparison.OrdinalIgnoreCase))
+                return true;
         }
 
         await ApplyStepContent(canvas, step);

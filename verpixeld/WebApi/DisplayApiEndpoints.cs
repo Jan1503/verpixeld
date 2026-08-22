@@ -28,6 +28,7 @@ public static class DisplayApiEndpoints
         app.MapSystemEndpoints(ctx); // /api/status, /api/system/*
         app.MapFilterEndpoints(ctx); // /api/filters/*
         app.MapExtensionEndpoints(ctx); // /api/extensions/*
+        app.MapPluginEndpoints(ctx); // /api/plugins/reload
         app.MapCanvasEndpoints(ctx, mediaService); // /api/canvas/*
         app.MapDrawingEndpoints(ctx); // /api/draw/*, /api/drawings
     }

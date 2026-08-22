@@ -269,7 +269,7 @@ public sealed class HomeAssistantService
                     // Initial snapshot from get_states: { result: [ {entity_id, state, attributes}, ... ] }
                     if (root.TryGetProperty("result", out var res) && res.ValueKind == JsonValueKind.Array)
                         foreach (var entity in res.EnumerateArray())
-                            StoreEntity(entity);
+                            StoreEntity(entity, raiseToast: false);
                     break;
 
                 case "event":
@@ -278,7 +278,7 @@ public sealed class HomeAssistantService
                         ev.TryGetProperty("data", out var data) &&
                         data.TryGetProperty("new_state", out var newState) &&
                         newState.ValueKind == JsonValueKind.Object)
-                        StoreEntity(newState);
+                        StoreEntity(newState, raiseToast: true);
                     break;
             }
         }
@@ -288,7 +288,7 @@ public sealed class HomeAssistantService
         }
     }
 
-    private static void StoreEntity(JsonElement entity)
+    private static void StoreEntity(JsonElement entity, bool raiseToast)
     {
         if (!entity.TryGetProperty("entity_id", out var idEl)) return;
         var id = idEl.GetString();
@@ -320,10 +320,41 @@ public sealed class HomeAssistantService
         }
 
         HomeAssistantBridge.Set(id, state, unit, friendly, icon, deviceClass, lastChanged);
+        StoreExtra(id, entity, state, raiseToast);
 
         // Buffer numeric samples for entities a graph/sparkline is watching.
         if (double.TryParse(state, NumberStyles.Float, CultureInfo.InvariantCulture, out var num))
             HomeAssistantBridge.AddSample(id, num, lastChanged ?? DateTime.UtcNow);
+    }
+
+    private static void StoreExtra(string id, JsonElement entity, string state, bool raiseToast)
+    {
+        var bag = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (entity.TryGetProperty("attributes", out var attrs) && attrs.ValueKind == JsonValueKind.Object)
+        {
+            // Keep every scalar attribute (weather, media, climate, and date-keyed waste schedules
+            // such as Stadtreinigung Hamburg: "24.08.2026" → "Gelbe Tonne").
+            foreach (var prop in attrs.EnumerateObject())
+            {
+                if (prop.Value.ValueKind == JsonValueKind.String)
+                    bag[prop.Name] = prop.Value.GetString() ?? "";
+                else if (prop.Value.ValueKind == JsonValueKind.Number)
+                    bag[prop.Name] = prop.Value.GetRawText();
+            }
+        }
+
+        HomeAssistantBridge.SetExtra(id, bag);
+
+        if (raiseToast &&
+            id.StartsWith("persistent_notification.", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(state, "off", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(state, "removed", StringComparison.OrdinalIgnoreCase))
+        {
+            var title = bag.GetValueOrDefault("title") ?? bag.GetValueOrDefault("friendly_name") ?? "Home Assistant";
+            var msg = bag.GetValueOrDefault("message") ?? state;
+            if (!string.IsNullOrWhiteSpace(msg) && msg is not "notifying" and not "unknown")
+                HomeAssistantBridge.RaiseNotification(title, msg);
+        }
     }
 
     private static async Task SendAsync(ClientWebSocket ws, object payload, CancellationToken ct)

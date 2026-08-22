@@ -200,6 +200,30 @@ public static class CanvasEndpoints
             }
         });
 
+        // Toggle visibility (does not stop the extension; hidden canvases skip the wall composite).
+        app.MapPut("/api/canvas/{canvasName}/visible", async (string canvasName, HttpContext context) =>
+        {
+            try
+            {
+                using var reader = new StreamReader(context.Request.Body);
+                var body = await reader.ReadToEndAsync();
+                var visible = JsonDocument.Parse(body).RootElement
+                    .TryGetProperty("visible", out var v) && v.GetBoolean();
+
+                var canvas = ResolveCanvas(canvasName);
+                if (canvas == null)
+                    return Results.Json(new ApiResponse<string>(false, Error: $"Canvas '{canvasName}' not found"));
+
+                if (visible) canvas.Show();
+                else canvas.Hide();
+                return Results.Json(new ApiResponse<string>(true, visible ? "Canvas shown" : "Canvas hidden"));
+            }
+            catch (Exception ex)
+            {
+                return Results.Json(new ApiResponse<string>(false, Error: ex.Message));
+            }
+        });
+
         // Toggle transparent-background (alpha) compositing for a canvas.
         app.MapPut("/api/canvas/{canvasName}/transparent", async (string canvasName, HttpContext context) =>
         {

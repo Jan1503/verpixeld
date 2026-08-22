@@ -60,18 +60,16 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(canvasManager);
 
         // Register discovery services
-        services.AddSingleton<IExtensionDiscovery>(sp =>
+        services.AddSingleton<IExtensionDiscovery>(_ =>
         {
-            var discovery = new ExtensionDiscoveryService();
-            discovery.LoadAssemblies();
-            return discovery;
+            ExtensionDiscoveryService.Default.LoadAssemblies();
+            return ExtensionDiscoveryService.Default;
         });
 
-        services.AddSingleton<IFilterDiscovery>(sp =>
+        services.AddSingleton<IFilterDiscovery>(_ =>
         {
-            var discovery = new FilterDiscoveryService();
-            discovery.LoadAssemblies();
-            return discovery;
+            FilterDiscoveryService.Default.LoadAssemblies();
+            return FilterDiscoveryService.Default;
         });
 
         // Register layout services

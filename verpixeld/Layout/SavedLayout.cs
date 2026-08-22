@@ -141,6 +141,10 @@ public class CanvasConfiguration
     [JsonPropertyName("transparentBackground")]
     public bool TransparentBackground { get; set; }
 
+    /// <summary>When true the canvas is not composited (and ignored for live 8/14-bit).</summary>
+    [JsonPropertyName("hidden")]
+    public bool Hidden { get; set; }
+
     /// <summary>
     ///     Extension parameters/settings
     /// </summary>

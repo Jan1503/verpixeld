@@ -13,7 +13,7 @@ const layerEditor = {
   drag: null,          // { name, mode, startX, startY, orig:{x,y,w,h} }
   lastSent: 0,
   sending: false,
-  grid: 8,
+  grid: 4,
   snap: true,
   drawMode: false,     // when true, dragging on the stage draws a NEW canvas
   draw: null           // { sx, sy, cx, cy } in display pixels while drawing
@@ -30,6 +30,8 @@ const LE_STD = ['Main', 'Header', 'Content', 'Footer', 'Left', 'Right',
   'TopLeft', 'TopRight', 'BottomLeft', 'BottomRight'];
 
 let _studioMounted = false;
+let _studioPoll = null;
+let _studioFp = '';
 
 function buildStudioBodyHtml() {
   return `
@@ -61,15 +63,7 @@ function buildStudioBodyHtml() {
                 <button onclick="leApplyProfile('dashboard')">Dashboard 2×2</button>
               </div>
             </span>
-            <button class="btn btn-small btn-secondary" id="le-draw-btn" onclick="layerEditorToggleDraw()">✏️ Draw</button>
-            <span class="le-presets">
-              <span class="le-sel-lbl">preset:</span>
-              <button class="le-preset" onclick="layerEditorPreset('full')">Full</button>
-              <button class="le-preset" onclick="layerEditorPreset('top')">Top</button>
-              <button class="le-preset" onclick="layerEditorPreset('bottom')">Bottom</button>
-              <button class="le-preset" onclick="layerEditorPreset('center')">Center</button>
-              <button class="le-preset" onclick="layerEditorPreset('corner')">Corner</button>
-            </span>
+            <button class="btn btn-small btn-secondary" id="le-draw-btn" onclick="layerEditorToggleDraw()">Draw</button>
             <label class="le-snap"><input type="checkbox" id="le-snap" ${layerEditor.snap ? 'checked' : ''} onchange="layerEditor.snap=this.checked"> snap ${layerEditor.grid}px</label>
             <span class="le-readout" id="le-readout"></span>
           </div>
@@ -116,26 +110,70 @@ async function mountStudio() {
 
   // Pause any running rotation so timers don't wipe edits while the Studio is open.
   leSuspendRotation();
-  leLoadSchemas();
+  await leLoadSchemas();
   leLoadScene();
 
   await refreshLayerEditor();
+  leFitStage();
+  if (_studioPoll) clearInterval(_studioPoll);
+  _studioPoll = setInterval(lePollLayout, 1500);
   document.addEventListener('mousemove', leOnMove);
   document.addEventListener('mouseup', leOnUp);
   document.addEventListener('touchmove', leOnMove, { passive: false });
   document.addEventListener('touchend', leOnUp);
   document.addEventListener('touchcancel', leOnUp);
   document.addEventListener('click', leCloseMenus);
+  window.addEventListener('resize', leFitStage);
+}
+
+function leFitStage() {
+  const panel = document.getElementById('tab-studio');
+  const stage = document.getElementById('le-stage');
+  if (!panel || !stage || !layerEditor.open) return;
+  const avail = Math.max(160, (panel.clientWidth || 900) - 580);
+  const maxH = Math.min(window.innerHeight - 260, 720);
+  const next = Math.max(1, Math.floor(Math.min(avail / layerEditor.dispW, maxH / layerEditor.dispH)));
+  if (next === layerEditor.scale && stage.style.width) return;
+  layerEditor.scale = next;
+  stage.style.width = (layerEditor.dispW * layerEditor.scale) + 'px';
+  stage.style.height = (layerEditor.dispH * layerEditor.scale) + 'px';
+  renderLayerBoxes();
+}
+
+function leLayoutFingerprint(canvases, contentMap) {
+  return (canvases || []).map(c =>
+    [c.name, c.x, c.y, c.width, c.height, c.zOrder, c.isVisible === false ? 0 : 1,
+      (contentMap && contentMap[c.name] && contentMap[c.name].extensionName) || ''].join('|')
+  ).join(';');
+}
+
+async function lePollLayout() {
+  if (!layerEditor.open) return;
+  try {
+    const [stack, content] = await Promise.all([
+      window.api.get('/api/canvas/stack'),
+      window.api.get('/api/layout/content')
+    ]);
+    const canvases = stack?.data || [];
+    const contentMap = {};
+    (content?.data?.contents || []).forEach(c => { contentMap[c.canvasName] = c; });
+    const fp = leLayoutFingerprint(canvases, contentMap);
+    if (fp === _studioFp) return;
+    await refreshLayerEditor({ skipInspector: true });
+  } catch (e) { /* intro / not ready yet */ }
 }
 
 function unmountStudio() {
   if (!_studioMounted) return;
+  if (_studioPoll) { clearInterval(_studioPoll); _studioPoll = null; }
+  _studioFp = '';
   document.removeEventListener('mousemove', leOnMove);
   document.removeEventListener('mouseup', leOnUp);
   document.removeEventListener('touchmove', leOnMove);
   document.removeEventListener('touchend', leOnUp);
   document.removeEventListener('touchcancel', leOnUp);
   document.removeEventListener('click', leCloseMenus);
+  window.removeEventListener('resize', leFitStage);
   layerEditor.drawMode = false;
   layerEditor.draw = null;
   leResumeRotation();
@@ -185,16 +223,22 @@ function closeLayerEditor() {
   else unmountStudio();
 }
 
-async function refreshLayerEditor() {
+async function refreshLayerEditor(opts) {
   try {
     const [stack, content] = await Promise.all([
       window.api.get('/api/canvas/stack'),
       window.api.get('/api/layout/content')
     ]);
+    const prevSel = layerEditor.selected;
     layerEditor.canvases = stack?.data || [];
     layerEditor.contentMap = {};
     (content?.data?.contents || []).forEach(c => { layerEditor.contentMap[c.canvasName] = c; });
-    renderLayerBoxes();
+    const selGone = !layerEditor.canvases.some(c => c.name === layerEditor.selected);
+    if (selGone)
+      layerEditor.selected = layerEditor.canvases[0]?.name || null;
+    _studioFp = leLayoutFingerprint(layerEditor.canvases, layerEditor.contentMap);
+    const skipInspector = !!(opts && opts.skipInspector) && !selGone && prevSel === layerEditor.selected;
+    renderLayerBoxes(skipInspector);
     // Let the rest of the UI (Canvas/Media/AI/Draw/Visualizer selectors) pick up added/removed/renamed/
     // resized canvases without a page refresh.
     window.dispatchEvent(new CustomEvent('layoutChanged'));
@@ -203,7 +247,7 @@ async function refreshLayerEditor() {
   }
 }
 
-function renderLayerBoxes() {
+function renderLayerBoxes(skipInspector) {
   const stage = document.getElementById('le-stage');
   if (!stage) return;
   stage.querySelectorAll('.le-box').forEach(b => b.remove());
@@ -214,8 +258,9 @@ function renderLayerBoxes() {
     const content = layerEditor.contentMap[c.name];
     const label = content ? content.extensionName : '(empty)';
     const sel = layerEditor.selected === c.name;
+    const hidden = c.isVisible === false;
     const box = document.createElement('div');
-    box.className = 'le-box' + (sel ? ' selected' : '');
+    box.className = 'le-box' + (sel ? ' selected' : '') + (hidden ? ' hidden' : '');
     box.dataset.name = c.name;
     box.style.left = (c.x * s) + 'px';
     box.style.top = (c.y * s) + 'px';
@@ -232,7 +277,7 @@ function renderLayerBoxes() {
     stage.appendChild(box);
   }
   renderLayers();
-  renderInspector();
+  if (!skipInspector) renderInspector();
   updateReadout();
 }
 
@@ -245,11 +290,15 @@ function renderLayers() {
     `<div class="le-pane-title">Layers</div>` +
     byZ.map(c => {
       const sel = layerEditor.selected === c.name ? ' selected' : '';
+      const hidden = c.isVisible === false;
       const content = layerEditor.contentMap[c.name];
       const label = content ? content.extensionName : '(empty)';
       const nm = c.name.replace(/'/g, "\\'");
-      return `<div class="le-layer${sel}" onclick="selectLayerCanvas('${nm}')" title="z:${c.zOrder} · ${c.width}×${c.height}">
+      const icon = leExtIcon(label === '(empty)' ? '' : label);
+      return `<div class="le-layer${sel}${hidden ? ' is-hidden' : ''}" onclick="selectLayerCanvas('${nm}')" title="z:${c.zOrder} · ${c.width}×${c.height}">
+        ${icon}
         <div class="le-layer-main"><span class="le-layer-name">${c.name}</span><span class="le-layer-ext">${label}</span></div>
+        <button class="le-eye" title="${hidden ? 'Show' : 'Hide'}" onclick="layerEditorToggleVisible('${nm}', event)">${hidden ? '○' : '●'}</button>
         <span class="le-layer-z">z${c.zOrder}</span>
       </div>`;
     }).join('');
@@ -284,6 +333,23 @@ function renderInspector() {
         <label><span class="le-axis">H</span><input type="number" id="le-h" value="${c.height}" onchange="leApplyTransform()"></label>
       </div>
       <p class="le-hint">Or drag / resize on the stage.</p>
+      <div class="le-align">
+        <span class="le-sel-lbl">Align</span>
+        <button class="le-preset" title="Left" onclick="layerEditorAlign('left')">⟸</button>
+        <button class="le-preset" title="Center H" onclick="layerEditorAlign('hcenter')">⬌</button>
+        <button class="le-preset" title="Right" onclick="layerEditorAlign('right')">⟹</button>
+        <button class="le-preset" title="Top" onclick="layerEditorAlign('top')">⇑</button>
+        <button class="le-preset" title="Center V" onclick="layerEditorAlign('vcenter')">⬍</button>
+        <button class="le-preset" title="Bottom" onclick="layerEditorAlign('bottom')">⇓</button>
+      </div>
+      <div class="le-align">
+        <span class="le-sel-lbl">Fit</span>
+        <button class="le-preset" onclick="layerEditorFit('full')">Full</button>
+        <button class="le-preset" onclick="layerEditorFit('top')">Top</button>
+        <button class="le-preset" onclick="layerEditorFit('bottom')">Bottom</button>
+        <button class="le-preset" onclick="layerEditorFit('center')">Center</button>
+        <button class="le-preset" onclick="layerEditorFit('corner')">Corner</button>
+      </div>
     </div>
 
     <div class="le-section">
@@ -545,18 +611,83 @@ async function leCreateCanvas(geom, name) {
   }
 }
 
-async function layerEditorPreset(kind) {
+function lePresetGeom(kind) {
   const W = layerEditor.dispW, H = layerEditor.dispH;
   const bar = Math.max(layerEditor.grid * 2, Math.round(H / 4));
-  let g = null;
   switch (kind) {
-    case 'full': g = { x: 0, y: 0, width: W, height: H }; break;
-    case 'top': g = { x: 0, y: 0, width: W, height: bar }; break;
-    case 'bottom': g = { x: 0, y: H - bar, width: W, height: bar }; break;
-    case 'center': { const cw = Math.round(W / 2), ch = Math.round(H / 2); g = { x: Math.round((W - cw) / 2), y: Math.round((H - ch) / 2), width: cw, height: ch }; break; }
-    case 'corner': { const cw = Math.min(W, Math.max(layerEditor.grid * 3, Math.round(W / 3))); const ch = Math.min(H, Math.max(layerEditor.grid * 2, Math.round(H / 4))); g = { x: W - cw, y: 0, width: cw, height: ch }; break; }
+    case 'full': return { x: 0, y: 0, width: W, height: H };
+    case 'top': return { x: 0, y: 0, width: W, height: bar };
+    case 'bottom': return { x: 0, y: H - bar, width: W, height: bar };
+    case 'center': {
+      const cw = Math.round(W / 2), ch = Math.round(H / 2);
+      return { x: Math.round((W - cw) / 2), y: Math.round((H - ch) / 2), width: cw, height: ch };
+    }
+    case 'corner': {
+      const cw = Math.min(W, Math.max(layerEditor.grid * 3, Math.round(W / 3)));
+      const ch = Math.min(H, Math.max(layerEditor.grid * 2, Math.round(H / 4)));
+      return { x: W - cw, y: 0, width: cw, height: ch };
+    }
+    default: return null;
   }
+}
+
+async function layerEditorPreset(kind) {
+  const g = lePresetGeom(kind);
   if (g) await leCreateCanvas(g);
+}
+
+async function layerEditorFit(kind) {
+  const c = layerEditor.canvases.find(x => x.name === layerEditor.selected);
+  if (!c) {
+    if (typeof showMessage === 'function') showMessage('Select a canvas first', 'info');
+    return;
+  }
+  const g = lePresetGeom(kind);
+  if (!g) return;
+  await leSendBounds(c.name, g, true);
+  await refreshLayerEditor();
+}
+
+async function layerEditorAlign(kind) {
+  const c = layerEditor.canvases.find(x => x.name === layerEditor.selected);
+  if (!c) {
+    if (typeof showMessage === 'function') showMessage('Select a canvas first', 'info');
+    return;
+  }
+  const W = layerEditor.dispW, H = layerEditor.dispH;
+  let x = c.x, y = c.y;
+  if (kind === 'left') x = 0;
+  else if (kind === 'right') x = W - c.width;
+  else if (kind === 'hcenter') x = Math.round((W - c.width) / 2);
+  else if (kind === 'top') y = 0;
+  else if (kind === 'bottom') y = H - c.height;
+  else if (kind === 'vcenter') y = Math.round((H - c.height) / 2);
+  x = Math.max(0, Math.min(x, Math.max(0, W - c.width)));
+  y = Math.max(0, Math.min(y, Math.max(0, H - c.height)));
+  await leSendBounds(c.name, { x, y, width: c.width, height: c.height }, true);
+  await refreshLayerEditor();
+}
+
+function leExtIcon(extName) {
+  if (!extName) return '';
+  const s = leSchemaFor(extName);
+  if (!s?.iconData) return '';
+  let mime = 'image/svg+xml';
+  try { if (!atob(s.iconData).includes('<svg')) mime = 'image/png'; } catch (e) { }
+  return `<img class="le-layer-icon" src="data:${mime};base64,${s.iconData}" alt="">`;
+}
+
+async function layerEditorToggleVisible(name, ev) {
+  if (ev) ev.stopPropagation();
+  const c = layerEditor.canvases.find(x => x.name === name);
+  if (!c) return;
+  const next = c.isVisible === false;
+  try {
+    await window.api.put('/api/canvas/' + encodeURIComponent(name) + '/visible', { visible: next });
+    await refreshLayerEditor();
+  } catch (e) {
+    if (typeof showMessage === 'function') showMessage('Visibility failed: ' + (e.message || e), 'error');
+  }
 }
 
 async function leSendBounds(name, g, isFinal) {
@@ -881,9 +1012,18 @@ async function leApplyProfile(profile) {
 
 async function loadContentSection(name) {
   let data = {};
+  let live = null;
   try {
-    const r = await window.api.get('/api/canvas/' + encodeURIComponent(name) + '/rotation');
-    data = r.data || {};
+    const [rot, all] = await Promise.all([
+      window.api.get('/api/canvas/' + encodeURIComponent(name) + '/rotation'),
+      window.api.get('/api/layout/content')
+    ]);
+    data = rot.data || {};
+    const list = all?.data?.contents || [];
+    layerEditor.contentMap = {};
+    list.forEach(c => { layerEditor.contentMap[c.canvasName] = c; });
+    live = layerEditor.contentMap[name] || null;
+    renderLayerBoxes(true);
   } catch (e) { /* ignore */ }
   if (layerEditor.selected !== name) return; // selection changed while loading
   window.leContent = {
@@ -894,7 +1034,7 @@ async function loadContentSection(name) {
     loop: data.loop !== false,
     isRunning: !!data.isRunning,
     activeIndex: (typeof data.activeIndex === 'number') ? data.activeIndex : -1,
-    single: layerEditor.contentMap[name] || null
+    single: live
   };
   renderContentSection();
 }
@@ -914,6 +1054,7 @@ function renderContentSection() {
              <button class="btn-icon" title="Quick parameters" onclick="contentToggleParams(0)">⚙</button>
              <button class="btn-icon" title="Full editor (lists, tables, actions)" onclick="contentFullParams(0)">⊞</button>
              <button class="btn-icon" title="Replace content" onclick="contentChangeSingle()">⇄</button>
+             <button class="btn-icon" title="Remove" onclick="contentClear()">✕</button>
            </span>
          </div>
          <div id="le-params-0" class="le-params"></div>
@@ -1125,6 +1266,13 @@ async function contentApply(i) {
 async function contentRemove(i) {
   const name = window.leContent.name;
   await window.api.post('/api/canvas/' + encodeURIComponent(name) + '/rotation/remove-step?index=' + i, {});
+  await loadContentSection(name);
+}
+
+async function contentClear() {
+  const name = window.leContent?.name;
+  if (!name) return;
+  try { await window.api.post('/api/layout/stop/' + encodeURIComponent(name)); } catch (e) { /* already empty */ }
   await loadContentSection(name);
 }
 
@@ -1351,9 +1499,15 @@ function ensureLayerEditorStyles() {
   .le-inspector{width:330px;}
   .le-center{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;}
   .le-pane-title{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:#888;margin-bottom:6px;}
+  .le-box.hidden{border-style:dashed;opacity:.45;}
   .le-layer{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;border:1px solid #2a2a2a;border-radius:6px;margin-bottom:4px;cursor:pointer;}
   .le-layer:hover{border-color:#5ab4ff;}
   .le-layer.selected{border-color:#ffcc33;background:rgba(255,204,51,.12);}
+  .le-layer.is-hidden{opacity:.5;}
+  .le-layer-icon{width:18px;height:18px;flex-shrink:0;object-fit:contain;border-radius:3px;}
+  .le-eye{flex-shrink:0;width:22px;height:22px;border:1px solid #3a3a3a;border-radius:5px;background:#1d1d1f;color:#ddd;cursor:pointer;line-height:1;padding:0;}
+  .le-eye:hover{border-color:#5ab4ff;}
+  .le-align{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:8px;}
   .le-layer-main{display:flex;flex-direction:column;line-height:1.15;overflow:hidden;}
   .le-layer-name{font-size:.82rem;color:#eee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .le-layer-ext{font-size:.68rem;color:#999;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -1412,6 +1566,9 @@ window.layerEditorSetTransparent = layerEditorSetTransparent;
 window.layerEditorSetOpacity = layerEditorSetOpacity;
 window.layerEditorSetPanelBits = layerEditorSetPanelBits;
 window.layerEditorToggleDraw = layerEditorToggleDraw;
+window.layerEditorToggleVisible = layerEditorToggleVisible;
+window.layerEditorAlign = layerEditorAlign;
+window.layerEditorFit = layerEditorFit;
 window.layerEditorPreset = layerEditorPreset;
 window.leSaveScene = leSaveScene;
 window.leSaveSceneClose = leSaveSceneClose;
@@ -1433,6 +1590,7 @@ window.leMediaAdd = leMediaAdd;
 window.contentApply = contentApply;
 window.contentChangeSingle = contentChangeSingle;
 window.contentRemove = contentRemove;
+window.contentClear = contentClear;
 window.contentDuplicate = contentDuplicate;
 window.contentMove = contentMove;
 window.contentRotationSettings = contentRotationSettings;

@@ -218,11 +218,42 @@ function renderLeafInput(field, value, fieldId, onChangeJs, isReadOnly) {
     return createColorInputWithAlpha(fieldId, value, isReadOnly ? '' : onChangeJs);
   }
   const textInput = `<input type="text" id="${fieldId}" value="${value !== undefined ? escapeHtml(String(value)) : ''}" ${isReadOnly ? 'readonly' : ''} ${on}>`;
-  // Home Assistant entity fields get a searchable picker button.
-  if (!isReadOnly && String(field.name || '').toLowerCase() === 'entityid') {
-    return `<span class="ha-entity-field">${textInput}<button type="button" class="btn btn-tiny" title="Pick entity" onclick="haPickEntity('${fieldId}')">🔍</button></span>`;
+  if (!isReadOnly && isEntityField(field)) {
+    const domain = haDomainFor(field);
+    const multi = isMultiEntityField(field) ? 'true' : 'false';
+    return `<span class="ha-entity-field">${textInput}<button type="button" class="btn btn-tiny" title="Pick entity" onclick="haPickEntity('${fieldId}', '${domain}', ${multi})">🔍</button></span>`;
+  }
+  if (!isReadOnly && isPlaceField(field)) {
+    return `<span class="ha-entity-field">${textInput}<button type="button" class="btn btn-tiny" title="Search place" onclick="geoPickPlace('${fieldId}')">🔍</button></span>`;
   }
   return textInput;
+}
+
+function isEntityField(field) {
+  const n = String(field.name || '').toLowerCase();
+  return n === 'entityid' || n === 'entities' || n.endsWith('entity') || n.endsWith('entities') || n.includes('entity');
+}
+
+function isMultiEntityField(field) {
+  const n = String(field.name || '').toLowerCase();
+  return n === 'entities' || n.endsWith('entities');
+}
+
+function isPlaceField(field) {
+  const n = String(field.name || '').toLowerCase();
+  return n === 'location' || n === 'locationlabel' || n === 'latitude' || n === 'longitude' || n === 'city' || n === 'place';
+}
+
+function haDomainFor(field) {
+  const n = String(field.name || '').toLowerCase();
+  const blob = (n + ' ' + (field.displayName || '') + ' ' + (field.description || '')).toLowerCase();
+  if (blob.includes('weather.' ) || blob.includes('weather *') || n.includes('weather')) return 'weather';
+  if (blob.includes('climate.') || n.includes('climate')) return 'climate';
+  if (blob.includes('media_player') || n.includes('media')) return 'media_player';
+  if (blob.includes('binary_sensor')) return 'binary_sensor';
+  if (n.endsWith('entity') || n === 'entityid' || n === 'entities' || blob.includes('sensor') || blob.includes('power') || blob.includes('numeric') || blob.includes('pickup'))
+    return 'sensor';
+  return '';
 }
 
 /** Renders a labelled nested field row (used inside cards / object groups). */
@@ -679,7 +710,113 @@ window.extMoveItem = extMoveItem;
 window.extFieldChanged = extFieldChanged;
 
 // ── Home Assistant entity picker ───────────────────────────────────────────
-async function haPickEntity(fieldId) {
+const HA_DOMAINS = ['', 'sensor', 'weather', 'climate', 'media_player', 'binary_sensor', 'light', 'switch'];
+
+async function haPickEntity(fieldId, domain, multi) {
+  const target = document.getElementById(fieldId);
+  if (!target) return;
+  ensureHaPickStyles();
+  domain = domain || '';
+  multi = !!multi;
+
+  document.getElementById('ha-pick-modal')?.remove();
+  const chips = HA_DOMAINS.map(d => {
+    const label = d || 'All';
+    const on = d === domain ? ' active' : '';
+    return `<button type="button" class="ha-pick-chip${on}" data-domain="${d}">${label}</button>`;
+  }).join('');
+  const html = `
+    <div class="modal-overlay" id="ha-pick-modal">
+      <div class="modal-content" style="max-width:560px;">
+        <div class="modal-header">
+          <h2>${multi ? 'Add Home Assistant entity' : 'Pick Home Assistant entity'}</h2>
+          <button class="modal-close" onclick="haPickClose()">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button>
+        </div>
+        <div class="modal-body">
+          <input type="text" id="ha-pick-search" class="ha-pick-search" placeholder="Search by name…" autocomplete="off">
+          <div class="ha-pick-chips">${chips}</div>
+          <div class="ha-pick-list" id="ha-pick-list"><p class="text-muted">Loading…</p></div>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+
+  const search = document.getElementById('ha-pick-search');
+  const list = document.getElementById('ha-pick-list');
+  let currentDomain = domain;
+  let timer = null;
+
+  document.querySelectorAll('#ha-pick-modal .ha-pick-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#ha-pick-modal .ha-pick-chip').forEach(b => b.classList.toggle('active', b === btn));
+      currentDomain = btn.dataset.domain || '';
+      load(search.value.trim());
+    });
+  });
+
+  async function load(q) {
+    try {
+      const qs = [];
+      if (q) qs.push('q=' + encodeURIComponent(q));
+      if (currentDomain) qs.push('domain=' + encodeURIComponent(currentDomain));
+      const res = await window.api.get('/api/homeassistant/entities' + (qs.length ? '?' + qs.join('&') : ''));
+      const items = (res && res.data) || [];
+      if (!items.length) {
+        let hint = 'No matching entities.';
+        try {
+          const st = await window.api.get('/api/homeassistant/status');
+          if (st && st.data && st.data.connected === false)
+            hint = 'Home Assistant is not connected. Enable it in Settings, then come back.';
+          else if (st && st.data && !st.data.entityCount)
+            hint = 'Connected, but no entities yet — wait a moment for the snapshot.';
+        } catch (e) { /* ignore */ }
+        list.innerHTML = `<p class="text-muted">${hint}</p>`;
+        return;
+      }
+      list.innerHTML = items.slice(0, 250).map(e => {
+        const id = String(e.entityId).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const name = e.friendlyName || e.entityId;
+        const meta = [(e.state ?? '') + (e.unit ? ' ' + e.unit : ''), e.entityId].filter(Boolean).join(' · ');
+        return `<button type="button" class="ha-pick-item" onclick="haPickChoose('${fieldId}', '${id}', ${multi})">
+          <span class="ha-pick-name">${escapeHtml(name)}</span>
+          <span class="ha-pick-meta">${escapeHtml(meta)}</span>
+        </button>`;
+      }).join('');
+    } catch (e) {
+      list.innerHTML = '<p class="text-muted">Failed to load entities.</p>';
+    }
+  }
+
+  search.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => load(search.value.trim()), 150);
+  });
+  await load('');
+  search.focus();
+}
+
+function haPickChoose(fieldId, entityId, multi) {
+  const target = document.getElementById(fieldId);
+  if (target) {
+    if (multi) {
+      const cur = (target.value || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (!cur.includes(entityId)) cur.push(entityId);
+      target.value = cur.join(', ');
+    } else {
+      target.value = entityId;
+    }
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  haPickClose();
+}
+
+function haPickClose() {
+  document.getElementById('ha-pick-modal')?.remove();
+}
+
+// ── Place search (Nominatim via the host) ──────────────────────────────────
+async function geoPickPlace(fieldId) {
   const target = document.getElementById(fieldId);
   if (!target) return;
   ensureHaPickStyles();
@@ -689,12 +826,12 @@ async function haPickEntity(fieldId) {
     <div class="modal-overlay" id="ha-pick-modal">
       <div class="modal-content" style="max-width:520px;">
         <div class="modal-header">
-          <h2>Pick Home Assistant entity</h2>
+          <h2>Search place</h2>
           <button class="modal-close" onclick="haPickClose()">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button>
         </div>
         <div class="modal-body">
-          <input type="text" id="ha-pick-search" class="ha-pick-search" placeholder="Search entity id or name…" autocomplete="off">
-          <div class="ha-pick-list" id="ha-pick-list"><p class="text-muted">Loading…</p></div>
+          <input type="text" id="ha-pick-search" class="ha-pick-search" placeholder="City, region, address…" autocomplete="off">
+          <div class="ha-pick-list" id="ha-pick-list"><p class="text-muted">Type at least two letters.</p></div>
         </div>
       </div>
     </div>`;
@@ -702,44 +839,72 @@ async function haPickEntity(fieldId) {
 
   const search = document.getElementById('ha-pick-search');
   const list = document.getElementById('ha-pick-list');
+  let timer = null;
+  const seed = (target.value || '').trim();
+  if (seed && !/^-?\d+(\.\d+)?$/.test(seed)) search.value = seed;
 
   async function load(q) {
+    if (!q || q.length < 2) {
+      list.innerHTML = '<p class="text-muted">Type a city or place name.</p>';
+      return;
+    }
     try {
-      const res = await window.api.get('/api/homeassistant/entities' + (q ? ('?q=' + encodeURIComponent(q)) : ''));
+      const res = await window.api.get('/api/geo/search?q=' + encodeURIComponent(q));
       const items = (res && res.data) || [];
       if (!items.length) {
-        list.innerHTML = '<p class="text-muted">No entities found. Is Home Assistant enabled and connected?</p>';
+        list.innerHTML = '<p class="text-muted">No places found.</p>';
         return;
       }
-      list.innerHTML = items.slice(0, 250).map(e => {
-        const id = String(e.entityId).replace(/'/g, "\\'");
-        const meta = [e.friendlyName, (e.state ?? '') + (e.unit ? ' ' + e.unit : '')].filter(Boolean).join(' · ');
-        return `<button type="button" class="ha-pick-item" onclick="haPickChoose('${fieldId}', '${id}')">
-          <span class="ha-pick-id">${escapeHtml(e.entityId)}</span>
-          <span class="ha-pick-meta">${escapeHtml(meta)}</span>
+      list.innerHTML = items.map((p, i) => {
+        return `<button type="button" class="ha-pick-item" data-idx="${i}">
+          <span class="ha-pick-name">${escapeHtml(p.name || p.displayName)}</span>
+          <span class="ha-pick-meta">${escapeHtml(p.displayName || '')}</span>
         </button>`;
       }).join('');
+      list.querySelectorAll('.ha-pick-item').forEach((btn, i) => {
+        btn.addEventListener('click', () => geoPickChoose(fieldId, items[i]));
+      });
     } catch (e) {
-      list.innerHTML = '<p class="text-muted">Failed to load entities.</p>';
+      list.innerHTML = '<p class="text-muted">Place search failed.</p>';
     }
   }
 
-  search.addEventListener('input', () => load(search.value.trim()));
-  await load((target.value || '').trim());
+  search.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => load(search.value.trim()), 200);
+  });
+  if (search.value.trim().length >= 2) await load(search.value.trim());
   search.focus();
 }
 
-function haPickChoose(fieldId, entityId) {
+function geoPickChoose(fieldId, place) {
+  const lat = String(place.lat ?? '');
+  const lon = String(place.lon ?? '');
+  const name = place.name || place.displayName || '';
+  const prefix = fieldId.replace(/(LocationLabel|Location|Latitude|Longitude|City|Place)$/i, '');
+  const fill = (suffix, value) => {
+    const el = document.getElementById(prefix + suffix) || document.getElementById(suffix);
+    if (!el || value === '') return;
+    el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  fill('Location', name);
+  fill('LocationLabel', name);
+  fill('City', name);
+  fill('Place', name);
+  fill('Latitude', lat);
+  fill('Longitude', lon);
+  // If the button was on lat/lon itself, still write the clicked field.
   const target = document.getElementById(fieldId);
+  if (target && /latitude/i.test(fieldId)) target.value = lat;
+  if (target && /longitude/i.test(fieldId)) target.value = lon;
+  if (target && /location|city|place/i.test(fieldId) && !/latitude|longitude/i.test(fieldId)) target.value = name;
   if (target) {
-    target.value = entityId;
     target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.dispatchEvent(new Event('change', { bubbles: true }));
   }
   haPickClose();
-}
-
-function haPickClose() {
-  document.getElementById('ha-pick-modal')?.remove();
 }
 
 function ensureHaPickStyles() {
@@ -750,14 +915,19 @@ function ensureHaPickStyles() {
     .ha-entity-field{display:flex;gap:4px;align-items:center;}
     .ha-entity-field input{flex:1;}
     .ha-pick-search{width:100%;box-sizing:border-box;margin-bottom:8px;padding:6px 8px;}
+    .ha-pick-chips{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 8px;}
+    .ha-pick-chip{padding:3px 8px;border:1px solid #3a3a3a;border-radius:999px;background:#1d1d1f;color:#ccc;cursor:pointer;font-size:.72rem;text-transform:lowercase;}
+    .ha-pick-chip.active{border-color:#5ab4ff;background:rgba(90,180,255,.18);color:#fff;}
     .ha-pick-list{max-height:50vh;overflow:auto;display:flex;flex-direction:column;gap:4px;}
     .ha-pick-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;padding:6px 8px;border:1px solid #2e2e30;border-radius:6px;background:#1b1b1d;color:#ddd;cursor:pointer;}
     .ha-pick-item:hover{border-color:#5ab4ff;background:#222;}
+    .ha-pick-name{font-size:.9rem;color:#fff;}
     .ha-pick-id{font-family:monospace;font-size:.8rem;color:#9fd;}
-    .ha-pick-meta{font-size:.72rem;color:var(--text-muted,#999);}`;
+    .ha-pick-meta{font-size:.72rem;color:var(--text-muted,#999);font-family:ui-monospace,monospace;}`;
   document.head.appendChild(el);
 }
 
 window.haPickEntity = haPickEntity;
 window.haPickChoose = haPickChoose;
 window.haPickClose = haPickClose;
+window.geoPickPlace = geoPickPlace;
