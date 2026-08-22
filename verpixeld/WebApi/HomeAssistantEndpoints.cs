@@ -1,4 +1,6 @@
+using System.Text.Json;
 using CanvasManagement.Interfaces;
+using verpixeld.Services;
 
 namespace verpixeld.WebApi;
 
@@ -9,14 +11,24 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class HomeAssistantEndpoints
 {
-    public static void MapHomeAssistantEndpoints(this WebApplication app)
+    public static void MapHomeAssistantEndpoints(this WebApplication app, HomeAssistantService? homeAssistant = null)
     {
         app.MapGet("/api/homeassistant/status", () =>
             Results.Json(new ApiResponse<object>(true, new
             {
                 connected = HomeAssistantBridge.Connected,
-                entityCount = HomeAssistantBridge.All().Count
+                entityCount = HomeAssistantBridge.All().Count,
+                mqtt = homeAssistant?.MqttAvailable ?? false,
+                device = homeAssistant?.WallDevice?.Status()
             })));
+
+        app.MapGet("/api/homeassistant/device", () =>
+        {
+            var d = homeAssistant?.WallDevice?.Status();
+            return d == null
+                ? ApiResponse.Fail("Wall device is not running")
+                : ApiResponse.Ok(d);
+        });
 
         // List known entities. ?q= searches name/id; ?domain=sensor limits to that HA domain.
         app.MapGet("/api/homeassistant/entities", (string? q, string? domain) =>
@@ -39,6 +51,45 @@ public static class HomeAssistantEndpoints
                 })
                 .ToArray();
             return Results.Json(new ApiResponse<object>(true, items));
+        });
+
+        // Overlay self-test (does not go through Home Assistant).
+        app.MapPost("/api/homeassistant/toast", async (HttpContext context) =>
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(await new StreamReader(context.Request.Body).ReadToEndAsync());
+                var root = doc.RootElement;
+                var title = root.TryGetProperty("title", out var t) ? t.GetString() : "Home Assistant";
+                var message = root.TryGetProperty("message", out var m) ? m.GetString() : null;
+                var severity = root.TryGetProperty("severity", out var s) ? s.GetString() : null;
+                var notificationId = root.TryGetProperty("notificationId", out var id) ? id.GetString() : null;
+                if (string.IsNullOrWhiteSpace(message))
+                    return ApiResponse.Fail("message is required");
+                HomeAssistantBridge.RaiseNotification(title ?? "Home Assistant", message, notificationId, severity);
+                return ApiResponse.Ok(new { title, message, severity }, "Toast queued");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse.Error(ex);
+            }
+        });
+
+        // REST notify target (notify.rest / rest_command). Same overlay as MQTT notify.verpixeld_wall.
+        app.MapPost("/api/homeassistant/notify", async (HttpContext context) =>
+        {
+            try
+            {
+                var raw = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                if (string.IsNullOrWhiteSpace(raw))
+                    return ApiResponse.Fail("body is required");
+                HaWallDevice.ApplyNotify(raw);
+                return ApiResponse.Ok(new { queued = true }, "Notification queued");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse.Error(ex);
+            }
         });
     }
 

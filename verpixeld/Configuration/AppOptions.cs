@@ -231,6 +231,59 @@ public class HomeAssistantOptions
 
     /// <summary>Long-lived access token (HA profile → Long-lived access tokens).</summary>
     public string Token { get; set; } = "";
+
+    /// <summary>Appearance of the wall toast overlay for persistent notifications.</summary>
+    public HomeAssistantToastOptions Toast { get; set; } = new();
+
+    /// <summary>
+    ///     When true, the wall registers as an MQTT device in Home Assistant (notify, toast text,
+    ///     last-toast sensor, layout, night-mode schedule, night-active, brightness). Requires the
+    ///     MQTT integration in HA (Mosquitto addon is enough).
+    /// </summary>
+    public bool ExposeDevice { get; set; } = true;
+}
+
+/// <summary>
+///     Wall-toast overlay (bottom banner). Per-toast severity can still override the accent:
+///     prefix the HA <c>notification_id</c> with <c>error:</c>, <c>warning:</c>, <c>success:</c>, or <c>info:</c>.
+/// </summary>
+public class HomeAssistantToastOptions
+{
+    public bool Enabled { get; set; } = true;
+    public int DurationMs { get; set; } = 8000;
+    /// <summary>BDF font name. Empty = pick a size that fits the bar.</summary>
+    public string Font { get; set; } = "";
+    public string Background { get; set; } = "#121620";
+    public string TitleColor { get; set; } = "#FFFFFF";
+    public string MessageColor { get; set; } = "#C8D2DC";
+    public string InfoAccent { get; set; } = "#03A9F4";
+    public string WarningAccent { get; set; } = "#FFC107";
+    public string ErrorAccent { get; set; } = "#F44336";
+    public string SuccessAccent { get; set; } = "#4CAF50";
+    public string DefaultSeverity { get; set; } = "info";
+
+    public HomeAssistantToastOptions Clone() => new()
+    {
+        Enabled = Enabled,
+        DurationMs = DurationMs,
+        Font = Font,
+        Background = Background,
+        TitleColor = TitleColor,
+        MessageColor = MessageColor,
+        InfoAccent = InfoAccent,
+        WarningAccent = WarningAccent,
+        ErrorAccent = ErrorAccent,
+        SuccessAccent = SuccessAccent,
+        DefaultSeverity = DefaultSeverity
+    };
+
+    public string AccentFor(string severity) => severity switch
+    {
+        "error" => ErrorAccent,
+        "warning" => WarningAccent,
+        "success" => SuccessAccent,
+        _ => InfoAccent
+    };
 }
 
 /// <summary>

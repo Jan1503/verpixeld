@@ -32,7 +32,7 @@
     <link rel="stylesheet" href="/css/features/image-upload.css?v=20260208c">
     <link rel="stylesheet" href="/css/features/ai-art.css?v=20260208c">
     <link rel="stylesheet" href="/css/features/voice-commands.css?v=20260208c">
-    <link rel="stylesheet" href="/css/features/settings.css?v=20260822a">
+    <link rel="stylesheet" href="/css/features/settings.css?v=20260822b">
     <link rel="stylesheet" href="/css/responsive.css?v=20260208a">
     <link rel="stylesheet" href="/css/animations.css?v=20260208a">
     <link rel="stylesheet" href="/css/splash.css?v=20260208a">
@@ -2627,16 +2627,24 @@
               Home Assistant
             </h3>
             <div class="tab-section-actions">
+              <button class="btn btn-small btn-secondary" onclick="testHaToast()">Test toast on wall</button>
               <button class="btn btn-small btn-primary" onclick="saveHomeAssistant()">Save &amp; reconnect</button>
             </div>
             <span class="tab-section-collapse-icon">▼</span>
           </div>
           <div class="tab-section-body">
             <p class="settings-hint" style="margin-bottom: 0.75rem;" id="ha-status">
-              Long-lived token stays on the server. Saving reconnects immediately.
+              Long-lived token stays on the server. Saving reconnects only if the connection changed.
+              Toasts are Home Assistant <strong>persistent notifications</strong> or
+              <code>notify.verpixeld_wall</code> / <code>text.verpixeld_toast</code> (MQTT device). REST:
+              <code>POST /api/homeassistant/notify</code>.
+              Prefix <code>notification_id</code> with
+              <code>error:</code>, <code>warning:</code>, <code>success:</code> or <code>info:</code>
+              to set severity. Use <em>Test toast on wall</em> to check the overlay without HA.
             </p>
             <div class="settings-grid">
               <div class="settings-group">
+                <h4 class="settings-group-title">Connection</h4>
                 <div class="settings-row">
                   <label for="ha-enabled">Enabled</label>
                   <label class="toggle-switch">
@@ -2654,6 +2662,81 @@
                   <label for="ha-token">Long-lived token</label>
                   <input type="password" id="ha-token" class="settings-input" placeholder="eyJ…" autocomplete="off">
                   <span class="settings-hint">HA profile → tokens</span>
+                </div>
+                <div class="settings-row">
+                  <label for="ha-expose-device">Expose as HA device</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="ha-expose-device" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="settings-hint">Needs MQTT (Mosquitto). Creates notify + toast text, last-toast sensor, night-mode schedule, night-active, layout, brightness.</span>
+                </div>
+                <p class="settings-hint" id="ha-device-hint" style="margin-top: 0.5rem;"></p>
+              </div>
+              <div class="settings-group">
+                <h4 class="settings-group-title">Toast on wall</h4>
+                <div class="settings-row">
+                  <label for="ha-toast-enabled">Show toasts</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="ha-toast-enabled" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="settings-row">
+                  <label for="ha-toast-duration">Duration (s)</label>
+                  <input type="number" id="ha-toast-duration" class="settings-input" min="1" max="60" step="1" value="8">
+                </div>
+                <div class="settings-row">
+                  <label for="ha-toast-font">BDF font</label>
+                  <select id="ha-toast-font" class="settings-select">
+                    <option value="">Auto (fit bar)</option>
+                  </select>
+                </div>
+                <div class="settings-row">
+                  <label for="ha-toast-severity">Default severity</label>
+                  <select id="ha-toast-severity" class="settings-select">
+                    <option value="info">Info</option>
+                    <option value="success">Success</option>
+                    <option value="warning">Warning</option>
+                    <option value="error">Error</option>
+                  </select>
+                </div>
+                <div class="settings-row">
+                  <label for="ha-toast-bg">Background</label>
+                  <input type="color" id="ha-toast-bg" value="#121620">
+                </div>
+                <div class="settings-row">
+                  <label for="ha-toast-title">Title colour</label>
+                  <input type="color" id="ha-toast-title" value="#ffffff">
+                </div>
+                <div class="settings-row">
+                  <label for="ha-toast-message">Message colour</label>
+                  <input type="color" id="ha-toast-message" value="#c8d2dc">
+                </div>
+                <div class="settings-row">
+                  <label for="ha-toast-info">Info accent</label>
+                  <input type="color" id="ha-toast-info" value="#03a9f4">
+                </div>
+                <div class="settings-row">
+                  <label for="ha-toast-warning">Warning accent</label>
+                  <input type="color" id="ha-toast-warning" value="#ffc107">
+                </div>
+                <div class="settings-row">
+                  <label for="ha-toast-error">Error accent</label>
+                  <input type="color" id="ha-toast-error" value="#f44336">
+                </div>
+                <div class="settings-row">
+                  <label for="ha-toast-success">Success accent</label>
+                  <input type="color" id="ha-toast-success" value="#4caf50">
+                </div>
+                <div class="settings-row">
+                  <label for="ha-toast-test-severity">Test severity</label>
+                  <select id="ha-toast-test-severity" class="settings-select">
+                    <option value="info">Info</option>
+                    <option value="success">Success</option>
+                    <option value="warning">Warning</option>
+                    <option value="error">Error</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -2851,7 +2934,7 @@
   <script src="/js/features/layer-editor.js?v=20260821d"></script>
   <script src="/js/features/system-control.js?v=20260208a"></script>
   <script src="/js/features/filter-management.js?v=20260208a"></script>
-  <script src="/js/features/extension-management.js?v=20260821c"></script>
+  <script src="/js/features/extension-management.js?v=20260822a"></script>
   <script src="/js/features/layout-management.js?v=20260208a"></script>
   <script src="/js/features/camera-stream.js?v=20260624a"></script>
   <script src="/js/features/media-player.js?v=20260208a"></script>
@@ -2864,7 +2947,7 @@
   <script src="/js/features/ai-art.js?v=20260208c"></script>
   <script src="/js/features/voice-commands.js?v=20260208c"></script>
   <script src="/js/features/live-preview.js?v=20260208a"></script>
-  <script src="/js/features/settings.js?v=20260822b"></script>
+  <script src="/js/features/settings.js?v=20260822f"></script>
   <script src="/js/core/init.js?v=20260208a"></script>
 </body>
 </html>

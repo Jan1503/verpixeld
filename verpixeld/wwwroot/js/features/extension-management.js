@@ -251,6 +251,7 @@ function haDomainFor(field) {
   if (blob.includes('climate.') || n.includes('climate')) return 'climate';
   if (blob.includes('media_player') || n.includes('media')) return 'media_player';
   if (blob.includes('binary_sensor')) return 'binary_sensor';
+  if (blob.includes('depart') || blob.includes('hvv') || blob.includes('hafas')) return 'sensor';
   if (n.endsWith('entity') || n === 'entityid' || n === 'entities' || blob.includes('sensor') || blob.includes('power') || blob.includes('numeric') || blob.includes('pickup'))
     return 'sensor';
   return '';

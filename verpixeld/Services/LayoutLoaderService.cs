@@ -42,6 +42,9 @@ public class LayoutLoaderService : ILayoutLoaderService
     /// </summary>
     public LayoutProfile CurrentProfile { get; private set; } = LayoutProfile.FullScreen;
 
+    /// <summary>Name of the last successfully loaded saved layout (null until one has been loaded).</summary>
+    public string? CurrentLayoutName { get; private set; }
+
     /// <summary>
     ///     Main canvas after layout is loaded (Main, Content, or first available)
     /// </summary>
@@ -116,6 +119,7 @@ public class LayoutLoaderService : ILayoutLoaderService
             result.FiltersRestored = RestoreFilters(layout, source);
 
             result.Success = true;
+            CurrentLayoutName = layout.Name;
             Console.WriteLine($"[{source}] Successfully loaded '{layout.Name}' " +
                               $"(canvases: {result.CanvasesRestored}, filters: {result.FiltersRestored})");
             return result;
@@ -346,6 +350,7 @@ public class LayoutLoadResult
 public interface ILayoutLoaderService
 {
     LayoutProfile CurrentProfile { get; }
+    string? CurrentLayoutName { get; }
     Canvas? PrimaryCanvas { get; }
     Task<LayoutLoadResult> LoadLayoutAsync(SavedLayout layout, string source = "LAYOUT");
 }

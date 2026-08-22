@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CanvasManagement;
+using CanvasManagement.BdfFontManager;
 using CanvasManagement.Interfaces;
 using verpixeld.Configuration;
 using verpixeld.Hardware;
@@ -221,15 +222,19 @@ public static class OutputSettingsEndpoints
                 {
                     Enabled = GetBool(body, "enabled", current.Enabled),
                     BaseUrl = GetString(body, "baseUrl", current.BaseUrl),
-                    Token = GetString(body, "token", current.Token)
+                    Token = GetString(body, "token", current.Token),
+                    Toast = ReadToast(body, current.Toast ?? new HomeAssistantToastOptions()),
+                    ExposeDevice = GetBool(body, "exposeDevice", current.ExposeDevice)
                 };
 
-                homeAssistant?.Apply(next);
+                var reconnected = homeAssistant?.Apply(next) ?? false;
                 PersistSection("HomeAssistant", new Dictionary<string, JsonNode?>
                 {
                     ["Enabled"] = next.Enabled,
                     ["BaseUrl"] = next.BaseUrl,
-                    ["Token"] = next.Token
+                    ["Token"] = next.Token,
+                    ["Toast"] = ToastNode(next.Toast),
+                    ["ExposeDevice"] = next.ExposeDevice
                 });
 
                 return ApiResponse.Ok(new
@@ -237,8 +242,15 @@ public static class OutputSettingsEndpoints
                     enabled = next.Enabled,
                     baseUrl = next.BaseUrl,
                     connected = HomeAssistantBridge.Connected,
-                    entityCount = HomeAssistantBridge.All().Count
-                }, next.Enabled ? "Home Assistant reconnecting with the new settings." : "Home Assistant disabled.");
+                    entityCount = HomeAssistantBridge.All().Count,
+                    toast = ToastDto(next.Toast),
+                    exposeDevice = next.ExposeDevice,
+                    mqtt = homeAssistant?.MqttAvailable ?? false,
+                    device = homeAssistant?.WallDevice?.Status(),
+                    reconnected
+                }, reconnected
+                    ? "Home Assistant reconnecting with the new settings."
+                    : "Home Assistant settings saved.");
             }
             catch (Exception ex) { return ApiResponse.Error(ex); }
         });
@@ -254,7 +266,12 @@ public static class OutputSettingsEndpoints
                     baseUrl = ha.BaseUrl,
                     token = ha.Token,
                     connected = HomeAssistantBridge.Connected,
-                    entityCount = HomeAssistantBridge.All().Count
+                    entityCount = HomeAssistantBridge.All().Count,
+                    toast = ToastDto(ha.Toast),
+                    fonts = BdfFonts(),
+                    exposeDevice = ha.ExposeDevice,
+                    mqtt = homeAssistant?.MqttAvailable ?? false,
+                    device = homeAssistant?.WallDevice?.Status()
                 });
             }
             catch (Exception ex) { return ApiResponse.Error(ex); }
@@ -300,9 +317,72 @@ public static class OutputSettingsEndpoints
                 baseUrl = ha.BaseUrl,
                 token = ha.Token,
                 connected = HomeAssistantBridge.Connected,
-                entityCount = HomeAssistantBridge.All().Count
+                entityCount = HomeAssistantBridge.All().Count,
+                toast = ToastDto(ha.Toast),
+                fonts = BdfFonts(),
+                exposeDevice = ha.ExposeDevice,
+                mqtt = homeAssistant?.MqttAvailable ?? false,
+                device = homeAssistant?.WallDevice?.Status()
             }
         };
+    }
+
+    private static object ToastDto(HomeAssistantToastOptions? t)
+    {
+        t ??= new HomeAssistantToastOptions();
+        return new
+        {
+            enabled = t.Enabled,
+            durationMs = t.DurationMs,
+            font = t.Font,
+            background = t.Background,
+            titleColor = t.TitleColor,
+            messageColor = t.MessageColor,
+            infoAccent = t.InfoAccent,
+            warningAccent = t.WarningAccent,
+            errorAccent = t.ErrorAccent,
+            successAccent = t.SuccessAccent,
+            defaultSeverity = t.DefaultSeverity
+        };
+    }
+
+    private static JsonObject ToastNode(HomeAssistantToastOptions t) => new()
+    {
+        ["Enabled"] = t.Enabled,
+        ["DurationMs"] = t.DurationMs,
+        ["Font"] = t.Font,
+        ["Background"] = t.Background,
+        ["TitleColor"] = t.TitleColor,
+        ["MessageColor"] = t.MessageColor,
+        ["InfoAccent"] = t.InfoAccent,
+        ["WarningAccent"] = t.WarningAccent,
+        ["ErrorAccent"] = t.ErrorAccent,
+        ["SuccessAccent"] = t.SuccessAccent,
+        ["DefaultSeverity"] = t.DefaultSeverity
+    };
+
+    private static string[] BdfFonts() =>
+        BdfFontRegistry.RegisteredFonts.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
+
+    private static HomeAssistantToastOptions ReadToast(JsonElement root, HomeAssistantToastOptions current)
+    {
+        if (!root.TryGetProperty("toast", out var src) || src.ValueKind != JsonValueKind.Object)
+            return current.Clone();
+
+        var next = current.Clone();
+        next.Enabled = GetBool(src, "enabled", current.Enabled);
+        next.DurationMs = Clamp(GetInt(src, "durationMs", current.DurationMs), 1000, 60_000);
+        next.Font = GetString(src, "font", current.Font);
+        next.Background = HaToastService.NormalizeHex(GetString(src, "background", current.Background), current.Background);
+        next.TitleColor = HaToastService.NormalizeHex(GetString(src, "titleColor", current.TitleColor), current.TitleColor);
+        next.MessageColor = HaToastService.NormalizeHex(GetString(src, "messageColor", current.MessageColor), current.MessageColor);
+        next.InfoAccent = HaToastService.NormalizeHex(GetString(src, "infoAccent", current.InfoAccent), current.InfoAccent);
+        next.WarningAccent = HaToastService.NormalizeHex(GetString(src, "warningAccent", current.WarningAccent), current.WarningAccent);
+        next.ErrorAccent = HaToastService.NormalizeHex(GetString(src, "errorAccent", current.ErrorAccent), current.ErrorAccent);
+        next.SuccessAccent = HaToastService.NormalizeHex(GetString(src, "successAccent", current.SuccessAccent), current.SuccessAccent);
+        var sev = GetString(src, "defaultSeverity", current.DefaultSeverity);
+        next.DefaultSeverity = HaToastService.TryParseSeverity(sev, out var parsed) ? parsed : current.DefaultSeverity;
+        return next;
     }
 
     internal static void PersistSection(string name, Dictionary<string, JsonNode?> values)

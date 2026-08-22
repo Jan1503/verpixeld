@@ -77,6 +77,7 @@ public class Program
     // Home Assistant connection (WebSocket → entity state bridge)
     private static HomeAssistantService? _homeAssistantService;
     private static HaToastService? _haToastService;
+    private static HaWallDevice? _haWallDevice;
 
     // Layout (scene) playlist rotation
     private static LayoutPlaylistService _layoutPlaylistService = null!;
@@ -350,7 +351,16 @@ public class Program
                         ?? new HomeAssistantOptions();
         _homeAssistantService = new HomeAssistantService(haOptions);
         _homeAssistantService.Start();
-        _haToastService = new HaToastService(_cm, w, h);
+        _haToastService = new HaToastService(_cm, w, h, _homeAssistantService);
+        var httpPort = haConfig.GetSection(WebServerOptions.SectionName).GetValue("HttpPort", 5000);
+        _haWallDevice = new HaWallDevice(
+            _homeAssistantService, _cm, _nightModeManager, _layoutStorageManager, _layoutLoader,
+            () =>
+            {
+                var ip = LocalIPAddress();
+                return ip == null ? null : $"http://{ip}:{httpPort}";
+            });
+        _homeAssistantService.WallDevice = _haWallDevice;
 
         BdfFontRegistry.LoadFontsFromCommonLocations();
 
@@ -565,7 +575,7 @@ public class Program
         app.MapMusicSearchEndpoints();
         app.MapPreviewEndpoints();
         app.MapNowPlayingEndpoints();
-        app.MapHomeAssistantEndpoints();
+        app.MapHomeAssistantEndpoints(_homeAssistantService);
         app.MapGeoEndpoints();
         app.MapPlaylistEndpoints(_layoutPlaylistService);
         app.MapCanvasRotationEndpoints(_canvasRotationService);
@@ -624,6 +634,7 @@ public class Program
             healthMonitor.Stop();
             _voiceCommandService.Stop();
             _homeAssistantService?.Stop();
+            _haWallDevice?.Dispose();
             _haToastService?.Dispose();
             _scheduleManager.Stop();
             _nightModeManager.Dispose();

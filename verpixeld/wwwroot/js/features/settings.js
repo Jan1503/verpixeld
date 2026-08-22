@@ -92,6 +92,9 @@ async function loadCurrentSettings() {
     setChecked('ha-enabled', ha.enabled);
     setValue('ha-baseurl', ha.baseUrl);
     setValue('ha-token', ha.token);
+    setChecked('ha-expose-device', ha.exposeDevice !== false);
+    fillHaToastFonts(ha.fonts);
+    applyHaToast(ha.toast);
     updateHaHint(ha);
 
     const active = d.activeMode || app.outputMode || 'simulation';
@@ -331,27 +334,101 @@ async function saveSpiSettings() {
 
 function updateHaHint(ha) {
   const el = document.getElementById('ha-connected-hint');
-  if (!el) return;
-  if (!ha) { el.textContent = ''; return; }
-  if (!ha.enabled) { el.textContent = 'disabled'; return; }
-  el.textContent = ha.connected
-    ? `connected · ${ha.entityCount || 0} entities`
-    : 'connecting…';
+  if (el) {
+    if (!ha || !ha.enabled) el.textContent = ha?.enabled === false ? 'disabled' : '';
+    else el.textContent = ha.connected
+      ? `connected · ${ha.entityCount || 0} entities`
+      : 'connecting…';
+  }
+  const dev = document.getElementById('ha-device-hint');
+  if (!dev) return;
+  const d = ha?.device || {};
+  if (!ha?.enabled) { dev.textContent = ''; return; }
+  if (ha.exposeDevice === false) { dev.textContent = 'Wall device is not exposed.'; return; }
+  if (d.hint) { dev.textContent = d.hint; return; }
+  if (ha.mqtt) dev.textContent = 'MQTT device published.';
+  else dev.textContent = 'MQTT not available yet — enable the Mosquitto addon in Home Assistant.';
 }
 
 async function saveHomeAssistant() {
   const body = {
     enabled: checked('ha-enabled'),
     baseUrl: val('ha-baseurl'),
-    token: val('ha-token')
+    token: val('ha-token'),
+    exposeDevice: document.getElementById('ha-expose-device')
+      ? checked('ha-expose-device') : true,
+    toast: readHaToast()
   };
   try {
     const r = await api.put('/api/settings/homeassistant', body);
     const d = r.data || r;
     updateHaHint(d);
+    if (d.toast) applyHaToast(d.toast);
     window.toast?.success('Home Assistant', r.message || 'Saved');
+    updateHaHint({ ...d, device: d.device, mqtt: d.mqtt, exposeDevice: d.exposeDevice });
   } catch (error) {
     window.toast?.error('Home Assistant', error.message || 'Failed to save');
+  }
+}
+
+function readHaToast() {
+  const seconds = num('ha-toast-duration', 8);
+  return {
+    enabled: document.getElementById('ha-toast-enabled')
+      ? checked('ha-toast-enabled') : true,
+    durationMs: Math.round(Math.min(60, Math.max(1, seconds)) * 1000),
+    font: document.getElementById('ha-toast-font')?.value || '',
+    background: document.getElementById('ha-toast-bg')?.value || '#121620',
+    titleColor: document.getElementById('ha-toast-title')?.value || '#ffffff',
+    messageColor: document.getElementById('ha-toast-message')?.value || '#c8d2dc',
+    infoAccent: document.getElementById('ha-toast-info')?.value || '#03a9f4',
+    warningAccent: document.getElementById('ha-toast-warning')?.value || '#ffc107',
+    errorAccent: document.getElementById('ha-toast-error')?.value || '#f44336',
+    successAccent: document.getElementById('ha-toast-success')?.value || '#4caf50',
+    defaultSeverity: document.getElementById('ha-toast-severity')?.value || 'info'
+  };
+}
+
+function applyHaToast(t) {
+  if (!t) return;
+  setChecked('ha-toast-enabled', t.enabled !== false);
+  if (t.durationMs) setValue('ha-toast-duration', String(Math.round(t.durationMs / 1000)));
+  if (t.font !== undefined) setValue('ha-toast-font', t.font || '');
+  if (t.background) setValue('ha-toast-bg', t.background);
+  if (t.titleColor) setValue('ha-toast-title', t.titleColor);
+  if (t.messageColor) setValue('ha-toast-message', t.messageColor);
+  if (t.infoAccent) setValue('ha-toast-info', t.infoAccent);
+  if (t.warningAccent) setValue('ha-toast-warning', t.warningAccent);
+  if (t.errorAccent) setValue('ha-toast-error', t.errorAccent);
+  if (t.successAccent) setValue('ha-toast-success', t.successAccent);
+  if (t.defaultSeverity) setValue('ha-toast-severity', t.defaultSeverity);
+}
+
+function fillHaToastFonts(fonts) {
+  const sel = document.getElementById('ha-toast-font');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Auto (fit bar)</option>';
+  (fonts || []).forEach((name) => {
+    const o = document.createElement('option');
+    o.value = name;
+    o.textContent = name;
+    sel.appendChild(o);
+  });
+  if (current) sel.value = current;
+}
+
+async function testHaToast() {
+  try {
+    const severity = document.getElementById('ha-toast-test-severity')?.value || 'info';
+    const r = await api.post('/api/homeassistant/toast', {
+      title: 'Test',
+      message: 'Toast overlay is working',
+      severity
+    });
+    window.toast?.success('Home Assistant', r.message || 'Toast sent to the wall');
+  } catch (error) {
+    window.toast?.error('Home Assistant', error.message || 'Toast failed');
   }
 }
 
@@ -1017,6 +1094,7 @@ window.requestOutputSwitch = requestOutputSwitch;
 window.saveHdmiSettings = saveHdmiSettings;
 window.saveSpiSettings = saveSpiSettings;
 window.saveHomeAssistant = saveHomeAssistant;
+window.testHaToast = testHaToast;
 window.loadSeam = loadSeam;
 window.applySeam = applySeam;
 window.selectSeamBits = selectSeamBits;
