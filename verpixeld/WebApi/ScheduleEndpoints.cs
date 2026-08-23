@@ -184,6 +184,9 @@ public static class ScheduleEndpoints
                     return Results.Json(new { success = true, data = (object?)null });
 
                 var (entry, timeUntil) = next.Value;
+                if (entry == null)
+                    return Results.Json(new { success = true, data = (object?)null });
+
                 return Results.Json(new
                 {
                     success = true,

@@ -58,10 +58,9 @@ public class CertificateService
         try
         {
             // Load with exportable flag - critical for Linux/Raspberry Pi
-            var certificate = new X509Certificate2(
-                certPath,
-                CertificatePassword,
-                X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.EphemeralKeySet);
+            var flags = X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.EphemeralKeySet;
+            var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+                certPath, CertificatePassword, flags);
 
             Console.WriteLine($"[CERT] Loaded: {certificate.Subject}");
             Console.WriteLine($"[CERT] Has private key: {certificate.HasPrivateKey}");
@@ -78,7 +77,7 @@ public class CertificateService
             {
                 File.Delete(certPath);
                 GenerateSelfSignedCertificate(certPath, CertificatePassword);
-                return new X509Certificate2(
+                return X509CertificateLoader.LoadPkcs12FromFile(
                     certPath,
                     CertificatePassword,
                     X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.EphemeralKeySet);
@@ -125,7 +124,7 @@ public class CertificateService
         X509Certificate2 testCert;
         try
         {
-            testCert = new X509Certificate2(
+            testCert = X509CertificateLoader.LoadPkcs12(
                 pfxBytes,
                 password,
                 X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.EphemeralKeySet);

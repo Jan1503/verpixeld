@@ -103,6 +103,7 @@ public static class ExtensionEndpoints
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"ERROR: Extension discovery failed: {ex.Message}");
                 return Results.Json(new ApiResponse<object[]>(false, Error: "Extension discovery failed"));
             }
         });

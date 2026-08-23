@@ -152,11 +152,11 @@ public class FfmpegFrameStreamer : IDisposable
                 try
                 {
                     using var reader = _ffmpegProcess.StandardError;
-                    while (!reader.EndOfStream && !ct.IsCancellationRequested)
+                    while (!ct.IsCancellationRequested)
                     {
                         var line = await reader.ReadLineAsync(ct);
-                        if (line != null)
-                            Console.WriteLine($"{logPrefix}/FFmpeg] {line}");
+                        if (line == null) break;
+                        Console.WriteLine($"{logPrefix}/FFmpeg] {line}");
                     }
                 }
                 catch { /* ignore on cancellation */ }

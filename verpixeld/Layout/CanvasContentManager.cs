@@ -48,7 +48,9 @@ public class CanvasContentManager(IDisplayLayoutManager layoutManager, IExtensio
         try
         {
             // Create extension
-            var ext = canvas.CreateDynamicExtensionByDisplayName(extensionDisplayName);
+            var ext = canvas.CreateDynamicExtensionByDisplayName(extensionDisplayName)
+                      ?? throw new InvalidOperationException(
+                          $"Extension '{extensionDisplayName}' could not be created");
 
             // Apply configuration
             if (config != null)

@@ -1131,7 +1131,7 @@ public class VideoPlayer : IDisposable
 
                     string? line;
                     while ((line = await stderr.ReadLineAsync()) != null)
-                        // Only log errors and important messages, not progress
+                    {
                         if (line.Contains("Error") || line.Contains("error") ||
                             line.Contains("Failed") || line.Contains("failed") ||
                             line.Contains("Invalid") || line.Contains("Unable") ||
@@ -1140,6 +1140,7 @@ public class VideoPlayer : IDisposable
                         if (line.Contains("403") || line.Contains("429") ||
                             line.Contains("HTTP error") || line.Contains("Server returned"))
                             OnError?.Invoke(line.Trim());
+                    }
                 }
                 catch
                 {

@@ -929,10 +929,11 @@ public class BluetoothAudioService
             var readTask = Task.Run(async () =>
             {
                 var buffer = new char[256];
-                while (!proc.StandardOutput.EndOfStream)
+                while (true)
                 {
-                    var count = await proc.StandardOutput.ReadAsync(buffer, 0, buffer.Length);
-                    if (count > 0) output.Append(buffer, 0, count);
+                    var count = await proc.StandardOutput.ReadAsync(buffer.AsMemory());
+                    if (count == 0) break;
+                    output.Append(buffer, 0, count);
                 }
             });
 
