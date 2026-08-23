@@ -13,8 +13,9 @@ public static class SeamEndpoints
 {
     private static readonly string DefaultSeamFile = Path.Combine(AppContext.BaseDirectory, "seam_correction.json");
 
-    public static void MapSeamEndpoints(this WebApplication app, IMatrixRenderer renderer)
+    public static void MapSeamEndpoints(this WebApplication app)
     {
+        var renderer = app.Services.GetRequiredService<IMatrixRenderer>();
         NetworkMatrixRenderer? Current() =>
             (renderer as OutputRuntime)?.As<NetworkMatrixRenderer>() ?? renderer as NetworkMatrixRenderer;
 

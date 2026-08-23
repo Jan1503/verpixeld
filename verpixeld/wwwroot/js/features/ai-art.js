@@ -451,7 +451,7 @@ async function saveAiSchedule() {
   const prompts = promptsRaw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
   if (enabled && prompts.length === 0) {
-    window.toast?.error('AI Art', 'Add at least one prompt for scheduled generation.');
+    window.toast?.error('AI Art', 'Add at least one prompt for auto-generate.');
     return;
   }
 
@@ -544,7 +544,7 @@ function renderGallery() {
   if (!grid) return;
 
   if (aiState.gallery.length === 0) {
-    grid.innerHTML = '<div class="ai-history-empty">No saved images. Enable "Save to disk" in the Schedule tab to build your gallery.</div>';
+    grid.innerHTML = '<div class="ai-history-empty">No saved images. Enable "Save to disk" in AI → Auto-generate to build your gallery.</div>';
     return;
   }
 

@@ -174,6 +174,12 @@ public class MediaPlayerService : IDisposable
     /// </summary>
     public string? TargetCanvasName { get; set; }
 
+    /// <summary>
+    ///     Canvas that is actually receiving video frames right now.
+    ///     Target "Main" (the default) is remapped to a dedicated MediaPlayer overlay.
+    /// </summary>
+    public string? PlaybackCanvasName => _mediaCanvas?.Name;
+
     public float Volume
     {
         get => _audio.GetSystemVolume();
@@ -495,16 +501,16 @@ public class MediaPlayerService : IDisposable
         // A caller forced an exact canvas (Studio content/rotation) — render into it directly.
         if (_forcedCanvas != null) return _forcedCanvas;
 
-        if (string.IsNullOrEmpty(TargetCanvasName) || TargetCanvasName == "Main")
+        if (MediaPlaybackTarget.UsesOwnedOverlay(TargetCanvasName))
         {
-            var existing = _canvasManager.GetCanvasByName("MediaPlayer");
+            var existing = _canvasManager.GetCanvasByName(MediaPlaybackTarget.OverlayName);
             if (existing != null)
             {
                 Console.WriteLine("[MEDIA] Reusing existing MediaPlayer canvas");
                 existing.Hide();
                 return existing;
             }
-            var created = _canvasManager.GetCanvas(0, 0, _width, _height, 200, "MediaPlayer");
+            var created = _canvasManager.GetCanvas(0, 0, _width, _height, 200, MediaPlaybackTarget.OverlayName);
             created.Hide();
             return created;
         }

@@ -34,33 +34,9 @@ public static class DisplayApiEndpoints
     }
 
     /// <summary>
-    ///     Maps all display endpoints by delegating to specialized endpoint files
-    ///     (Legacy method - for backward compatibility)
+    ///     Maps display endpoints from the DI-built <see cref="EndpointContext"/>.
     /// </summary>
-    public static void MapDisplayEndpoints(
-        this WebApplication app,
-        CanvasManager canvasManager,
-        Func<IPAddress?> getLocalIp,
-        Func<double> getCurrentFps,
-        IDisplayLayoutManager? layoutManager = null,
-        ICanvasContentManager? contentManager = null,
-        IExtensionDiscovery? extensionDiscovery = null,
-        IFilterDiscovery? filterDiscovery = null)
-    {
-        // Create shared context for all endpoint modules
-        var ctx = new EndpointContext
-        {
-            CanvasManager = canvasManager,
-            GetLocalIp = getLocalIp,
-            GetCurrentFps = getCurrentFps,
-            LayoutManager = layoutManager,
-            ContentManager = contentManager,
-            ExtensionDiscovery = extensionDiscovery,
-            FilterDiscovery = filterDiscovery
-        };
-
-        app.MapDisplayEndpointsWithContext();
-    }
+    public static void MapDisplayEndpoints(this WebApplication app) => app.MapDisplayEndpointsWithContext();
 }
 
 // ============================================================================

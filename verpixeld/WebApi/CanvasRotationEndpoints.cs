@@ -10,8 +10,9 @@ public static class CanvasRotationEndpoints
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
-    public static void MapCanvasRotationEndpoints(this WebApplication app, CanvasRotationService svc)
+    public static void MapCanvasRotationEndpoints(this WebApplication app)
     {
+        var svc = app.Services.GetRequiredService<CanvasRotationService>();
         app.MapGet("/api/canvas/{name}/rotation", (string name) =>
         {
             var cfg = svc.GetConfig(name);

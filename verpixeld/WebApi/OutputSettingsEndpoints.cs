@@ -16,9 +16,11 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class OutputSettingsEndpoints
 {
-    public static void MapOutputSettingsEndpoints(this WebApplication app, OutputRuntime output,
-        CanvasManager? canvasManager, HomeAssistantService? homeAssistant)
+    public static void MapOutputSettingsEndpoints(this WebApplication app)
     {
+        var output = app.Services.GetRequiredService<OutputRuntime>();
+        var canvasManager = app.Services.GetRequiredService<CanvasManager>();
+        var homeAssistant = app.Services.GetRequiredService<HomeAssistantService>();
         var group = app.MapGroup("/api/settings");
 
         group.MapGet("/outputs", () =>

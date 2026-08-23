@@ -58,9 +58,13 @@ function displayCanvasStack(canvases) {
 
   // Check if media player is using any canvas
   const mediaState = window.mediaState || {};
-  const mediaCanvasName = mediaState.isRunning ? mediaState.targetCanvasName : null;
+  const mediaCanvasName = typeof mediaPlaybackCanvasName === 'function'
+    ? mediaPlaybackCanvasName(mediaState)
+    : (mediaState.isRunning && !mediaState.isAudioPlayback
+      ? (mediaState.playbackCanvasName || (mediaState.targetCanvasName === 'Main' ? 'MediaPlayer' : mediaState.targetCanvasName))
+      : null);
   
-  const html = sorted.map(canvas => {
+  const html = (typeof contentTargetCanvases === 'function' ? contentTargetCanvases(sorted) : sorted).map(canvas => {
     const content = contentMap[canvas.name];
     const hasContent = !!content;
     const hasMediaPlayer = mediaCanvasName === canvas.name;

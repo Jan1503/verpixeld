@@ -14,9 +14,11 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class SettingsEndpoints
 {
-    public static void MapSettingsEndpoints(this WebApplication app, CanvasManager? canvasManager = null,
-        OutputRuntime? output = null, HomeAssistantService? homeAssistant = null)
+    public static void MapSettingsEndpoints(this WebApplication app)
     {
+        var canvasManager = app.Services.GetRequiredService<CanvasManager>();
+        var output = app.Services.GetRequiredService<OutputRuntime>();
+        var homeAssistant = app.Services.GetRequiredService<HomeAssistantService>();
         var group = app.MapGroup("/api/settings");
 
         MapCertificateEndpoints(group, app);

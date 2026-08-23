@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using verpixeld.Services;
 
 namespace verpixeld.WebApi;
 
@@ -9,16 +10,16 @@ public static class SystemEndpoints
 {
     public static void MapSystemEndpoints(this WebApplication app, EndpointContext ctx)
     {
+        var render = app.Services.GetRequiredService<IRenderService>();
+
         // System status
         app.MapGet("/api/status", () =>
         {
             var uptime = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
             var fps = ctx.GetCurrentFps();
 
-            // Get display resolution from context (set during initialization)
-            var resolution = ctx.DisplayResolution ?? "384x192";
+            var resolution = ctx.DisplayResolution;
 
-            // Check if canvas manager has canvases (indicates it's running)
             var isRunning = ctx.CanvasManager.GetCanvases.Count > 0;
 
             var status = new SystemStatus(
@@ -122,13 +123,12 @@ public static class SystemEndpoints
             }
         });
 
-        // Restart render loop endpoint
         app.MapPost("/api/system/restart-render", () =>
         {
             try
             {
                 Console.WriteLine("[API] Render loop restart requested");
-                Program.RestartRenderLoop();
+                render.Restart();
                 return ApiResponse.Ok("Render loop restarted successfully.");
             }
             catch (Exception ex)

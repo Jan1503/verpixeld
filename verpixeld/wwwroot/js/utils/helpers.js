@@ -232,6 +232,29 @@ function throttle(func, limit) {
   };
 }
 
+/** Host overlays (HA toast, voice, camera alert) — Studio may move them; content pickers must not. */
+const SYSTEM_OVERLAY_CANVASES = new Set(['HaToast', 'VoiceFeedback', 'CameraAlert']);
+
+function isSystemOverlayCanvas(c) {
+  if (!c) return false;
+  if (typeof c === 'string') return SYSTEM_OVERLAY_CANVASES.has(c);
+  return !!(c.isSystem || SYSTEM_OVERLAY_CANVASES.has(c.name));
+}
+
+function contentTargetCanvases(canvases) {
+  return (canvases || []).filter(c => !isSystemOverlayCanvas(c));
+}
+
+/** Canvas that is actually showing video. Target "Main" remaps to a MediaPlayer overlay. */
+function mediaPlaybackCanvasName(state) {
+  const s = state || window.mediaState || {};
+  if (!s.isRunning || s.isAudioPlayback) return null;
+  if (s.playbackCanvasName) return s.playbackCanvasName;
+  const t = s.targetCanvasName;
+  if (!t || t === 'Main') return 'MediaPlayer';
+  return t;
+}
+
 /**
  * Refresh all canvas selectors across the application
  * Called when canvases are added or removed
@@ -242,7 +265,7 @@ async function refreshAllCanvasSelectors() {
     const result = await window.api.get('/api/canvas/stack');
     if (!result.data) return;
     
-    const canvases = result.data;
+    const canvases = contentTargetCanvases(result.data);
     
     // Build options HTML
     const optionsHtml = canvases.map(c => 
@@ -292,6 +315,15 @@ async function refreshAllCanvasSelectors() {
       }
     }
 
+    const uploadSelect = document.getElementById('upload-target-canvas');
+    if (uploadSelect) {
+      const currentValue = uploadSelect.value;
+      uploadSelect.innerHTML = optionsHtml;
+      if (canvases.some(c => c.name === currentValue)) {
+        uploadSelect.value = currentValue;
+      }
+    }
+
     // Update visualizer canvas selector
     if (typeof refreshVisualizerStatus === 'function') {
       await refreshVisualizerStatus();
@@ -319,6 +351,9 @@ window.hexToRgba = hexToRgba;
 window.generateGuid = generateGuid;
 window.debounce = debounce;
 window.throttle = throttle;
+window.isSystemOverlayCanvas = isSystemOverlayCanvas;
+window.contentTargetCanvases = contentTargetCanvases;
+window.mediaPlaybackCanvasName = mediaPlaybackCanvasName;
 window.refreshAllCanvasSelectors = refreshAllCanvasSelectors;
 window.updateDrawTargetCanvases = updateDrawTargetCanvases;
 window.updateCameraTargetCanvases = updateCameraTargetCanvases;

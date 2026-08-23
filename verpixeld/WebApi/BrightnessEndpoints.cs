@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using verpixeld.Services;
 
 namespace verpixeld.WebApi;
 
@@ -68,6 +69,7 @@ public static class BrightnessEndpoints
             try
             {
                 var canvases = ctx.LayoutManager!.GetAllCanvases()
+                    .Where(c => !SystemOverlayCanvases.IsSystem(c.Name))
                     .Select(c => new
                     {
                         name = c.Name,

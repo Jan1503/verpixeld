@@ -111,6 +111,16 @@ CanvasManagement is the shared framework ([Jan1503/canvasmanagement](https://git
 
 Dated from the public GitHub history so you can follow what landed when. Newest first.
 
+### 2026-08-23 — Composition root, scheduler, tests
+
+The host is built from DI. `Program` parses CLI and runs Kestrel; `AddVerpixeldHost` registers the process-lifetime graph. `OutputRuntime.Start()` runs on first resolve so `CanvasManager` is sized from the live renderer. `HostOrchestrator` loads the default scene and wires the clock scheduler — timed layouts call `ILayoutLoaderService.LoadLayoutAsync` again (that path had been disconnected).
+
+Media targeting empty/`Main` plays on a dedicated **MediaPlayer** overlay canvas so Main stays free for extensions. HA toast / voice / camera-alert overlays stay in Studio for placement but are not valid content-picker targets.
+
+`verpixeld.Tests` (xUnit, no hardware/Kestrel) covers filter-parameter roundtrip, layout files in a temp directory, seam JSON (including legacy `columns` → 14-bit), the Main→MediaPlayer remap, and the scheduler handler. `dotnet test` from this repo runs on Windows without a Pi.
+
+Studio: Camera Alert sits under Create (with the USB camera), GPIO/seam/HA use in-box disclosure arrows, and the media warning names the canvas that actually plays video.
+
 ### 2026-08-22 — Home Assistant: wall as a device, and better toasts
 
 The wall can register as an MQTT device in Home Assistant (needs the MQTT integration / Mosquitto addon). Settings → Home Assistant → **Expose as HA device**.
@@ -270,7 +280,7 @@ Real-time post-processing filters applied to the entire display:
 
 ### 📅 Scheduling
 
-Automated layout switching based on time with daily/weekly schedules, priorities, and manual override capability.
+Automated layout switching based on time with daily/weekly schedules, priorities, and manual override. When a slot fires, the host loads that saved scene (`ILayoutLoaderService`).
 
 ### 🌙 Night Mode
 
@@ -288,6 +298,7 @@ Interactive drawing with freehand tools, shapes, color picker, and the ability t
 
 Full video and audio playback system powered by FFmpeg:
 
+- **Playback canvas** — Target empty/`Main` plays on overlay canvas `MediaPlayer`; pick another canvas to play there. Main can still run an extension beside video.
 - **Local Files** — Play videos and audio from the device filesystem
 - **Network Streaming** — Native SMB/CIFS support via FFmpeg libsmbclient (no mount required)
 - **YouTube** — Stream YouTube videos via `yt-dlp` with automatic format selection
@@ -457,6 +468,8 @@ Manage HTTPS certificates through the web interface:
 
 ## 🏗️ Architecture
 
+`Program` is the host (CLI, Kestrel, middleware, shutdown). The **composition root** is `AddVerpixeldHost`: singletons for one process / one display. Hardware `Initialize` happens inside the `OutputRuntime` factory so width/height are known before `CanvasManager` is constructed. After `app.Build()`, `HostRuntime.Start` starts the render loop and HA; `HostOrchestrator.StartLocalModeAsync` loads the default scene and starts playlist, rotation, and the layout scheduler.
+
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                       Web Control Panel                         │
@@ -624,6 +637,8 @@ Common stack:
    ./deploy.ps1 -Configuration Release -Rid linux-arm64 -FontsSource <folder-with-clean-.bdf-files>
    ```
    Or build just the host: `dotnet publish -c Release -r linux-arm64` from `verpixeld/verpixeld/`.
+
+   Host tests (no Pi, no panel): `dotnet test` from this repository (`verpixeld.Tests`). Canvas engine tests live in the [CanvasManagement](https://github.com/Jan1503/canvasmanagement) sibling.
 
 4. **Deploy to Raspberry Pi**
    ```bash

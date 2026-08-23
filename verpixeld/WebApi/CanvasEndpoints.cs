@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CanvasManagement;
 using verpixeld.MediaPlayer;
+using verpixeld.Services;
 
 namespace verpixeld.WebApi;
 
@@ -42,7 +43,8 @@ public static class CanvasEndpoints
                         opacity = c.Opacity,
                         panelColorBits = c.PanelColorBits,
                         isVisible = !c.IsHidden,
-                        transparentBackground = c.TransparentBackground
+                        transparentBackground = c.TransparentBackground,
+                        isSystem = SystemOverlayCanvases.IsSystem(c.Name)
                     })
                     .ToArray();
 

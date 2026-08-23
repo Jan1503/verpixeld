@@ -30,7 +30,7 @@ function displaySchedules(schedules) {
       <div class="empty-state">
         <div class="empty-state-icon">📅</div>
         <div class="empty-state-text">No schedules yet</div>
-        <div class="empty-state-hint">Create schedules to automate layout changes</div>
+        <div class="empty-state-hint">Create schedules to load scenes at set times</div>
       </div>`;
     return;
   }
@@ -182,7 +182,7 @@ async function showNewScheduleDialog() {
           <hr>
           
           <h3>${ICONS.SCHEDULE} Schedule Entries</h3>
-          <p class="text-muted">Add time-based layout switches below:</p>
+          <p class="text-muted">Add time-based scene switches below:</p>
           
           <div id="schedule-entries-container">
             <!-- Entries will be added here -->
@@ -233,9 +233,9 @@ function addScheduleEntry() {
       <div class="schedule-entry-body">
         <div class="form-row">
           <div class="form-group">
-            <label>Layout to Load *</label>
+            <label>Scene to load *</label>
             <select class="form-control entry-layout" required>
-              <option value="">-- Select Layout --</option>
+              <option value="">-- Select scene --</option>
             </select>
           </div>
           
@@ -332,7 +332,7 @@ async function saveNewSchedule() {
       const entryEnabled = card.querySelector('.entry-enabled').checked;
 
       if (!layoutName || !time) {
-        showMessage('Please fill in all required fields (Layout and Time)', 'error');
+        showMessage('Please fill in all required fields (Scene and Time)', 'error');
         return;
       }
 
@@ -478,9 +478,9 @@ async function addEditScheduleEntry(existingEntry = null) {
       <div class="schedule-entry-body">
         <div class="form-row">
           <div class="form-group">
-            <label>Layout to Load *</label>
+            <label>Scene to load *</label>
             <select class="form-control entry-layout" required>
-              <option value="">-- Select Layout --</option>
+              <option value="">-- Select scene --</option>
             </select>
           </div>
           
@@ -562,7 +562,7 @@ async function saveEditedSchedule(originalName) {
       const entryEnabled = card.querySelector('.entry-enabled').checked;
 
       if (!layoutName || !time) {
-        showMessage('Please fill in all required fields (Layout and Time)', 'error');
+        showMessage('Please fill in all required fields (Scene and Time)', 'error');
         return;
       }
 
@@ -640,7 +640,7 @@ async function viewSchedule(scheduleName) {
         <div class="schedule-entry-view">
           <div class="entry-number">Entry #${index + 1} ${statusBadge}</div>
           <div class="entry-details">
-            <p><strong>Layout:</strong> ${escapeHtml(entry.layoutName)}</p>
+            <p><strong>Scene:</strong> ${escapeHtml(entry.layoutName)}</p>
             <p><strong>Time:</strong> ${entry.time}</p>
             <p><strong>Active Days:</strong> ${daysText}</p>
             ${entry.description ? `<p><strong>Description:</strong> ${escapeHtml(entry.description)}</p>` : ''}

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using verpixeld.MediaPlayer.Audio;
+using verpixeld.Services;
 
 namespace verpixeld.WebApi;
 
@@ -27,6 +28,7 @@ public static class VisualizerEndpoints
 
                 // Get available canvases from layout manager
                 var canvases = ctx.LayoutManager?.GetAllCanvases()
+                    .Where(c => !SystemOverlayCanvases.IsSystem(c.Name))
                     .Select(c => new { id = c.Name, name = c.Name })
                     .ToArray() ?? Array.Empty<object>();
 

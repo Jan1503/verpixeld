@@ -32,7 +32,7 @@
     <link rel="stylesheet" href="/css/features/image-upload.css?v=20260208c">
     <link rel="stylesheet" href="/css/features/ai-art.css?v=20260208c">
     <link rel="stylesheet" href="/css/features/voice-commands.css?v=20260208c">
-    <link rel="stylesheet" href="/css/features/settings.css?v=20260822b">
+    <link rel="stylesheet" href="/css/features/settings.css?v=20260823a">
     <link rel="stylesheet" href="/css/responsive.css?v=20260208a">
     <link rel="stylesheet" href="/css/animations.css?v=20260208a">
     <link rel="stylesheet" href="/css/splash.css?v=20260208a">
@@ -158,7 +158,7 @@
       </button>
       <button class="tab-btn" data-tab="canvas" onclick="switchTab('canvas')" role="tab" aria-selected="false">
         <span class="tab-btn-icon">🎨</span>
-        <span class="tab-btn-label">Canvas</span>
+        <span class="tab-btn-label">Create</span>
       </button>
       <button class="tab-btn" data-tab="media" onclick="switchTab('media')" role="tab" aria-selected="false">
         <span class="tab-btn-icon">📺</span>
@@ -194,73 +194,25 @@
     <!-- Tab Content Wrapper -->
     <div class="tab-content-wrapper">
 
-      <!-- ═══════════════════════════════════════════════════════════════════
-           TAB 1: LAYOUTS
-           Layout profiles, Canvas grid, Saved layouts, Layer stack
-           ═══════════════════════════════════════════════════════════════════ -->
-      <!-- Retired as a tab — kept hidden so legacy element refs (canvas-grid, saved-layouts-list,
-           layout-profile) stay valid. Scenes / New / Automation now live in the Studio tab. -->
+      <!-- Retired tab — invisible placeholders so legacy JS IDs stay valid.
+           Scenes / New / Automation live in Studio. -->
       <div class="tab-panel" id="tab-layouts" role="tabpanel" aria-hidden="true" hidden>
-        
-        <!-- New Scene — start from a base profile, then arrange in the Studio -->
-        <div class="tab-section">
-          <div class="tab-section-header">
-            <h3 class="tab-section-title">
-              <span class="tab-section-title-icon">🎯</span>
-              New Scene
-            </h3>
-            <div class="tab-section-actions">
-              <button id="apply-layout-btn" class="btn btn-small btn-primary">Use Profile</button>
-              <button class="btn btn-small btn-secondary" onclick="switchTab('studio')">🎛️ Open Studio</button>
-            </div>
-          </div>
-          <div class="tab-section-body">
-            <div class="layout-controls">
-              <div class="layout-selector-with-preview">
-                <label for="layout-profile">Start from profile:</label>
-                <div class="layout-dropdown-container">
-                  <select id="layout-profile" class="layout-select" onchange="updateLayoutPreview(this.value)">
-                    <option value="fullscreen">Full Screen</option>
-                    <option value="headercontent">Header + Content</option>
-                    <option value="threepanel">Three Panel</option>
-                    <option value="splitview">Split View</option>
-                    <option value="dashboard">Dashboard (2x2)</option>
-                  </select>
-                  <div class="layout-preview" id="layout-preview">
-                    <div class="layout-preview-canvas" style="left:0;top:0;width:100%;height:100%;"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <p id="layout-description" class="text-muted" style="margin-top: 0.5rem;">Pick a starting profile, then open the <strong>Studio</strong> to add canvases, content and rotations, and save it as a Scene.</p>
-            <!-- Retired sections (Active Canvases / Layer Stack) — the Studio replaces them. Hidden
-                 placeholders keep older populators from erroring if they run. -->
-            <div id="canvas-grid" hidden></div>
-            <div id="canvas-stack" hidden></div>
-          </div>
-        </div>
-
-        <!-- Saved Layouts -->
-        <div class="tab-section collapsible">
-          <div class="tab-section-header">
-            <h3 class="tab-section-title">
-              <span class="tab-section-title-icon">💾</span>
-              Scenes
-            </h3>
-            <div class="tab-section-actions">
-              <button id="save-current-layout-btn" class="btn btn-small btn-primary">Save Current</button>
-              <button id="scene-playlist-btn" class="btn btn-small btn-secondary" onclick="openPlaylistDialog()">🔁 Automation</button>
-              <button id="refresh-saved-layouts-btn" class="btn btn-small btn-secondary">Refresh</button>
-            </div>
-            <span class="tab-section-collapse-icon">▼</span>
-          </div>
-          <div class="tab-section-body">
-            <div id="saved-layouts-list" class="saved-layouts-list">
-              <div class="skeleton-card"></div>
-            </div>
-          </div>
-        </div>
-
+        <select id="layout-profile" hidden aria-hidden="true">
+          <option value="fullscreen">Full Screen</option>
+          <option value="headercontent">Header + Content</option>
+          <option value="threepanel">Three Panel</option>
+          <option value="splitview">Split View</option>
+          <option value="dashboard">Dashboard (2x2)</option>
+        </select>
+        <button id="apply-layout-btn" type="button" hidden></button>
+        <button id="save-current-layout-btn" type="button" hidden></button>
+        <button id="refresh-saved-layouts-btn" type="button" hidden></button>
+        <button id="scene-playlist-btn" type="button" hidden></button>
+        <div id="layout-preview" hidden></div>
+        <p id="layout-description" hidden></p>
+        <div id="canvas-grid" hidden></div>
+        <div id="canvas-stack" hidden></div>
+        <div id="saved-layouts-list" hidden></div>
       </div><!-- END TAB: LAYOUTS -->
 
       <!-- ═══════════════════════════════════════════════════════════════════
@@ -275,12 +227,12 @@
            ═══════════════════════════════════════════════════════════════════ -->
       <div class="tab-panel" id="tab-schedule" role="tabpanel" aria-hidden="true">
         
-        <!-- Layout Scheduler -->
+        <!-- Scene schedule -->
         <div class="tab-section">
           <div class="tab-section-header">
             <h3 class="tab-section-title">
               <span class="tab-section-title-icon">📅</span>
-              Layout Scheduler
+              Scene schedule
             </h3>
             <div class="tab-section-actions">
               <button id="new-schedule-btn" class="btn btn-small btn-primary" onclick="showNewScheduleDialog()">New Schedule</button>
@@ -321,11 +273,14 @@
 
 
       <!-- ═══════════════════════════════════════════════════════════════════
-           TAB 3: CANVAS
-           Draw mode + Camera stream
+           TAB 3: CREATE (data-tab=canvas)
+           Draw, upload, cameras — the stage stays in Studio
            ═══════════════════════════════════════════════════════════════════ -->
       <div class="tab-panel" id="tab-canvas" role="tabpanel" aria-hidden="true">
-        
+        <p class="settings-hint" style="margin: 0 0 0.85rem;">
+          Draw, photos and cameras — pick the target canvas here. The stage stays in Studio.
+        </p>
+
         <!-- Draw Mode -->
         <div class="tab-section">
           <div class="tab-section-header">
@@ -487,12 +442,16 @@
           </div>
         </div>
 
-        <!-- Camera Stream -->
+        <p class="settings-hint" style="margin: 0.5rem 0 0.75rem;">
+          Cameras — this browser (phone or webcam) vs USB on the Pi. Set the device and effects here, then assign the canvas in Studio.
+        </p>
+
+        <!-- This browser camera -->
         <div class="tab-section">
           <div class="tab-section-header">
             <h3 class="tab-section-title">
               <span class="tab-section-title-icon">📷</span>
-              Camera Stream
+              This browser
             </h3>
             <div class="tab-section-actions">
               <button class="btn btn-small btn-primary" id="camera-start-btn" onclick="startCameraStream()">Start</button>
@@ -597,12 +556,12 @@
           </div>
         </div>
 
-        <!-- Local USB Camera -->
+        <!-- USB camera on the Pi -->
         <div class="tab-section">
           <div class="tab-section-header">
             <h3 class="tab-section-title">
               <span class="tab-section-title-icon">🎥</span>
-              Local Camera (USB)
+              USB on the Pi
             </h3>
             <div class="tab-section-actions">
               <button class="btn btn-small btn-primary" id="localcam-start-btn" onclick="startLocalCamera()">Stream</button>
@@ -677,6 +636,66 @@
           </div>
         </div>
 
+        <!-- Camera Alert -->
+        <div class="tab-section collapsible">
+          <div class="tab-section-header">
+            <h3 class="tab-section-title">
+              <span class="tab-section-title-icon">📹</span>
+              Camera Alert
+            </h3>
+            <div class="tab-section-actions">
+              <span class="alert-status-badge" id="alert-status-badge" style="display: none;">
+                <span class="alert-pulse"></span> LIVE
+              </span>
+            </div>
+            <span class="tab-section-collapse-icon">▼</span>
+          </div>
+          <div class="tab-section-body">
+            <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">
+              Motion-triggered overlay on the wall. Live streams (this browser or USB) are the two sections above.
+            </p>
+            
+            <div class="alert-config-form">
+              <div class="alert-config-row">
+                <label for="alert-stream-url">Stream URL:</label>
+                <input type="text" id="alert-stream-url" class="form-control" 
+                       placeholder="http://camera:8080/video or rtsp://..." autocomplete="off">
+              </div>
+              <div class="alert-config-row">
+                <label for="alert-timeout">Auto-dismiss timeout:</label>
+                <div class="alert-timeout-control">
+                  <input type="range" id="alert-timeout" min="5" max="120" step="5" value="30"
+                         oninput="document.getElementById('alert-timeout-value').textContent = this.value + 's'">
+                  <span id="alert-timeout-value">30s</span>
+                </div>
+              </div>
+              <div class="alert-config-row">
+                <label for="alert-scale-filter">Scale filter:</label>
+                <select id="alert-scale-filter" class="form-control" style="max-width: 200px;">
+                  <option value="area">area (softer)</option>
+                  <option value="lanczos">lanczos (sharp)</option>
+                  <option value="bicubic">bicubic</option>
+                  <option value="bilinear">bilinear</option>
+                  <option value="fast_bilinear">fast_bilinear</option>
+                  <option value="gauss">gauss (blur)</option>
+                </select>
+              </div>
+              <div class="alert-config-actions">
+                <button class="btn btn-small btn-primary" onclick="saveAlertConfig()">💾 Save Config</button>
+                <button class="btn btn-small btn-secondary" onclick="testAlertTrigger()">🔔 Test Trigger</button>
+                <button class="btn btn-small btn-danger" id="alert-dismiss-btn" onclick="dismissAlert()" style="display: none;">✋ Dismiss</button>
+              </div>
+            </div>
+            
+            <div class="alert-webhook-info">
+              <p class="text-muted" style="font-size: 0.8rem; margin-top: 0.75rem;">
+                📡 <strong>Webhook URL:</strong> <code>POST http://&lt;host&gt;:5000/api/alert/trigger</code><br>
+                Configure your camera to call this endpoint on motion detection. No body or parameters needed.
+              </p>
+            </div>
+          </div>
+        </div>
+
       </div><!-- END TAB: CANVAS -->
 
 
@@ -692,7 +711,7 @@
           <button class="ai-subtab-btn" data-aisub="stylize" onclick="switchAiSubtab('stylize')">✨ Stylize</button>
           <button class="ai-subtab-btn" data-aisub="gallery" onclick="switchAiSubtab('gallery')">🖼️ Gallery</button>
           <button class="ai-subtab-btn" data-aisub="voice" onclick="switchAiSubtab('voice')">🎤 Voice</button>
-          <button class="ai-subtab-btn" data-aisub="schedule" onclick="switchAiSubtab('schedule')">⏰ Schedule</button>
+          <button class="ai-subtab-btn" data-aisub="schedule" onclick="switchAiSubtab('schedule')">⏰ Auto-generate</button>
           <button class="ai-subtab-btn" data-aisub="settings" onclick="switchAiSubtab('settings')">⚙️ Settings</button>
         </nav>
 
@@ -900,7 +919,7 @@
               </div>
               <!-- Image Grid -->
               <div class="gallery-grid" id="gallery-grid">
-                <div class="ai-history-empty">No saved images. Enable "Save to disk" in the Schedule tab to build your gallery.</div>
+                <div class="ai-history-empty">No saved images. Enable "Save to disk" in AI → Auto-generate to build your gallery.</div>
               </div>
             </div>
           </div>
@@ -1097,7 +1116,7 @@
         <div class="ai-subtab-panel" id="ai-sub-schedule">
           <div class="tab-section">
             <div class="tab-section-header">
-              <h3 class="tab-section-title"><span class="tab-section-title-icon">⏰</span> Scheduled Generation</h3>
+              <h3 class="tab-section-title"><span class="tab-section-title-icon">⏰</span> Auto-generate</h3>
             </div>
             <div class="tab-section-body">
               <div class="ai-schedule-form">
@@ -1147,7 +1166,7 @@
                     </select>
                   </div>
                 </div>
-                <button class="btn btn-small btn-primary" onclick="saveAiSchedule()">Save Schedule</button>
+                <button class="btn btn-small btn-primary" onclick="saveAiSchedule()">Save</button>
                 <span class="ai-schedule-status" id="ai-schedule-status"></span>
               </div>
             </div>
@@ -1728,7 +1747,7 @@
           <div class="tab-section collapsible">
             <div class="tab-section-header">
               <h3 class="tab-section-title">
-                <span class="tab-section-title-icon">🎵</span>
+                <span class="tab-section-title-icon">🎹</span>
                 MOD Music
               </h3>
               <div class="tab-section-actions">
@@ -1746,66 +1765,6 @@
                   📤 Upload MOD
                   <input type="file" accept=".mod,.xm,.s3m,.it,.stm,.mtm" onchange="uploadModFile(this)" style="display: none;">
                 </label>
-              </div>
-            </div>
-          </div>
-
-          <!-- Camera Alert -->
-          <div class="tab-section collapsible">
-            <div class="tab-section-header">
-              <h3 class="tab-section-title">
-                <span class="tab-section-title-icon">📹</span>
-                Camera Alert
-              </h3>
-              <div class="tab-section-actions">
-                <span class="alert-status-badge" id="alert-status-badge" style="display: none;">
-                  <span class="alert-pulse"></span> LIVE
-                </span>
-              </div>
-              <span class="tab-section-collapse-icon">▼</span>
-            </div>
-            <div class="tab-section-body">
-              <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">
-                Configure a camera stream that auto-displays when triggered by motion detection webhook.
-              </p>
-              
-              <div class="alert-config-form">
-                <div class="alert-config-row">
-                  <label for="alert-stream-url">Stream URL:</label>
-                  <input type="text" id="alert-stream-url" class="form-control" 
-                         placeholder="http://camera:8080/video or rtsp://..." autocomplete="off">
-                </div>
-                <div class="alert-config-row">
-                  <label for="alert-timeout">Auto-dismiss timeout:</label>
-                  <div class="alert-timeout-control">
-                    <input type="range" id="alert-timeout" min="5" max="120" step="5" value="30"
-                           oninput="document.getElementById('alert-timeout-value').textContent = this.value + 's'">
-                    <span id="alert-timeout-value">30s</span>
-                  </div>
-                </div>
-                <div class="alert-config-row">
-                  <label for="alert-scale-filter">Scale filter:</label>
-                  <select id="alert-scale-filter" class="form-control" style="max-width: 200px;">
-                    <option value="area">area (softer)</option>
-                    <option value="lanczos">lanczos (sharp)</option>
-                    <option value="bicubic">bicubic</option>
-                    <option value="bilinear">bilinear</option>
-                    <option value="fast_bilinear">fast_bilinear</option>
-                    <option value="gauss">gauss (blur)</option>
-                  </select>
-                </div>
-                <div class="alert-config-actions">
-                  <button class="btn btn-small btn-primary" onclick="saveAlertConfig()">💾 Save Config</button>
-                  <button class="btn btn-small btn-secondary" onclick="testAlertTrigger()">🔔 Test Trigger</button>
-                  <button class="btn btn-small btn-danger" id="alert-dismiss-btn" onclick="dismissAlert()" style="display: none;">✋ Dismiss</button>
-                </div>
-              </div>
-              
-              <div class="alert-webhook-info">
-                <p class="text-muted" style="font-size: 0.8rem; margin-top: 0.75rem;">
-                  📡 <strong>Webhook URL:</strong> <code>POST http://&lt;host&gt;:5000/api/alert/trigger</code><br>
-                  Configure your camera to call this endpoint on motion detection. No body or parameters needed.
-                </p>
               </div>
             </div>
           </div>
@@ -1867,6 +1826,9 @@
             </h3>
           </div>
           <div class="tab-section-body">
+            <p class="settings-hint" style="margin-bottom: 0.75rem;">
+              Per-canvas brightness stays here. The header slider is the global wall brightness.
+            </p>
             <div id="canvas-brightness-controls" class="canvas-brightness-section">
               <!-- Per-canvas brightness sliders will be added here dynamically -->
               <p class="text-muted">Per-canvas brightness controls will appear here when canvases are active.</p>
@@ -1924,7 +1886,8 @@
           </div>
           <div class="tab-section-body">
             <p class="settings-hint" style="margin-bottom: 0.75rem;">
-              Click a card to edit that output’s settings. Nothing is switched until you save and confirm,
+              Click a card to edit that output’s settings — only the selected panel is shown.
+              Nothing is switched until you save and confirm,
               or press <strong>Use this output</strong>. Live switch when the canvas size matches; GPIO always needs a restart.
             </p>
             <div class="output-mode-picker" id="output-mode-picker">
@@ -2090,6 +2053,8 @@
               <div id="net-panel-list" class="net-panel-list"></div>
             </div>
 
+            <details class="settings-disclosure" id="seam-advanced">
+              <summary>Seam correction (calibration)</summary>
             <div class="settings-group" style="margin-top: 1rem;">
               <h4 class="settings-group-title">Seam correction</h4>
               <p class="settings-hint" style="margin-bottom: 0.75rem;">
@@ -2120,6 +2085,7 @@
               </div>
               <div id="seam-rows"></div>
             </div>
+            </details>
           </div>
         </div>
 
@@ -2127,7 +2093,7 @@
         <div class="tab-section collapsible output-panel" id="out-hdmi">
           <div class="tab-section-header">
             <h3 class="tab-section-title">
-              <span class="tab-section-title-icon">🖥️</span>
+              <span class="tab-section-title-icon">📺</span>
               HDMI
             </h3>
             <div class="tab-section-actions">
@@ -2300,6 +2266,10 @@
                   <span class="settings-calculated-value" id="matrix-calculated-resolution">384 × 192</span>
                 </div>
               </div>
+            </div>
+            <details class="settings-disclosure" id="gpio-advanced">
+              <summary>Advanced GPIO (PWM, mapping, flags)</summary>
+              <div class="settings-grid" style="margin-top: 0.75rem;">
               <div class="settings-group">
                 <h4 class="settings-group-title">Drive</h4>
                 <div class="settings-row">
@@ -2423,7 +2393,8 @@
                   <span class="settings-hint">invert all pixels</span>
                 </div>
               </div>
-            </div>
+              </div>
+            </details>
           </div>
         </div>
 
@@ -2535,7 +2506,7 @@
           </div>
           <div class="tab-section-body">
             <p class="settings-hint" style="margin-bottom: 0.75rem;">
-              Live view of the LED matrix output. Available in all modes with zero overhead when not active.
+              Same wall as Studio, without opening the editor. Zero overhead when stopped.
             </p>
             <div id="preview-container" style="display: flex; flex-direction: column; align-items: center;">
               <div id="preview-placeholder" style="display: flex; align-items: center; justify-content: center; background: #111; border-radius: 8px; width: 384px; height: 192px; color: #666; font-size: 0.85rem;">
@@ -2635,12 +2606,6 @@
           <div class="tab-section-body">
             <p class="settings-hint" style="margin-bottom: 0.75rem;" id="ha-status">
               Long-lived token stays on the server. Saving reconnects only if the connection changed.
-              Toasts are Home Assistant <strong>persistent notifications</strong> or
-              <code>notify.verpixeld_wall</code> / <code>text.verpixeld_toast</code> (MQTT device). REST:
-              <code>POST /api/homeassistant/notify</code>.
-              Prefix <code>notification_id</code> with
-              <code>error:</code>, <code>warning:</code>, <code>success:</code> or <code>info:</code>
-              to set severity. Use <em>Test toast on wall</em> to check the overlay without HA.
             </p>
             <div class="settings-grid">
               <div class="settings-group">
@@ -2663,15 +2628,6 @@
                   <input type="password" id="ha-token" class="settings-input" placeholder="eyJ…" autocomplete="off">
                   <span class="settings-hint">HA profile → tokens</span>
                 </div>
-                <div class="settings-row">
-                  <label for="ha-expose-device">Expose as HA device</label>
-                  <label class="toggle-switch">
-                    <input type="checkbox" id="ha-expose-device" checked>
-                    <span class="toggle-slider"></span>
-                  </label>
-                  <span class="settings-hint">Needs MQTT (Mosquitto). Creates notify + toast text, last-toast sensor, night-mode schedule, night-active, layout, brightness.</span>
-                </div>
-                <p class="settings-hint" id="ha-device-hint" style="margin-top: 0.5rem;"></p>
               </div>
               <div class="settings-group">
                 <h4 class="settings-group-title">Toast on wall</h4>
@@ -2687,49 +2643,6 @@
                   <input type="number" id="ha-toast-duration" class="settings-input" min="1" max="60" step="1" value="8">
                 </div>
                 <div class="settings-row">
-                  <label for="ha-toast-font">BDF font</label>
-                  <select id="ha-toast-font" class="settings-select">
-                    <option value="">Auto (fit bar)</option>
-                  </select>
-                </div>
-                <div class="settings-row">
-                  <label for="ha-toast-severity">Default severity</label>
-                  <select id="ha-toast-severity" class="settings-select">
-                    <option value="info">Info</option>
-                    <option value="success">Success</option>
-                    <option value="warning">Warning</option>
-                    <option value="error">Error</option>
-                  </select>
-                </div>
-                <div class="settings-row">
-                  <label for="ha-toast-bg">Background</label>
-                  <input type="color" id="ha-toast-bg" value="#121620">
-                </div>
-                <div class="settings-row">
-                  <label for="ha-toast-title">Title colour</label>
-                  <input type="color" id="ha-toast-title" value="#ffffff">
-                </div>
-                <div class="settings-row">
-                  <label for="ha-toast-message">Message colour</label>
-                  <input type="color" id="ha-toast-message" value="#c8d2dc">
-                </div>
-                <div class="settings-row">
-                  <label for="ha-toast-info">Info accent</label>
-                  <input type="color" id="ha-toast-info" value="#03a9f4">
-                </div>
-                <div class="settings-row">
-                  <label for="ha-toast-warning">Warning accent</label>
-                  <input type="color" id="ha-toast-warning" value="#ffc107">
-                </div>
-                <div class="settings-row">
-                  <label for="ha-toast-error">Error accent</label>
-                  <input type="color" id="ha-toast-error" value="#f44336">
-                </div>
-                <div class="settings-row">
-                  <label for="ha-toast-success">Success accent</label>
-                  <input type="color" id="ha-toast-success" value="#4caf50">
-                </div>
-                <div class="settings-row">
                   <label for="ha-toast-test-severity">Test severity</label>
                   <select id="ha-toast-test-severity" class="settings-select">
                     <option value="info">Info</option>
@@ -2738,8 +2651,96 @@
                     <option value="error">Error</option>
                   </select>
                 </div>
+                <p class="settings-hint">Use <em>Test toast on wall</em> in the header to check the overlay without Home Assistant.</p>
               </div>
             </div>
+
+            <details class="settings-disclosure">
+              <summary>Advanced — toast look</summary>
+              <div class="settings-grid" style="margin-top: 0.75rem;">
+                <div class="settings-group">
+                  <h4 class="settings-group-title">Font &amp; severity</h4>
+                  <div class="settings-row">
+                    <label for="ha-toast-font">BDF font</label>
+                    <select id="ha-toast-font" class="settings-select">
+                      <option value="">Auto (fit bar)</option>
+                    </select>
+                  </div>
+                  <div class="settings-row">
+                    <label for="ha-toast-severity">Default severity</label>
+                    <select id="ha-toast-severity" class="settings-select">
+                      <option value="info">Info</option>
+                      <option value="success">Success</option>
+                      <option value="warning">Warning</option>
+                      <option value="error">Error</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="settings-group">
+                  <h4 class="settings-group-title">Colours</h4>
+                  <div class="settings-row">
+                    <label for="ha-toast-bg">Background</label>
+                    <input type="color" id="ha-toast-bg" value="#121620">
+                  </div>
+                  <div class="settings-row">
+                    <label for="ha-toast-title">Title colour</label>
+                    <input type="color" id="ha-toast-title" value="#ffffff">
+                  </div>
+                  <div class="settings-row">
+                    <label for="ha-toast-message">Message colour</label>
+                    <input type="color" id="ha-toast-message" value="#c8d2dc">
+                  </div>
+                  <div class="settings-row">
+                    <label for="ha-toast-info">Info accent</label>
+                    <input type="color" id="ha-toast-info" value="#03a9f4">
+                  </div>
+                  <div class="settings-row">
+                    <label for="ha-toast-warning">Warning accent</label>
+                    <input type="color" id="ha-toast-warning" value="#ffc107">
+                  </div>
+                  <div class="settings-row">
+                    <label for="ha-toast-error">Error accent</label>
+                    <input type="color" id="ha-toast-error" value="#f44336">
+                  </div>
+                  <div class="settings-row">
+                    <label for="ha-toast-success">Success accent</label>
+                    <input type="color" id="ha-toast-success" value="#4caf50">
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <div class="settings-group" style="margin-top: 1rem;">
+              <h4 class="settings-group-title">HA device</h4>
+              <div class="settings-row">
+                <label for="ha-expose-device">Show wall in Home Assistant</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="ha-expose-device" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <p class="settings-hint">
+                The wall appears in Home Assistant (scene, brightness, night-mode schedule, night-active, toasts).
+              </p>
+              <p class="settings-hint" style="margin-top: 0.5rem;">
+                Night mode times are set under <strong>Schedule</strong>. The HA switch only enables that schedule — it does not dim right now.
+              </p>
+              <p class="settings-hint" id="ha-device-hint" style="margin-top: 0.5rem;"></p>
+            </div>
+
+            <details class="settings-disclosure">
+              <summary>Details — MQTT, REST, entity IDs</summary>
+              <p class="settings-hint" style="margin-top: 0.75rem;">
+                Needs MQTT (Mosquitto). Creates <code>notify.verpixeld_wall</code>,
+                <code>text.verpixeld_toast</code>, last-toast sensor, night-mode schedule,
+                night-active, scene select, and brightness.
+                Toasts are Home Assistant <strong>persistent notifications</strong> or those MQTT entities.
+                REST: <code>POST /api/homeassistant/notify</code>.
+                Prefix <code>notification_id</code> with
+                <code>error:</code>, <code>warning:</code>, <code>success:</code> or <code>info:</code>
+                to set severity.
+              </p>
+            </details>
           </div>
         </div>
 
@@ -2806,7 +2807,7 @@
         <div class="tab-section collapsible">
           <div class="tab-section-header">
             <h3 class="tab-section-title">
-              <span class="tab-section-title-icon">🔌</span>
+              <span class="tab-section-title-icon">🧩</span>
               Plugins
             </h3>
             <span class="tab-section-collapse-icon">▼</span>
@@ -2900,18 +2901,18 @@
   <!-- Modular JS - Core modules -->
   <script src="/js/constants.js?v=20260208a"></script>
   <script src="/js/core/api.js?v=20260208a"></script>
-  <script src="/js/utils/helpers.js?v=20260208a"></script>
+  <script src="/js/utils/helpers.js?v=20260823a"></script>
   <script src="/js/ui/toast.js?v=20260208a"></script>
   <script src="/js/ui/modal.js?v=20260208a"></script>
   <script src="/js/ui/theme.js?v=20260817a"></script>
-  <script src="/js/ui/tabs.js?v=20260208c"></script>
+  <script src="/js/ui/tabs.js?v=20260823a"></script>
   <script src="/js/ui/navigation.js?v=20260208a"></script>
   
   <!-- Modular JS - Features -->
   <script src="/js/features/draw-mode.js?v=20260208a"></script>
   <script src="/js/features/night-mode.js?v=20260208a"></script>
-  <script src="/js/features/scheduler.js?v=20260208a"></script>
-  <script src="/js/features/canvas-stack.js?v=20260208a"></script>
+  <script src="/js/features/scheduler.js?v=20260822h"></script>
+  <script src="/js/features/canvas-stack.js?v=20260823a"></script>
   <script src="/js/features/brightness.js?v=20260208a"></script>
   <!-- Site Footer -->
   <footer class="app-footer">
@@ -2928,26 +2929,26 @@
     </div>
   </footer>
 
-  <script src="/js/features/saved-layouts.js?v=20260208a"></script>
+  <script src="/js/features/saved-layouts.js?v=20260822h"></script>
   <script src="/js/features/playlist.js?v=20260623a"></script>
   <script src="/js/features/canvas-editor.js?v=20260208a"></script>
-  <script src="/js/features/layer-editor.js?v=20260821d"></script>
+  <script src="/js/features/layer-editor.js?v=20260822h"></script>
   <script src="/js/features/system-control.js?v=20260208a"></script>
   <script src="/js/features/filter-management.js?v=20260208a"></script>
   <script src="/js/features/extension-management.js?v=20260822a"></script>
-  <script src="/js/features/layout-management.js?v=20260208a"></script>
+  <script src="/js/features/layout-management.js?v=20260823a"></script>
   <script src="/js/features/camera-stream.js?v=20260624a"></script>
-  <script src="/js/features/media-player.js?v=20260208a"></script>
+  <script src="/js/features/media-player.js?v=20260822g"></script>
   <script src="/js/features/network-shares.js?v=20260208a"></script>
   <script src="/js/features/audio-output.js?v=20260208a"></script>
   <script src="/js/features/favorites.js?v=20260208a"></script>
-  <script src="/js/features/visualizer.js?v=20260208a"></script>
+  <script src="/js/features/visualizer.js?v=20260822g"></script>
   <script src="/js/features/console-log.js?v=20260208a"></script>
   <script src="/js/features/image-upload.js?v=20260208c"></script>
-  <script src="/js/features/ai-art.js?v=20260208c"></script>
+  <script src="/js/features/ai-art.js?v=20260822h"></script>
   <script src="/js/features/voice-commands.js?v=20260208c"></script>
   <script src="/js/features/live-preview.js?v=20260208a"></script>
-  <script src="/js/features/settings.js?v=20260822f"></script>
+  <script src="/js/features/settings.js?v=20260822h"></script>
   <script src="/js/core/init.js?v=20260208a"></script>
 </body>
 </html>

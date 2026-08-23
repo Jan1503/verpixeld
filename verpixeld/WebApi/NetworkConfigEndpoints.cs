@@ -13,8 +13,9 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class NetworkConfigEndpoints
 {
-    public static void MapNetworkConfigEndpoints(this WebApplication app, IMatrixRenderer renderer)
+    public static void MapNetworkConfigEndpoints(this WebApplication app)
     {
+        var renderer = app.Services.GetRequiredService<IMatrixRenderer>();
         var runtime = renderer as OutputRuntime;
         NetworkMatrixRenderer? Current() =>
             runtime?.As<NetworkMatrixRenderer>() ?? renderer as NetworkMatrixRenderer;

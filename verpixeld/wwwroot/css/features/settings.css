@@ -610,3 +610,44 @@
     align-items: stretch;
   }
 }
+
+.settings-disclosure {
+  margin-top: 1rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.settings-disclosure > summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.settings-disclosure > summary::-webkit-details-marker,
+.settings-disclosure > summary::marker {
+  display: none;
+  content: "";
+}
+
+.settings-disclosure > summary::before {
+  content: "▶";
+  font-size: 0.65rem;
+  line-height: 1;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.settings-disclosure[open] > summary::before {
+  content: "▼";
+}
+
+.settings-disclosure > summary:hover {
+  color: var(--color-accent);
+}

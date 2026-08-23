@@ -26,6 +26,7 @@ function lePoint(ev) {
   return { x: ev.clientX, y: ev.clientY };
 }
 
+const LE_SYS = ['HaToast', 'VoiceFeedback', 'CameraAlert'];
 const LE_STD = ['Main', 'Header', 'Content', 'Footer', 'Left', 'Right',
   'TopLeft', 'TopRight', 'BottomLeft', 'BottomRight'];
 
@@ -48,6 +49,7 @@ function buildStudioBodyHtml() {
         <button class="btn btn-small btn-secondary" onclick="leSaveScene()">💾 Save Scene</button>
         <button class="btn btn-small btn-secondary" onclick="openPlaylistDialog()">🔁 Automation</button>
       </div>
+      <p class="le-hint" id="le-first-run" style="margin:0 0 10px;">Pick a canvas on the left, assign content on the right, save as a Scene above. Automation rotates scenes; clock times are under Schedule.</p>
       <div class="le-studio-body">
         <aside class="le-pane le-layers" id="le-layers"></aside>
         <div class="le-center">
@@ -219,7 +221,7 @@ function leResumeRotation() {
 
 function closeLayerEditor() {
   // Back-compat alias — the Studio now lives in a tab; leave by switching away.
-  if (typeof switchTab === 'function') switchTab('layouts');
+  if (typeof switchTab === 'function') switchTab('studio');
   else unmountStudio();
 }
 
@@ -292,7 +294,9 @@ function renderLayers() {
       const sel = layerEditor.selected === c.name ? ' selected' : '';
       const hidden = c.isVisible === false;
       const content = layerEditor.contentMap[c.name];
-      const label = content ? content.extensionName : '(empty)';
+      const label = (LE_SYS.includes(c.name) || c.isSystem)
+        ? 'host overlay'
+        : (content ? content.extensionName : '(empty)');
       const nm = c.name.replace(/'/g, "\\'");
       const icon = leExtIcon(label === '(empty)' ? '' : label);
       return `<div class="le-layer${sel}${hidden ? ' is-hidden' : ''}" onclick="selectLayerCanvas('${nm}')" title="z:${c.zOrder} · ${c.width}×${c.height}">
@@ -315,12 +319,13 @@ function renderInspector() {
   }
   const pct = Math.round((c.opacity ?? 1) * 100);
   const isStd = LE_STD.includes(c.name);
+  const isSys = LE_SYS.includes(c.name) || c.isSystem;
   pane.innerHTML = `
     <div class="le-insp-head">
       <strong class="le-insp-name">${c.name}</strong>
       <span class="le-insp-actions">
-        ${isStd ? '' : `<button class="le-ico" title="Rename" onclick="layerEditorRename()">✎</button>`}
-        ${isStd ? '' : `<button class="le-ico le-ico-danger" title="Remove canvas" onclick="layerEditorRemove()">🗑</button>`}
+        ${isStd || isSys ? '' : `<button class="le-ico" title="Rename" onclick="layerEditorRename()">✎</button>`}
+        ${isStd || isSys ? '' : `<button class="le-ico le-ico-danger" title="Remove canvas" onclick="layerEditorRemove()">🗑</button>`}
       </span>
     </div>
 
@@ -381,9 +386,11 @@ function renderInspector() {
 
     <div class="le-section">
       <div class="le-section-title">Content</div>
-      <div id="le-content"><p class="le-hint">Loading…</p></div>
+      <div id="le-content">${isSys
+        ? '<p class="le-hint">Host overlay — you can move it on the stage. Assign clocks, media, draw or AI to another canvas.</p>'
+        : '<p class="le-hint">Loading…</p>'}</div>
     </div>`;
-  loadContentSection(c.name);
+  if (!isSys) loadContentSection(c.name);
 }
 
 function selectLayerCanvas(name) {
@@ -725,6 +732,11 @@ function layerEditorAssign() {
     if (typeof showMessage === 'function') showMessage('Select a canvas first', 'info');
     return;
   }
+  if (LE_SYS.includes(layerEditor.selected)) {
+    if (typeof showMessage === 'function')
+      showMessage('Host overlay — pick another canvas for content', 'info');
+    return;
+  }
   if (typeof assignExtensionToCanvas === 'function') {
     assignExtensionToCanvas(layerEditor.selected);
     // Pull fresh state once the picker has likely applied the assignment.
@@ -735,8 +747,8 @@ function layerEditorAssign() {
 async function layerEditorRemove() {
   const name = layerEditor.selected;
   if (!name) { if (typeof showMessage === 'function') showMessage('Select a canvas first', 'info'); return; }
-  if (LE_STD.includes(name)) {
-    if (typeof showMessage === 'function') showMessage(`'${name}' is a base canvas and can't be removed`, 'info');
+  if (LE_STD.includes(name) || LE_SYS.includes(name)) {
+    if (typeof showMessage === 'function') showMessage(`'${name}' can't be removed`, 'info');
     return;
   }
   // NOTE: don't delegate to removeOverlayCanvas() — its confirm dialog calls the global closeModal(),
@@ -821,8 +833,8 @@ function layerEditorEditParams() {
 async function layerEditorRename() {
   const name = layerEditor.selected;
   if (!name) { if (typeof showMessage === 'function') showMessage('Select a canvas first', 'info'); return; }
-  if (LE_STD.includes(name)) {
-    if (typeof showMessage === 'function') showMessage(`'${name}' is a base canvas and can't be renamed`, 'info');
+  if (LE_STD.includes(name) || LE_SYS.includes(name)) {
+    if (typeof showMessage === 'function') showMessage(`'${name}' can't be renamed`, 'info');
     return;
   }
   const newName = window.prompt('Rename canvas', name);
@@ -1120,6 +1132,7 @@ function renderContentSection() {
 function contentAdd() {
   const name = window.leContent?.name || layerEditor.selected;
   if (!name || typeof assignExtensionToCanvas !== 'function') return;
+  if (LE_SYS.includes(name)) return;
   // Snapshot whether a single (non-list) content exists right now, so the picker callback (which runs
   // later) doesn't re-read stale state and double-capture it.
   const s = window.leContent || {};
@@ -1146,6 +1159,7 @@ function contentAdd() {
 function contentChangeSingle() {
   const name = layerEditor.selected;
   if (!name || typeof assignExtensionToCanvas !== 'function') return;
+  if (LE_SYS.includes(name)) return;
   assignExtensionToCanvas(name, async (ext) => {
     await window.api.post('/api/layout/assign', { canvasName: name, extensionName: ext });
     await refreshLayerEditor();
@@ -1155,7 +1169,7 @@ function contentChangeSingle() {
 // Add a Media (video) content item — opens a small picker of available videos.
 async function contentAddMedia() {
   const name = window.leContent?.name || layerEditor.selected;
-  if (!name) return;
+  if (!name || LE_SYS.includes(name)) return;
   let videos = [];
   try { const r = await window.api.get('/api/media/status'); videos = (r.data && r.data.availableVideos) || []; } catch (e) { /* ignore */ }
   document.getElementById('le-media-modal')?.remove();
@@ -1207,7 +1221,7 @@ const LE_CAM_EFFECTS = ['none', 'edge', 'invert', 'sepia', 'nightvision', 'therm
 // Add a USB-camera content item — pick the device + visual effect for this step.
 async function contentAddCamera() {
   const name = window.leContent?.name || layerEditor.selected;
-  if (!name) return;
+  if (!name || LE_SYS.includes(name)) return;
   let devices = [];
   try { const r = await window.api.get('/api/localcam/devices'); devices = (r.data && r.data.videoDevices) || []; } catch (e) { /* ignore */ }
   document.getElementById('le-cam-modal')?.remove();
@@ -1218,12 +1232,12 @@ async function contentAddCamera() {
        <select id="le-cam-device" style="width:100%;margin:4px 0 10px;">${devOpts}</select>
        <label class="le-sel-lbl">Effect</label>
        <select id="le-cam-effect" style="width:100%;margin:4px 0 0;">${fxOpts}</select>`
-    : `<p class="le-hint">No USB cameras detected (looking for /dev/video*). Connect a camera, or configure one in the Camera tab.</p>`;
+    : `<p class="le-hint">No USB cameras detected (looking for /dev/video*). Connect a camera, or set device and effects on the Create tab first.</p>`;
   const html = `
   <div class="modal-overlay" id="le-cam-modal" style="z-index:10010;">
     <div class="modal-content" style="max-width:460px;">
       <div class="modal-header"><h2>📷 Add Camera</h2><button class="modal-close" onclick="leCamClose()">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button></div>
-      <div class="modal-body">${body}<p class="le-hint" style="margin-top:10px;">Note: one camera stream plays at a time across the display.</p></div>
+      <div class="modal-body">${body}<p class="le-hint" style="margin-top:10px;">USB device and effects are configured on the Create tab. Assign the canvas here. One camera stream plays at a time.</p></div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="leCamClose()">Cancel</button>
         ${devices.length ? '<button class="btn btn-primary" onclick="leCamAdd()">Add</button>' : ''}

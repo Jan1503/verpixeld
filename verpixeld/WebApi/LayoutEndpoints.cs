@@ -3,6 +3,7 @@ using CanvasManagement.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using verpixeld.Interfaces;
 using verpixeld.Layout;
+using verpixeld.Services;
 
 namespace verpixeld.WebApi;
 
@@ -60,9 +61,9 @@ public static class LayoutEndpoints
                     success = true,
                     data = new
                     {
-                        profile = ctx.CurrentLayout.ToString().ToLower(),
-                        displayName = ctx.CurrentLayout.ToString(),
-                        description = DisplayLayoutManager.GetLayoutDescription(ctx.CurrentLayout),
+                        profile = ctx.LayoutManager.CurrentProfile.ToString().ToLower(),
+                        displayName = ctx.LayoutManager.CurrentProfile.ToString(),
+                        description = DisplayLayoutManager.GetLayoutDescription(ctx.LayoutManager.CurrentProfile),
                         canvasCount = ctx.LayoutManager.CanvasCount,
                         canvases
                     }
@@ -105,15 +106,12 @@ public static class LayoutEndpoints
                 ctx.RotationService?.ClearAll();
 
                 // Apply new layout
-                ctx.LayoutManager!.ApplyLayout(profile);
-                ctx.CurrentLayout = profile;
+                ctx.LayoutManager.ApplyLayout(profile);
 
-                // Update prime canvas reference
-                ctx.PrimeCanvas = ctx.LayoutManager.GetCanvas("Main")
-                                  ?? ctx.LayoutManager.GetCanvas("Content")
-                                  ?? ctx.LayoutManager.GetAllCanvases().FirstOrDefault().Canvas;
-
-                Console.WriteLine($"[API] Layout applied successfully. Prime canvas: {ctx.PrimeCanvas != null}");
+                var prime = ctx.LayoutManager.GetCanvas("Main")
+                            ?? ctx.LayoutManager.GetCanvas("Content")
+                            ?? ctx.LayoutManager.GetAllCanvases().FirstOrDefault().Canvas;
+                Console.WriteLine($"[API] Layout applied successfully. Prime canvas: {prime != null}");
 
                 return Results.Json(new
                 {
@@ -175,6 +173,9 @@ public static class LayoutEndpoints
 
                 if (string.IsNullOrEmpty(canvasName) || string.IsNullOrEmpty(extensionName))
                     return Results.Json(new { success = false, error = "Invalid canvasName or extensionName" });
+
+                if (SystemOverlayCanvases.IsSystem(canvasName))
+                    return Results.Json(new { success = false, error = $"'{canvasName}' is a host overlay and cannot take content" });
 
                 Console.WriteLine($"[API] Assigning '{extensionName}' to canvas '{canvasName}'");
 
@@ -513,7 +514,7 @@ public static class LayoutEndpoints
                 {
                     Name = name,
                     Description = description,
-                    Profile = ctx.CurrentLayout.ToString(),
+                    Profile = ctx.LayoutManager.CurrentProfile.ToString(),
                     CreatedAt = DateTime.UtcNow,
                     IsDefault = isDefault,
                     OverrideGlobalBrightness = overrideBrightness,
@@ -635,13 +636,7 @@ public static class LayoutEndpoints
                 ctx.ScheduleManager?.ClearActiveSchedule();
 
                 // Use the centralized layout loader service
-                var result = await ctx.LayoutLoader!.LoadLayoutAsync(layout, "API");
-
-                if (result.Success)
-                {
-                    ctx.CurrentLayout = ctx.LayoutLoader.CurrentProfile;
-                    ctx.PrimeCanvas = ctx.LayoutLoader.PrimaryCanvas;
-                }
+                var result = await ctx.LayoutLoader.LoadLayoutAsync(layout, "API");
 
                 return Results.Json(new
                 {

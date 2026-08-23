@@ -15,9 +15,10 @@ public static class ImageCorrectionEndpoints
 {
     private static readonly string ConfigPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
 
-    public static void MapImageCorrectionEndpoints(this WebApplication app, ImageCorrectionService correction,
-        IMatrixRenderer renderer)
+    public static void MapImageCorrectionEndpoints(this WebApplication app)
     {
+        var correction = app.Services.GetRequiredService<ImageCorrectionService>();
+        var renderer = app.Services.GetRequiredService<IMatrixRenderer>();
         NetworkMatrixRenderer? CurrentNet() =>
             (renderer as OutputRuntime)?.As<NetworkMatrixRenderer>() ?? renderer as NetworkMatrixRenderer;
 

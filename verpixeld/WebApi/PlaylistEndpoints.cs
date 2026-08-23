@@ -11,8 +11,9 @@ public static class PlaylistEndpoints
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
-    public static void MapPlaylistEndpoints(this WebApplication app, LayoutPlaylistService svc)
+    public static void MapPlaylistEndpoints(this WebApplication app)
     {
+        var svc = app.Services.GetRequiredService<LayoutPlaylistService>();
         app.MapGet("/api/playlist", () =>
             Results.Json(new ApiResponse<object>(true, new
             {

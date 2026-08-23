@@ -57,7 +57,7 @@ function displayCanvases(canvases) {
     });
   }
 
-  const html = canvases.map(canvas => {
+  const html = (typeof contentTargetCanvases === 'function' ? contentTargetCanvases(canvases) : canvases).map(canvas => {
     const content = contentMap[canvas.name];
     const hasContent = !!content;
     const uptime = content ? formatUptime(content.uptime) : null;
@@ -123,7 +123,7 @@ async function applyLayout() {
       currentLoadedLayoutName = null;
       localStorage.removeItem('activeLayoutName');
 
-      toast.success('Layout Applied', `Layout changed to ${profile}`);
+      toast.success('Scene loaded', `Started from profile ${profile}`);
       await refreshLayoutInfo();
       await fetchSavedLayouts();
       if (typeof updateDrawTargetCanvases === 'function') {
@@ -144,9 +144,16 @@ async function applyLayout() {
  * Show extension picker for canvas assignment
  */
 async function assignExtensionToCanvas(canvasName, onPick) {
-  // Check if this canvas is being used by the media player
-  const mediaState = window.mediaState || {};
-  if (mediaState.isRunning && mediaState.targetCanvasName === canvasName) {
+  if (typeof isSystemOverlayCanvas === 'function' && isSystemOverlayCanvas(canvasName)) {
+    if (typeof showMessage === 'function')
+      showMessage(`'${canvasName}' is a host overlay — pick another canvas for content`, 'info');
+    return;
+  }
+  // Check if this canvas is actually showing video (Main remaps to MediaPlayer).
+  const mediaCanvas = typeof mediaPlaybackCanvasName === 'function'
+    ? mediaPlaybackCanvasName()
+    : ((window.mediaState || {}).playbackCanvasName || null);
+  if (mediaCanvas && mediaCanvas === canvasName) {
     const confirmed = await showConfirm({
       title: 'Canvas in Use',
       message: `The canvas "${canvasName}" is currently being used by the media player.\n\nAssigning an extension will interfere with media playback. Do you want to stop the media player first?`,

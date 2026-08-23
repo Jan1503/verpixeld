@@ -996,7 +996,8 @@ async function populateMediaCanvasSelector() {
       select.innerHTML = '';
       
       // Sort by z-order (lowest first = bottom to top in layer stack)
-      const canvases = result.data.sort((a, b) => a.zOrder - b.zOrder);
+      const canvases = (typeof contentTargetCanvases === 'function'
+        ? contentTargetCanvases(result.data) : result.data).sort((a, b) => a.zOrder - b.zOrder);
       
       canvases.forEach(canvas => {
         const option = document.createElement('option');

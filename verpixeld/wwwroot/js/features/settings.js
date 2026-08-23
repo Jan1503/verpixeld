@@ -24,6 +24,11 @@ async function initSettings() {
   await loadSeam();
   setupMatrixCalculation();
   await loadCertificateInfo();
+  document.getElementById('seam-advanced')?.addEventListener('toggle', () => {
+    if (document.getElementById('seam-advanced')?.open && typeof drawSeamCurve === 'function') {
+      drawSeamCurve();
+    }
+  });
 }
 
 async function loadCurrentSettings() {

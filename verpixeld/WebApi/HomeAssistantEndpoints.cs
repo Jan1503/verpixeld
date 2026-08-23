@@ -11,8 +11,9 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class HomeAssistantEndpoints
 {
-    public static void MapHomeAssistantEndpoints(this WebApplication app, HomeAssistantService? homeAssistant = null)
+    public static void MapHomeAssistantEndpoints(this WebApplication app)
     {
+        var homeAssistant = app.Services.GetRequiredService<HomeAssistantService>();
         app.MapGet("/api/homeassistant/status", () =>
             Results.Json(new ApiResponse<object>(true, new
             {

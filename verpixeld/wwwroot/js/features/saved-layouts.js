@@ -17,7 +17,7 @@ async function fetchSavedLayouts() {
   } catch (error) {
     console.error('Failed to fetch saved layouts:', error);
     container.innerHTML =
-      '<p class="text-danger">Error loading saved layouts</p>';
+      '<p class="text-danger">Error loading saved scenes</p>';
   }
 }
 
@@ -31,8 +31,8 @@ async function displaySavedLayouts(layouts) {
     container.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">📁</div>
-        <div class="empty-state-text">No saved layouts yet</div>
-        <div class="empty-state-hint">Save your current layout to quickly restore it later</div>
+        <div class="empty-state-text">No saved scenes yet</div>
+        <div class="empty-state-hint">Save your current scene to quickly restore it later</div>
       </div>`;
     return;
   }
@@ -118,19 +118,19 @@ async function showSaveLayoutDialog() {
     <div class="modal-content" style="max-width: 600px;">
       
       <div class="modal-header">
-        <h2>${ICONS.SAVE} Save Current Layout</h2>
+        <h2>${ICONS.SAVE} Save current scene</h2>
         <button class="modal-close" onclick="closeSaveLayoutModal()">${ICONS.CLOSE}</button>
       </div>
       
       <div class="modal-body">
         <div style="margin-bottom: 15px;">
-          <label for="save-layout-name">Layout Name *</label>
-          <input type="text" id="save-layout-name" placeholder="My Custom Layout" required>
+          <label for="save-layout-name">Scene name *</label>
+          <input type="text" id="save-layout-name" placeholder="My scene" required>
         </div>
         
         <div style="margin-bottom: 15px;">
           <label for="save-layout-description">Description (optional)</label>
-          <textarea id="save-layout-description" placeholder="Describe this layout..." rows="3"></textarea>
+          <textarea id="save-layout-description" placeholder="Describe this scene..." rows="3"></textarea>
         </div>
         
         <div class="save-layout-summary">
@@ -153,7 +153,7 @@ async function showSaveLayoutDialog() {
           
           <label class="checkbox-label">
             <input type="checkbox" id="save-layout-override-brightness" checked>
-            <span>${ICONS.BRIGHTNESS} Apply this layout's brightness when loading</span>
+            <span>${ICONS.BRIGHTNESS} Apply this scene's brightness when loading</span>
           </label>
           ${nightModeEnabled ?
             `<p class="help-text" style="margin-left: 28px; color: #e67e22;">${ICONS.WARNING} Will temporarily override night mode (night mode resumes on next check)</p>` :
@@ -164,7 +164,7 @@ async function showSaveLayoutDialog() {
       
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeSaveLayoutModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="confirmSaveLayout()">${ICONS.SAVE} Save Layout</button>
+        <button class="btn btn-primary" onclick="confirmSaveLayout()">${ICONS.SAVE} Save scene</button>
       </div>
       
     </div>
@@ -198,7 +198,7 @@ async function confirmSaveLayout() {
   const overrideGlobalBrightness = document.getElementById('save-layout-override-brightness').checked;
 
   if (!name) {
-    showMessage('Please enter a layout name', 'error');
+    showMessage('Please enter a scene name', 'error');
     return;
   }
 
@@ -216,7 +216,7 @@ async function confirmSaveLayout() {
     await fetchSavedLayouts();
   } catch (error) {
     console.error('Error saving layout:', error);
-    showMessage('Failed to save layout', 'error');
+    showMessage('Failed to save scene', 'error');
   }
 }
 
@@ -225,8 +225,8 @@ async function confirmSaveLayout() {
  */
 async function loadSavedLayout(layoutName) {
   const confirmed = await showConfirm({
-    title: 'Load Layout',
-    message: `Load layout "${layoutName}"? This will stop all active content and apply the saved layout.`,
+    title: 'Load Scene',
+    message: `Load scene "${layoutName}"? This will stop all active content and apply the saved scene.`,
     confirmText: 'Load',
     cancelText: 'Cancel',
     type: 'warning'
@@ -250,7 +250,7 @@ async function loadSavedLayout(layoutName) {
     
     const result = await api.post(`/api/layout/load/${encodeURIComponent(layoutName)}`);
 
-    toast.success('Layout Loaded', result.data.message);
+    toast.success('Scene loaded', result.data.message);
 
       // Track the loaded layout name
       currentLoadedLayoutName = layoutName;
@@ -273,7 +273,7 @@ async function loadSavedLayout(layoutName) {
       window.dispatchEvent(new CustomEvent('layoutChanged'));
   } catch (error) {
     console.error('Error loading layout:', error);
-    toast.error('Error', 'Failed to load layout: ' + error.message);
+    toast.error('Error', 'Failed to load scene: ' + error.message);
   } finally {
     hideLoading();
   }
@@ -284,8 +284,8 @@ async function loadSavedLayout(layoutName) {
  */
 async function deleteSavedLayout(layoutName) {
   const confirmed = await showConfirm({
-    title: 'Delete Layout',
-    message: `Delete layout "${layoutName}"? This action cannot be undone.`,
+    title: 'Delete Scene',
+    message: `Delete scene "${layoutName}"? This action cannot be undone.`,
     confirmText: 'Delete',
     cancelText: 'Keep',
     type: 'danger',
@@ -303,7 +303,7 @@ async function deleteSavedLayout(layoutName) {
     await fetchSavedLayouts();
   } catch (error) {
     console.error('Error deleting layout:', error);
-    showMessage('Failed to delete layout', 'error');
+    showMessage('Failed to delete scene', 'error');
   }
 }
 
@@ -363,7 +363,7 @@ async function viewLayoutDetails(layoutName) {
     <div class="modal-content" style="max-width: 700px;">
       
       <div class="modal-header">
-        <h2>${ICONS.DETAILS} Layout Details</h2>
+        <h2>${ICONS.DETAILS} Scene details</h2>
         <button class="modal-close" onclick="closeLayoutDetailsModal()">${ICONS.CLOSE}</button>
       </div>
       
@@ -420,7 +420,7 @@ async function viewLayoutDetails(layoutName) {
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeLayoutDetailsModal()">Close</button>
         <button class="btn btn-primary" onclick="closeLayoutDetailsModal(); loadSavedLayout('${escapeHtml(layout.name)}')">
-          Load This Layout
+          Load this scene
         </button>
       </div>
       
@@ -432,7 +432,7 @@ async function viewLayoutDetails(layoutName) {
 
   } catch (error) {
     console.error('Error viewing layout details:', error);
-    showMessage('Failed to get layout details', 'error');
+    showMessage('Failed to get scene details', 'error');
   }
 }
 

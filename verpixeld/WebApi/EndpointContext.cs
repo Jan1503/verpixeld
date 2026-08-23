@@ -8,7 +8,8 @@ using verpixeld.Services;
 namespace verpixeld.WebApi;
 
 /// <summary>
-///     Shared context for API endpoints containing all required dependencies
+///     Shared context for older layout/filter/system mappers. Built from DI; layout state lives on
+///     <see cref="IDisplayLayoutManager"/> / <see cref="ILayoutLoaderService"/>.
 /// </summary>
 public class EndpointContext
 {
@@ -16,29 +17,18 @@ public class EndpointContext
     public required Func<IPAddress?> GetLocalIp { get; init; }
     public required Func<double> GetCurrentFps { get; init; }
 
-    // Layout and content management
-    public IDisplayLayoutManager? LayoutManager { get; init; }
-    public ICanvasContentManager? ContentManager { get; init; }
-    public LayoutStorageManager? LayoutStorageManager { get; init; }
-    public ILayoutLoaderService? LayoutLoader { get; init; }
+    public required IDisplayLayoutManager LayoutManager { get; init; }
+    public required ICanvasContentManager ContentManager { get; init; }
+    public required LayoutStorageManager LayoutStorageManager { get; init; }
+    public required ILayoutLoaderService LayoutLoader { get; init; }
 
-    // Discovery services
-    public IExtensionDiscovery? ExtensionDiscovery { get; init; }
-    public IFilterDiscovery? FilterDiscovery { get; init; }
+    public required IExtensionDiscovery ExtensionDiscovery { get; init; }
+    public required IFilterDiscovery FilterDiscovery { get; init; }
 
-    // Night mode and scheduling
-    public INightModeManager? NightModeManager { get; init; }
-    public ILayoutScheduleManager? ScheduleManager { get; init; }
+    public required INightModeManager NightModeManager { get; init; }
+    public required ILayoutScheduleManager ScheduleManager { get; init; }
 
-    // Per-canvas content rotation
-    public CanvasRotationService? RotationService { get; init; }
+    public required CanvasRotationService RotationService { get; init; }
 
-    // Current layout state (mutable - updated when layout changes)
-    public LayoutProfile CurrentLayout { get; set; } = LayoutProfile.FullScreen;
-
-    // Prime canvas reference (updated when layout changes)
-    public Canvas? PrimeCanvas { get; set; }
-
-    // Display resolution (set during initialization)
-    public string? DisplayResolution { get; init; }
+    public required string DisplayResolution { get; init; }
 }

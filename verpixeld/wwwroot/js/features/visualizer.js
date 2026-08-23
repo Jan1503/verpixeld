@@ -44,8 +44,11 @@ function updateVisualizerUI() {
   const canvasSelect = document.getElementById('visualizer-canvas');
   if (canvasSelect && visualizerStatus.availableCanvases) {
     const currentValue = canvasSelect.value;
-    canvasSelect.innerHTML = visualizerStatus.availableCanvases.map(c => 
-      `<option value="${c.id}">${c.name}</option>`
+    const list = (typeof contentTargetCanvases === 'function'
+      ? contentTargetCanvases(visualizerStatus.availableCanvases.map(c => ({ name: c.id || c.name, id: c.id, isSystem: c.isSystem })))
+      : visualizerStatus.availableCanvases);
+    canvasSelect.innerHTML = list.map(c =>
+      `<option value="${c.id || c.name}">${c.name || c.id}</option>`
     ).join('');
     
     // Restore selection or use current target

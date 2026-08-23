@@ -263,7 +263,9 @@ function updateActiveExtensions() {
   
   // Check media player (video uses a canvas, audio doesn't)
   if (mediaState.isRunning && !mediaState.isAudioPlayback) {
-    const canvas = mediaState.targetCanvasName || 'Main';
+    const canvas = (typeof mediaPlaybackCanvasName === 'function'
+      ? mediaPlaybackCanvasName(mediaState)
+      : mediaState.playbackCanvasName) || 'MediaPlayer';
     chips.push({ icon: '\u{1F3AC}', label: `Video (${canvas})`, type: 'media' });
   }
   

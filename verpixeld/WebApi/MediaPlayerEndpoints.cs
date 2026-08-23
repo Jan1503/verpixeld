@@ -57,8 +57,9 @@ public static class MediaPlayerEndpoints
                     networkFilePath = mediaService.NetworkFilePath,
                     networkProtocol = mediaService.NetworkProtocol,
                     seekingSupported = mediaService.SeekingSupported,
-                    // Target canvas
+                    // Target canvas (dropdown) vs the canvas that is actually playing
                     targetCanvasName = mediaService.TargetCanvasName ?? "Main",
+                    playbackCanvasName = mediaService.PlaybackCanvasName,
                     // Video scaling
                     scaleFilter = mediaService.ScaleFilter,
                     // Playlist info
@@ -107,6 +108,8 @@ public static class MediaPlayerEndpoints
         // Set target canvas for video playback
         group.MapPost("/target-canvas", (string? canvasName) =>
         {
+            if (SystemOverlayCanvases.IsSystem(canvasName))
+                return Results.Json(new { success = false, error = $"'{canvasName}' is a host overlay and cannot take media" });
             mediaService.TargetCanvasName = canvasName;
             Console.WriteLine($"[MEDIA] Target canvas set to: {canvasName ?? "Main"}");
 
