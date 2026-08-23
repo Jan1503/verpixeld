@@ -68,7 +68,7 @@ public static class BrightnessEndpoints
         {
             try
             {
-                var canvases = ctx.LayoutManager!.GetAllCanvases()
+                var canvases = ctx.LayoutManager.GetAllCanvases()
                     .Where(c => !SystemOverlayCanvases.IsSystem(c.Name))
                     .Select(c => new
                     {
@@ -90,7 +90,7 @@ public static class BrightnessEndpoints
         {
             try
             {
-                var canvas = ctx.LayoutManager!.GetCanvas(canvasName);
+                var canvas = ctx.LayoutManager.GetCanvas(canvasName);
                 if (canvas == null)
                     return ApiResponse.Fail($"Canvas '{canvasName}' not found");
 
@@ -112,7 +112,7 @@ public static class BrightnessEndpoints
         {
             try
             {
-                var canvas = ctx.LayoutManager!.GetCanvas(canvasName);
+                var canvas = ctx.LayoutManager.GetCanvas(canvasName);
                 if (canvas == null)
                     return ApiResponse.Fail($"Canvas '{canvasName}' not found");
 

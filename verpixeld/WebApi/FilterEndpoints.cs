@@ -7,8 +7,9 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class FilterEndpoints
 {
-    public static void MapFilterEndpoints(this WebApplication app, EndpointContext ctx)
+    public static void MapFilterEndpoints(this WebApplication app)
     {
+        var ctx = app.Services.GetRequiredService<EndpointContext>();
         var canvasManager = ctx.CanvasManager;
         var filterDiscovery = ctx.FilterDiscovery;
 
@@ -17,7 +18,7 @@ public static class FilterEndpoints
         {
             try
             {
-                var filterInfo = filterDiscovery?.GetAvailableInfo();
+                var filterInfo = filterDiscovery.GetAvailableInfo();
                 if (filterInfo == null || !filterInfo.Any())
                     return Results.Json(new ApiResponse<object[]>(true, Array.Empty<object>()));
 
@@ -127,21 +128,21 @@ public static class FilterEndpoints
                 if (request == null || string.IsNullOrEmpty(request.FilterType))
                     return Results.Json(new ApiResponse<string>(false, Error: "Filter type is required"));
 
-                var filter = filterDiscovery?.Create(request.FilterType);
+                var filter = filterDiscovery.Create(request.FilterType);
                 if (filter == null)
-                    filter = filterDiscovery?.CreateByDisplayName(request.FilterType);
+                    filter = filterDiscovery.CreateByDisplayName(request.FilterType);
                 if (filter == null)
                 {
-                    var typeName = filterDiscovery?.GetByDisplayName(request.FilterType);
-                    if (!string.IsNullOrEmpty(typeName.Name))
-                        filter = filterDiscovery?.Create(typeName.Name);
+                    var typeName = filterDiscovery.GetByDisplayName(request.FilterType);
+                    if (!string.IsNullOrEmpty(typeName?.Name))
+                        filter = filterDiscovery.Create(typeName.Name);
                 }
 
                 if (filter == null)
                 {
-                    var availableInfo = filterDiscovery?.GetAvailableInfo();
+                    var availableInfo = filterDiscovery.GetAvailableInfo();
                     var displayNames = string.Join(", ",
-                        availableInfo?.Select(f => $"'{f.DisplayName}'") ?? Array.Empty<string>());
+                        availableInfo.Select(f => $"'{f.DisplayName}'"));
                     return Results.Json(new ApiResponse<string>(false,
                         Error: $"Unknown filter: '{request.FilterType}'. Available: {displayNames}"));
                 }
@@ -240,8 +241,8 @@ public static class FilterEndpoints
         {
             try
             {
-                var types = filterDiscovery?.GetAvailableTypes();
-                var info = filterDiscovery?.GetAvailableInfo();
+                var types = filterDiscovery.GetAvailableTypes();
+                var info = filterDiscovery.GetAvailableInfo();
                 return Results.Json(new
                 {
                     success = true,

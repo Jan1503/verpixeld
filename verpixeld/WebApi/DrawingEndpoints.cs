@@ -8,8 +8,9 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class DrawingEndpoints
 {
-    public static void MapDrawingEndpoints(this WebApplication app, EndpointContext ctx)
+    public static void MapDrawingEndpoints(this WebApplication app)
     {
+        var ctx = app.Services.GetRequiredService<EndpointContext>();
         var layoutManager = ctx.LayoutManager;
 
         // Apply drawing to canvas
@@ -17,9 +18,6 @@ public static class DrawingEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 var canvas = layoutManager.GetCanvas(canvasName);
                 if (canvas == null)
                     return Results.Json(new ApiResponse<string>(false, Error: $"Canvas '{canvasName}' not found"));
@@ -89,9 +87,6 @@ public static class DrawingEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 var canvas = layoutManager.GetCanvas(canvasName);
                 if (canvas == null)
                     return Results.Json(new ApiResponse<string>(false, Error: $"Canvas '{canvasName}' not found"));
@@ -136,9 +131,6 @@ public static class DrawingEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 var canvas = layoutManager.GetCanvas(canvasName);
                 if (canvas == null)
                     return Results.Json(new ApiResponse<string>(false, Error: $"Canvas '{canvasName}' not found"));
@@ -176,9 +168,6 @@ public static class DrawingEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 var canvas = layoutManager.GetCanvas(canvasName);
                 if (canvas == null)
                     return Results.Json(new ApiResponse<string>(false, Error: $"Canvas '{canvasName}' not found"));

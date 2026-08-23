@@ -27,10 +27,10 @@ public static class VisualizerEndpoints
                 var status = visualizerService.GetStatus();
 
                 // Get available canvases from layout manager
-                var canvases = ctx.LayoutManager?.GetAllCanvases()
+                var canvases = ctx.LayoutManager.GetAllCanvases()
                     .Where(c => !SystemOverlayCanvases.IsSystem(c.Name))
                     .Select(c => new { id = c.Name, name = c.Name })
-                    .ToArray() ?? Array.Empty<object>();
+                    .ToArray();
 
                 return ApiResponse.Ok(new
                 {
@@ -62,7 +62,7 @@ public static class VisualizerEndpoints
                     return ApiResponse.Fail("Canvas name is required");
 
                 // Get canvas from layout manager
-                var canvas = ctx.LayoutManager?.GetCanvas(request.CanvasId);
+                var canvas = ctx.LayoutManager.GetCanvas(request.CanvasId);
                 if (canvas == null)
                     return ApiResponse.Fail($"Canvas '{request.CanvasId}' not found");
 

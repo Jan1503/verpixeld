@@ -17,20 +17,16 @@ namespace verpixeld.WebApi;
 public static class DisplayApiEndpoints
 {
     /// <summary>
-    ///     Maps all display endpoints using a pre-configured EndpointContext (DI-friendly)
+    ///     Maps layout/filter/system endpoints. Each mapper resolves <see cref="EndpointContext"/> from DI.
     /// </summary>
     public static void MapDisplayEndpointsWithContext(this WebApplication app)
     {
-        var ctx = app.Services.GetRequiredService<EndpointContext>();
-        var mediaService = app.Services.GetRequiredService<MediaPlayerService>();
-
-        // Map endpoints from specialized modules
-        app.MapSystemEndpoints(ctx); // /api/status, /api/system/*
-        app.MapFilterEndpoints(ctx); // /api/filters/*
-        app.MapExtensionEndpoints(ctx); // /api/extensions/*
-        app.MapPluginEndpoints(ctx); // /api/plugins/reload
-        app.MapCanvasEndpoints(ctx, mediaService); // /api/canvas/*
-        app.MapDrawingEndpoints(ctx); // /api/draw/*, /api/drawings
+        app.MapSystemEndpoints();
+        app.MapFilterEndpoints();
+        app.MapExtensionEndpoints();
+        app.MapPluginEndpoints();
+        app.MapCanvasEndpoints();
+        app.MapDrawingEndpoints();
     }
 
     /// <summary>

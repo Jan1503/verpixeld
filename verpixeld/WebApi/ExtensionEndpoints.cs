@@ -8,8 +8,9 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class ExtensionEndpoints
 {
-    public static void MapExtensionEndpoints(this WebApplication app, EndpointContext ctx)
+    public static void MapExtensionEndpoints(this WebApplication app)
     {
+        var ctx = app.Services.GetRequiredService<EndpointContext>();
         var extensionDiscovery = ctx.ExtensionDiscovery;
 
         // Get all available extensions
@@ -21,7 +22,7 @@ public static class ExtensionEndpoints
 
                 try
                 {
-                    extensionInfo = extensionDiscovery?.GetAvailableInfo();
+                    extensionInfo = extensionDiscovery.GetAvailableInfo();
                 }
                 catch (Exception discoveryEx)
                 {
@@ -111,7 +112,7 @@ public static class ExtensionEndpoints
         {
             try
             {
-                var extensionsByCategory = extensionDiscovery?.GetByCategory()
+                var extensionsByCategory = extensionDiscovery.GetByCategory()
                                            ?? new Dictionary<string, List<ExtensionTypeInfo>>();
 
                 var results = extensionsByCategory.Select(kvp => new
@@ -139,9 +140,9 @@ public static class ExtensionEndpoints
         {
             try
             {
-                var types = extensionDiscovery?.GetAvailableTypes();
-                var info = extensionDiscovery?.GetAvailableInfo();
-                var byCategory = extensionDiscovery?.GetByCategory();
+                var types = extensionDiscovery.GetAvailableTypes();
+                var info = extensionDiscovery.GetAvailableInfo();
+                var byCategory = extensionDiscovery.GetByCategory();
 
                 var canvasType = typeof(Canvas);
                 var extensionMethods = canvasType.GetMethods()

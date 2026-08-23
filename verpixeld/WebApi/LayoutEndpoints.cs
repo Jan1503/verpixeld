@@ -48,7 +48,7 @@ public static class LayoutEndpoints
         {
             try
             {
-                var canvases = ctx.LayoutManager!.GetAllCanvases()
+                var canvases = ctx.LayoutManager.GetAllCanvases()
                     .Select(c => new
                     {
                         name = c.Name,
@@ -90,11 +90,11 @@ public static class LayoutEndpoints
                 Console.WriteLine($"[API] Applying layout: {profile}");
 
                 // Clear active schedule - User is manually overriding
-                ctx.ScheduleManager?.ClearActiveSchedule();
+                ctx.ScheduleManager.ClearActiveSchedule();
 
                 // Stop all current content
                 Console.WriteLine("[API] Stopping all current content...");
-                ctx.ContentManager?.StopAllContent();
+                ctx.ContentManager.StopAllContent();
 
                 // Give extensions time to fully stop
                 await Task.Delay(200);
@@ -103,7 +103,7 @@ public static class LayoutEndpoints
                 // A profile is a blank canvas structure, not a saved scene. Drop per-canvas rotation
                 // playlists so Studio's Content pane (and later assigns) don't inherit the previous
                 // layout's steps — same as loading a saved layout, which then re-imports from JSON.
-                ctx.RotationService?.ClearAll();
+                ctx.RotationService.ClearAll();
 
                 // Apply new layout
                 ctx.LayoutManager.ApplyLayout(profile);
@@ -136,7 +136,7 @@ public static class LayoutEndpoints
         {
             try
             {
-                var canvases = ctx.LayoutManager!.GetAllCanvases()
+                var canvases = ctx.LayoutManager.GetAllCanvases()
                     .Select(c => new
                     {
                         name = c.Name,
@@ -249,7 +249,7 @@ public static class LayoutEndpoints
             try
             {
                 var contents = ctx.ContentManager!.GetAllContents().ToList();
-                var totalCanvases = ctx.LayoutManager!.CanvasCount;
+                var totalCanvases = ctx.LayoutManager.CanvasCount;
 
                 // Map to serializable DTOs (ExtensionInstance contains non-serializable Type)
                 // Return in the format expected by the frontend: { contents: [...] }
@@ -590,7 +590,7 @@ public static class LayoutEndpoints
                         }
 
                     // Persist this canvas's content rotation (if any) with the layout so it restores on load.
-                    var rotation = ctx.RotationService?.GetConfig(content.CanvasName);
+                    var rotation = ctx.RotationService.GetConfig(content.CanvasName);
                     if (rotation is { Steps.Count: > 0 }) canvasConfig.Rotation = rotation;
 
                     savedLayout.Canvases[content.CanvasName] = canvasConfig;
@@ -633,7 +633,7 @@ public static class LayoutEndpoints
                     return Results.Json(new { success = false, error = $"Layout '{layoutName}' not found" });
 
                 // Clear active schedule - User is manually overriding
-                ctx.ScheduleManager?.ClearActiveSchedule();
+                ctx.ScheduleManager.ClearActiveSchedule();
 
                 // Use the centralized layout loader service
                 var result = await ctx.LayoutLoader.LoadLayoutAsync(layout, "API");

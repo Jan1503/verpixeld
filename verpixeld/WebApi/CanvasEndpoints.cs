@@ -10,9 +10,10 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class CanvasEndpoints
 {
-    public static void MapCanvasEndpoints(this WebApplication app, EndpointContext ctx,
-        MediaPlayerService? mediaService = null)
+    public static void MapCanvasEndpoints(this WebApplication app)
     {
+        var ctx = app.Services.GetRequiredService<EndpointContext>();
+        var mediaService = app.Services.GetRequiredService<MediaPlayerService>();
         var canvasManager = ctx.CanvasManager;
         var layoutManager = ctx.LayoutManager;
         var contentManager = ctx.ContentManager;
@@ -21,16 +22,13 @@ public static class CanvasEndpoints
         // directly on the CanvasManager (e.g. the MediaPlayer video overlay) aren't in its dictionary, so fall
         // back to the manager's authoritative list — otherwise opacity/z-order edits report "not found".
         Canvas? ResolveCanvas(string name) =>
-            layoutManager?.GetCanvas(name) ?? canvasManager.GetCanvasByName(name);
+            layoutManager.GetCanvas(name) ?? canvasManager.GetCanvasByName(name);
 
         // Get all canvases with z-order and opacity info
         app.MapGet("/api/canvas/stack", () =>
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<object[]>(false, Error: "Layout manager not initialized"));
-
                 var canvases = canvasManager.GetCanvasesByZOrder()
                     .Select(c => new
                     {
@@ -76,9 +74,6 @@ public static class CanvasEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 using var reader = new StreamReader(context.Request.Body);
                 var body = await reader.ReadToEndAsync();
                 var jsonDoc = JsonDocument.Parse(body);
@@ -102,9 +97,6 @@ public static class CanvasEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 using var reader = new StreamReader(context.Request.Body);
                 var body = await reader.ReadToEndAsync();
                 var jsonDoc = JsonDocument.Parse(body);
@@ -128,9 +120,6 @@ public static class CanvasEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 using var reader = new StreamReader(context.Request.Body);
                 var body = await reader.ReadToEndAsync();
                 var jsonDoc = JsonDocument.Parse(body);
@@ -255,9 +244,6 @@ public static class CanvasEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 using var reader = new StreamReader(context.Request.Body);
                 var body = await reader.ReadToEndAsync();
                 var newName = JsonDocument.Parse(body).RootElement.TryGetProperty("newName", out var n)
@@ -295,9 +281,6 @@ public static class CanvasEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 var canvas = ResolveCanvas(canvasName);
                 if (canvas == null)
                     return Results.Json(new ApiResponse<string>(false, Error: $"Canvas '{canvasName}' not found"));
@@ -316,9 +299,6 @@ public static class CanvasEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 var canvas = ResolveCanvas(canvasName);
                 if (canvas == null)
                     return Results.Json(new ApiResponse<string>(false, Error: $"Canvas '{canvasName}' not found"));
@@ -337,9 +317,6 @@ public static class CanvasEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 var canvas = ResolveCanvas(canvasName);
                 if (canvas == null)
                     return Results.Json(new ApiResponse<string>(false, Error: $"Canvas '{canvasName}' not found"));
@@ -358,9 +335,6 @@ public static class CanvasEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 var canvas = ResolveCanvas(canvasName);
                 if (canvas == null)
                     return Results.Json(new ApiResponse<string>(false, Error: $"Canvas '{canvasName}' not found"));
@@ -379,9 +353,6 @@ public static class CanvasEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 var standardCanvases = new[]
                 {
                     "Main", "Header", "Content", "Footer", "Left", "Right",
@@ -398,31 +369,27 @@ public static class CanvasEndpoints
 
                 // Stop media playback first if it's targeting this canvas (MediaPlayer overlay
                 // is created on CanvasManager, not via the layout manager).
-                if (mediaService != null)
-                    try
-                    {
-                        await mediaService.NotifyCanvasRemovedAsync(canvasName);
-                        if (string.Equals(canvasName, "MediaPlayer", StringComparison.OrdinalIgnoreCase))
-                            await mediaService.StopAsync();
-                        await Task.Delay(100);
-                    }
-                    catch
-                    {
-                    }
+                try
+                {
+                    await mediaService.NotifyCanvasRemovedAsync(canvasName);
+                    if (string.Equals(canvasName, "MediaPlayer", StringComparison.OrdinalIgnoreCase))
+                        await mediaService.StopAsync();
+                    await Task.Delay(100);
+                }
+                catch
+                {
+                }
 
-                // Drop any per-canvas rotation so its timer can't keep firing on the removed canvas.
-                ctx.RotationService?.Forget(canvasName);
+                ctx.RotationService.Forget(canvasName);
 
-                // Stop content (extensions)
-                if (contentManager != null)
-                    try
-                    {
-                        contentManager.StopContent(canvasName);
-                        Thread.Sleep(100);
-                    }
-                    catch
-                    {
-                    }
+                try
+                {
+                    contentManager.StopContent(canvasName);
+                    Thread.Sleep(100);
+                }
+                catch
+                {
+                }
 
                 layoutManager.RemoveCustomCanvas(canvasName);
                 canvas.Hide();
@@ -446,9 +413,6 @@ public static class CanvasEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 using var reader = new StreamReader(context.Request.Body);
                 var body = await reader.ReadToEndAsync();
                 var jsonDoc = JsonDocument.Parse(body);
@@ -476,7 +440,7 @@ public static class CanvasEndpoints
 
                 // A brand-new canvas must not inherit a rotation config left over (in the global store) from a
                 // previous layout that happened to use the same canvas name — that resurrected old content.
-                ctx.RotationService?.Forget(name);
+                ctx.RotationService.Forget(name);
 
                 return Results.Json(new ApiResponse<string>(true, $"Canvas '{name}' created"));
             }
@@ -491,9 +455,6 @@ public static class CanvasEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<object>(false, Error: "Layout manager not initialized"));
-
                 var canvas = ResolveCanvas(canvasName);
                 if (canvas == null)
                     return Results.Json(new ApiResponse<object>(false, Error: $"Canvas '{canvasName}' not found"));
@@ -523,9 +484,6 @@ public static class CanvasEndpoints
         {
             try
             {
-                if (layoutManager == null)
-                    return Results.Json(new ApiResponse<string>(false, Error: "Layout manager not initialized"));
-
                 using var reader = new StreamReader(context.Request.Body);
                 var body = await reader.ReadToEndAsync();
                 var jsonDoc = JsonDocument.Parse(body);

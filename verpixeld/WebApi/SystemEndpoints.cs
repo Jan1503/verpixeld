@@ -8,8 +8,9 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class SystemEndpoints
 {
-    public static void MapSystemEndpoints(this WebApplication app, EndpointContext ctx)
+    public static void MapSystemEndpoints(this WebApplication app)
     {
+        var ctx = app.Services.GetRequiredService<EndpointContext>();
         var render = app.Services.GetRequiredService<IRenderService>();
 
         // System status

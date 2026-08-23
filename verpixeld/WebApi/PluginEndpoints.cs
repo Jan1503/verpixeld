@@ -9,8 +9,9 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class PluginEndpoints
 {
-    public static void MapPluginEndpoints(this WebApplication app, EndpointContext ctx)
+    public static void MapPluginEndpoints(this WebApplication app)
     {
+        var ctx = app.Services.GetRequiredService<EndpointContext>();
         app.MapPost("/api/plugins/reload", () =>
         {
             try { return ApiResponse.Ok(Reload(ctx), "Plugins reloaded"); }
@@ -26,10 +27,10 @@ public static class PluginEndpoints
     {
         var cm = ctx.CanvasManager;
         var content = ctx.ContentManager;
-        var ext = ctx.ExtensionDiscovery ?? ExtensionDiscoveryService.Default;
-        var filt = ctx.FilterDiscovery ?? FilterDiscoveryService.Default;
+        var ext = ctx.ExtensionDiscovery;
+        var filt = ctx.FilterDiscovery;
 
-        var running = (content?.GetAllContents() ?? [])
+        var running = content.GetAllContents()
             .Where(c => c.ContentType == ContentType.DynamicExtension &&
                         !string.IsNullOrWhiteSpace(c.ExtensionDisplayName))
             .Select(c => new RunningExt(
@@ -39,28 +40,24 @@ public static class PluginEndpoints
             .ToList();
 
         var filterSnap = new List<RunningFilter>();
-        List<ICanvasFilter> liveFilters = [];
-        if (cm != null)
+        var liveFilters = cm.GetFilters().ToList();
+        foreach (var filter in liveFilters)
         {
-            liveFilters = cm.GetFilters().ToList();
-            foreach (var filter in liveFilters)
-            {
-                filterSnap.Add(new RunningFilter(
-                    filter.GetType().Name,
-                    filter.Name,
-                    EndpointHelpers.ExtractFilterParameters(filter)));
-            }
-
-            cm.ClearFilters();
-            foreach (var filter in liveFilters)
-            {
-                if (filter is not IDisposable d) continue;
-                try { d.Dispose(); }
-                catch (Exception ex) { Console.WriteLine($"[PLUGIN] dispose filter: {ex.Message}"); }
-            }
+            filterSnap.Add(new RunningFilter(
+                filter.GetType().Name,
+                filter.Name,
+                EndpointHelpers.ExtractFilterParameters(filter)));
         }
 
-        content?.StopAllContent();
+        cm.ClearFilters();
+        foreach (var filter in liveFilters)
+        {
+            if (filter is not IDisposable d) continue;
+            try { d.Dispose(); }
+            catch (Exception ex) { Console.WriteLine($"[PLUGIN] dispose filter: {ex.Message}"); }
+        }
+
+        content.StopAllContent();
 
         Console.WriteLine($"[PLUGIN] reload: {running.Count} extension(s), {filterSnap.Count} filter(s) to restore");
         ext.ReloadAssemblies();
@@ -72,7 +69,7 @@ public static class PluginEndpoints
         {
             try
             {
-                content!.AssignExtension(item.Canvas, item.DisplayName, item.Config);
+                content.AssignExtension(item.Canvas, item.DisplayName, item.Config);
                 restoredExt.Add($"{item.Canvas}: {item.DisplayName}");
             }
             catch (Exception ex)
@@ -97,7 +94,7 @@ public static class PluginEndpoints
 
                 if (item.Parameters.Count > 0)
                     EndpointHelpers.ApplyFilterParameters(instance, item.Parameters);
-                cm!.AddFilter(instance);
+                cm.AddFilter(instance);
                 restoredFilt.Add(instance.Name);
             }
             catch (Exception ex)
