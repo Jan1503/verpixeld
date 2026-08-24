@@ -1,0 +1,4 @@
+*.tar
+*.tar.gz
+build.ps1
+docker-compose.yml

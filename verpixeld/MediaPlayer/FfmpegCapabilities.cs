@@ -65,9 +65,17 @@ public static class FfmpegCapabilities
             if (proc == null) return false;
 
             var output = proc.StandardOutput.ReadToEnd();
+            var error = proc.StandardError.ReadToEnd();
             proc.WaitForExit(2000);
 
-            return output.Contains("smb", StringComparison.OrdinalIgnoreCase);
+            var text = output + "\n" + error;
+            foreach (var line in text.Split('\n', '\r'))
+            {
+                if (line.Trim().Equals("smb", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
         }
         catch
         {

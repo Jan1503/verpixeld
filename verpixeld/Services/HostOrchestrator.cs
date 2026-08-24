@@ -110,7 +110,9 @@ public static class HostRuntime
         _ = sp.GetRequiredService<HaToastService>();
         ha.Start();
 
-        BdfFontRegistry.LoadFontsFromCommonLocations();
+        BdfFontRegistry.LoadFontsFromDirectory(AppPaths.FontsDir);
+        if (!AppPaths.RunningInContainer())
+            BdfFontRegistry.LoadFontsFromCommonLocations();
         if (!string.IsNullOrWhiteSpace(runtime.App.DefaultFont))
         {
             BdfFontRegistry.DefaultFontName = runtime.App.DefaultFont;

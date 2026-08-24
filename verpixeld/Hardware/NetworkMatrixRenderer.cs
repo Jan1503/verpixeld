@@ -11,6 +11,8 @@ namespace verpixeld.Hardware;
 ///     (bit-plane packing, geometry, colour LUT, per-column seam correction, paced UDP) lives in the
 ///     reusable <see cref="PixPlane.PanelStreamer"/> library; this class only adapts verpixeld's config +
 ///     SKBitmap frames to it, and keeps the hot-reloadable <c>seam_correction.json</c> convenience.
+///     Pack + paced UDP run on a dedicated sender thread (latest-wins) so the compositor is not
+///     blocked by TargetMbps sleeps.
 /// </summary>
 public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
 {
@@ -22,8 +24,16 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
 
     private PanelStreamer? _streamer;
     private PanelColorSettings _color;
-    private byte[] _srcBuf = [];
-    private readonly object _lock = new();   // guards _streamer swaps vs the render-loop thread
+    private byte[] _srcBuf = [];             // latest BGRA from the compositor (overwritten = drop)
+    private byte[] _workBuf = [];            // stable copy the sender thread packs
+    private int _pendingStride;
+    private bool _hasPending;
+    private bool _sending;
+    private volatile bool _stopSender;
+    private int _checkSeam;
+    private Thread? _sender;
+    private readonly ManualResetEventSlim _frameReady = new(false);
+    private readonly object _lock = new();   // streamer lifetime, pending handoff, LUT updates
     private int _switching;                  // 0 idle, 1 live depth switch in flight
     private int _desiredBits;
     private int _calibrateBits;              // 0 = canvas-driven; 8 or 14 = Settings tab lock
@@ -67,7 +77,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         _color = ColorFrom(options, correction);
 
         var sf = string.IsNullOrWhiteSpace(options.SeamCorrectionFile) ? "seam_correction.json" : options.SeamCorrectionFile;
-        _seamFile = Path.IsPathRooted(sf) ? sf : Path.Combine(AppContext.BaseDirectory, sf);
+        _seamFile = AppPaths.ResolveWritableConfigFile(sf, "seam_correction.json");
 
         if (correction != null) correction.Changed += OnCorrectionChanged;
     }
@@ -90,6 +100,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     {
         lock (_lock)
         {
+            WaitSenderIdleUnlocked();
             _color = ColorFrom(_options, c);
             _color.SwapRedBlue = _options.SwapRedBlue; // preserve the live swap
             _streamer?.UpdateColor(_color);
@@ -107,10 +118,11 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
             LoadSeamUnlocked();
             _streamer = NewStreamer();
             _seamStamp = SafeStamp();
+            StartSenderUnlocked();
         }
 
         Console.WriteLine($"[NET] UDP -> {_options.Host}:{_options.Port}, {Width}x{Height} {_options.ColorBits}-bit, " +
-                          $"paced to {_options.TargetMbps:0.#} Mbit/s.");
+                          $"paced to {_options.TargetMbps:0.#} Mbit/s (pack/send off render thread).");
     }
 
     private PanelStreamer NewStreamer() => new(new PanelStreamOptions
@@ -146,6 +158,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
 
             if (_streamer != null)   // already streaming -> reopen on the new target
             {
+                WaitSenderIdleUnlocked();
                 _streamer.Dispose();
                 _streamer = NewStreamer();
                 _seamStamp = SafeStamp();
@@ -176,39 +189,128 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
 
         if (Volatile.Read(ref _switching) != 0) return; // don't send across an 8/14 live switch
 
-        lock (_lock)   // don't let a live Reconfigure() dispose the streamer mid-send
+        var src = bitmap.GetPixels();
+        if (src == IntPtr.Zero) return;
+        var rowBytes = bitmap.RowBytes;
+        var needed = rowBytes * Height;
+
+        lock (_lock)
         {
             if (_streamer == null) return;
-            if ((_frameCounter++ & 31) == 0) MaybeReloadSeam();
+            if ((_frameCounter++ & 31) == 0) _checkSeam = 1;
 
-            var src = bitmap.GetPixels();
-            if (src == IntPtr.Zero) return;
-            var rowBytes = bitmap.RowBytes;
-            var needed = rowBytes * Height;
             if (_srcBuf.Length != needed) _srcBuf = new byte[needed];
             var preview = _previewGrey;
             if (preview >= 0)
+                FillGrey(_srcBuf, Width, Height, rowBytes, (byte)preview);
+            else
+                Marshal.Copy(src, _srcBuf, 0, needed);
+
+            _hasPending = true;
+            _pendingStride = rowBytes;
+        }
+
+        _frameReady.Set();
+    }
+
+    private void StartSenderUnlocked()
+    {
+        if (_sender != null) return;
+        _stopSender = false;
+        _sender = new Thread(SenderLoop)
+        {
+            IsBackground = true,
+            Name = "pixplane-send"
+        };
+        _sender.Start();
+    }
+
+    private void SenderLoop()
+    {
+        while (!_stopSender)
+        {
+            try
             {
-                var g = (byte)preview;
-                for (var y = 0; y < Height; y++)
+                _frameReady.Wait();
+            }
+            catch (ObjectDisposedException)
+            {
+                return;
+            }
+
+            if (_stopSender) return;
+
+            PanelStreamer? streamer = null;
+            byte[]? work = null;
+            var stride = 0;
+
+            lock (_lock)
+            {
+                if (_checkSeam != 0)
                 {
-                    var row = y * rowBytes;
-                    for (var x = 0; x < Width; x++)
+                    _checkSeam = 0;
+                    MaybeReloadSeam();
+                }
+
+                if (_hasPending && _streamer != null)
+                {
+                    if (_workBuf.Length != _srcBuf.Length) _workBuf = new byte[_srcBuf.Length];
+                    Buffer.BlockCopy(_srcBuf, 0, _workBuf, 0, _srcBuf.Length);
+                    work = _workBuf;
+                    stride = _pendingStride;
+                    streamer = _streamer;
+                    _hasPending = false;
+                    _sending = true;
+                }
+                else if (_streamer == null)
+                {
+                    _hasPending = false; // drop queued frames across livemode / dispose
+                }
+
+                if (!_hasPending)
+                    _frameReady.Reset();
+            }
+
+            if (streamer != null && work != null)
+            {
+                try
+                {
+                    streamer.SendFrameBgra(work, stride);
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Reconfigure/dispose raced a send that already held the instance.
+                }
+                finally
+                {
+                    lock (_lock)
                     {
-                        var o = row + x * 4;
-                        _srcBuf[o] = g;
-                        _srcBuf[o + 1] = g;
-                        _srcBuf[o + 2] = g;
-                        _srcBuf[o + 3] = 255;
+                        _sending = false;
+                        Monitor.PulseAll(_lock);
                     }
                 }
             }
-            else
-            {
-                Marshal.Copy(src, _srcBuf, 0, needed);
-            }
+        }
+    }
 
-            _streamer.SendFrameBgra(_srcBuf, rowBytes); // SKBitmap is BGRA8888, exactly what the DLL wants
+    private void WaitSenderIdleUnlocked()
+    {
+        while (_sending) Monitor.Wait(_lock);
+    }
+
+    private static void FillGrey(byte[] buf, int width, int height, int rowBytes, byte grey)
+    {
+        for (var y = 0; y < height; y++)
+        {
+            var row = y * rowBytes;
+            for (var x = 0; x < width; x++)
+            {
+                var o = row + x * 4;
+                buf[o] = grey;
+                buf[o + 1] = grey;
+                buf[o + 2] = grey;
+                buf[o + 3] = 255;
+            }
         }
     }
 
@@ -219,6 +321,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         {
             lock (_lock)
             {
+                WaitSenderIdleUnlocked();
                 _streamer?.Dispose();
                 _streamer = null;
             }
@@ -228,6 +331,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
 
             lock (_lock)
             {
+                WaitSenderIdleUnlocked();
                 _options.ColorBits = bits;
                 _streamer = NewStreamer();
                 _seamStamp = SafeStamp();
@@ -241,6 +345,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
             {
                 if (_streamer == null)
                 {
+                    WaitSenderIdleUnlocked();
                     _options.ColorBits = previous;
                     _streamer = NewStreamer();
                     _seamStamp = SafeStamp();
@@ -260,6 +365,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     {
         lock (_lock)
         {
+            WaitSenderIdleUnlocked();
             _color.SwapRedBlue = swapRedBlue;
             _options.SwapRedBlue = swapRedBlue;
             _streamer?.UpdateColor(_color);
@@ -329,6 +435,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     {
         lock (_lock)
         {
+            WaitSenderIdleUnlocked();
             EnsureSeamLoaded();
             var b = bits ?? (_calibrateBits is 8 or 14 ? _calibrateBits : _options.ColorBits);
             if (SeamCorrectionStore.NormalizeBits(b) == SeamCorrectionStore.Bits14)
@@ -404,10 +511,15 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     public void Dispose()
     {
         if (_correction != null) _correction.Changed -= OnCorrectionChanged;
+        _stopSender = true;
+        try { _frameReady.Set(); } catch (ObjectDisposedException) { }
+        _sender?.Join(3000);
+        _sender = null;
         lock (_lock)
         {
             _streamer?.Dispose();
             _streamer = null;
         }
+        _frameReady.Dispose();
     }
 }

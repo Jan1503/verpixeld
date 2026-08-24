@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using verpixeld.Configuration;
 using verpixeld.Hardware;
 using verpixeld.Services;
 
@@ -13,8 +14,6 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class ImageCorrectionEndpoints
 {
-    private static readonly string ConfigPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-
     public static void MapImageCorrectionEndpoints(this WebApplication app)
     {
         var correction = app.Services.GetRequiredService<ImageCorrectionService>();
@@ -116,16 +115,8 @@ public static class ImageCorrectionEndpoints
 
     private static void Persist(ImageCorrectionService c, bool? swap)
     {
-        if (!File.Exists(ConfigPath)) return;
-        var node = JsonNode.Parse(File.ReadAllText(ConfigPath), null,
-            new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip });
-        if (node == null) return;
-
-        if (node["ImageCorrection"] is not JsonObject ic)
-        {
-            ic = new JsonObject();
-            node["ImageCorrection"] = ic;
-        }
+        var node = AppSettingsStore.Load();
+        var ic = AppSettingsStore.Section(node, "ImageCorrection");
         ic["Curve"] = c.Curve;
         ic["Gamma"] = c.Gamma;
         ic["Contrast"] = c.Contrast;
@@ -136,15 +127,10 @@ public static class ImageCorrectionEndpoints
 
         if (swap.HasValue)
         {
-            if (node["Network"] is not JsonObject netObj)
-            {
-                netObj = new JsonObject();
-                node["Network"] = netObj;
-            }
+            var netObj = AppSettingsStore.Section(node, "Network");
             netObj["SwapRedBlue"] = swap.Value;
         }
 
-        File.Copy(ConfigPath, ConfigPath + ".backup", true);
-        File.WriteAllText(ConfigPath, node.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        AppSettingsStore.Save(node);
     }
 }

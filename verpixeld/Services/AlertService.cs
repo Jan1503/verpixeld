@@ -116,7 +116,7 @@ public class AlertService : IDisposable
 
             var ffmpegArgs = $"-hide_banner -loglevel warning {inputOpts}" +
                              $"-i \"{StreamUrl}\" " +
-                             $"-f rawvideo -pix_fmt rgb24 " +
+                             $"-f rawvideo -pix_fmt {FfmpegRawVideo.PixFmt} " +
                              $"-vf \"scale={_width}:{_height}:flags={ScaleFilter}\" " +
                              $"-an pipe:1";
 

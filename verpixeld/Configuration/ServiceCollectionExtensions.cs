@@ -79,12 +79,12 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IExtensionDiscovery>(_ =>
         {
-            ExtensionDiscoveryService.Default.LoadAssemblies();
+            ExtensionDiscoveryService.Default.LoadAssemblies(AppPaths.ExtensionsDir);
             return ExtensionDiscoveryService.Default;
         });
         services.AddSingleton<IFilterDiscovery>(_ =>
         {
-            FilterDiscoveryService.Default.LoadAssemblies();
+            FilterDiscoveryService.Default.LoadAssemblies(AppPaths.FiltersDir);
             return FilterDiscoveryService.Default;
         });
 

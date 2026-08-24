@@ -14,6 +14,9 @@
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="verpixeld.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.48.1" />
     <!-- SkiaSharp pinned to 3.116.1 to match CanvasManagement (3.119.x lacks Raspberry Pi native deps) -->
     <PackageReference Include="SkiaSharp" Version="3.116.1" />

@@ -15,13 +15,17 @@ public class Program
 
     public static async Task Main(string[] args)
     {
-        var logService = new LogService();
-        logService.Install();
-
         ParseCommandLineArgs(args);
         AppPaths.EnsureDirectories();
 
-        var builder = WebApplication.CreateBuilder();
+        // CreateBuilder() watches the content root with inotify. TrueNAS mounts
+        // /app/Data|/app/Config|/app/Media under that root, so the watcher hangs
+        // before Kestrel binds (Portainer then only shows the last stdout line).
+        var builder = CreateContainerHost(args);
+        var logService = new LogService();
+        logService.Install();
+        Console.WriteLine($"[INIT] host builder ready (persist {AppSettingsStore.ConfigPath})");
+
         builder.Host.ConfigureHostOptions(opts => opts.ShutdownTimeout = TimeSpan.FromSeconds(2));
         builder.Services.AddAppConfiguration(builder.Configuration);
         builder.Services.AddVerpixeldHost(builder.Configuration, logService);
@@ -35,8 +39,7 @@ public class Program
 
         var certPath = webServerOptions.CertificatePath;
         var certPassword = webServerOptions.CertificatePassword;
-        if (!string.IsNullOrEmpty(certPath) && !Path.IsPathRooted(certPath))
-            certPath = Path.Combine(AppContext.BaseDirectory, certPath);
+        certPath = AppPaths.ResolveWritableConfigFile(certPath, "server.pfx");
 
         var certService = new CertificateService(certPath, certPassword);
         builder.Services.AddSingleton(certService);
@@ -52,7 +55,6 @@ public class Program
             webServerOptions.EnableHttps);
 
         var app = builder.Build();
-        HostRuntime.Start(app.Services);
 
         app.UseDisplayMiddleware(
             certificate,
@@ -90,8 +92,6 @@ public class Program
         app.MapPlaylistEndpoints();
         app.MapCanvasRotationEndpoints();
 
-        HostRuntime.LogDiscovery(app.Services);
-
         app.MapHealthChecks("/health", new HealthCheckOptions
         {
             ResponseWriter = async (context, report) =>
@@ -115,17 +115,6 @@ public class Program
 
         app.MapGet("/", () => Results.Content(WebUIProvider.GetIndexHtml(), "text/html; charset=utf-8"));
 
-        var localIp = StartupService.GetLocalIPAddress();
-        Console.WriteLine("\n╔════════════════════════════════════════════════════════╗");
-        Console.WriteLine("║  ╦  ╦╔═╗╦═╗╔═╗╦═╗ ╦╔═╗╦  ╔╦╗                           ║");
-        Console.WriteLine("║  ╚╗╔╝║╣ ╠╦╝╠═╝║╔╩╦╝║╣ ║   ║║  LED Matrix Control       ║");
-        Console.WriteLine("║   ╚╝ ╚═╝╩╚═╩  ╩╩ ╚═╚═╝╩═╝═╩╝                           ║");
-        Console.WriteLine("╠════════════════════════════════════════════════════════╣");
-        Console.WriteLine($"║  HTTP:  http://{localIp}:{webServerOptions.HttpPort}");
-        if (webServerOptions.EnableHttps)
-            Console.WriteLine($"║  HTTPS: https://{localIp}:{webServerOptions.HttpsPort}");
-        Console.WriteLine("╚════════════════════════════════════════════════════════╝\n");
-
         var shutdownCts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>
         {
@@ -135,11 +124,27 @@ public class Program
             shutdownCts.Cancel();
         };
 
+        // Bind HTTP before hardware / DNS-ish work. A hang in GPIO or GetHostEntry
+        // used to leave the NAS container "running" with a dead website.
         await app.StartAsync();
         Console.WriteLine("[WEB] Listening — intro and default layout continue in the background");
 
         try
         {
+            var localIp = StartupService.GetLocalIPAddress();
+            Console.WriteLine("\n╔════════════════════════════════════════════════════════╗");
+            Console.WriteLine("║  ╦  ╦╔═╗╦═╗╔═╗╦═╗ ╦╔═╗╦  ╔╦╗                           ║");
+            Console.WriteLine("║  ╚╗╔╝║╣ ╠╦╝╠═╝║╔╩╦╝║╣ ║   ║║  LED Matrix Control       ║");
+            Console.WriteLine("║   ╚╝ ╚═╝╩╚═╩  ╩╩ ╚═╚═╝╩═╝═╩╝                           ║");
+            Console.WriteLine("╠════════════════════════════════════════════════════════╣");
+            Console.WriteLine($"║  HTTP:  http://{localIp}:{webServerOptions.HttpPort}");
+            if (webServerOptions.EnableHttps)
+                Console.WriteLine($"║  HTTPS: https://{localIp}:{webServerOptions.HttpsPort}");
+            Console.WriteLine("╚════════════════════════════════════════════════════════╝\n");
+
+            HostRuntime.Start(app.Services);
+            HostRuntime.LogDiscovery(app.Services);
+
             await app.Services.GetRequiredService<StartupService>().ShowIntroAsync();
             await app.Services.GetRequiredService<HostOrchestrator>().StartLocalModeAsync();
             await app.WaitForShutdownAsync(shutdownCts.Token);
@@ -232,5 +237,47 @@ public class Program
         builder.Logging.SetMinimumLevel(verbose ? LogLevel.Information : LogLevel.Error);
         if (verbose)
             Console.WriteLine("[CONFIG] Verbose logging enabled");
+    }
+
+    /// <summary>
+    ///     Empty host + JSON/env config without FileSystemWatcher. Default
+    ///     <see cref="WebApplication.CreateBuilder()"/> deadlocks on TrueNAS/K8s
+    ///     when volumes sit under the content root.
+    /// </summary>
+    private static WebApplicationBuilder CreateContainerHost(string[] args)
+    {
+        Environment.SetEnvironmentVariable("DOTNET_EnableDiagnostics", "0");
+        Environment.SetEnvironmentVariable("COMPlus_EnableDiagnostics", "0");
+        Environment.SetEnvironmentVariable("DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
+        Environment.SetEnvironmentVariable("DOTNET_hostBuilder__reloadConfigOnChange", "false");
+        Environment.SetEnvironmentVariable("ASPNETCORE_hostBuilder__reloadConfigOnChange", "false");
+        Environment.SetEnvironmentVariable("DOTNET_USE_POLLING_FILE_WATCHER", "true");
+
+        var envName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+        var contentRoot = AppContext.BaseDirectory;
+        Console.Error.WriteLine($"[INIT] building host (env={envName}, no file watchers)...");
+
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions
+        {
+            Args = args,
+            ApplicationName = "verpixeld",
+            ContentRootPath = contentRoot,
+            WebRootPath = Path.Combine(contentRoot, "wwwroot"),
+            EnvironmentName = envName
+        });
+
+        builder.Configuration
+            .AddJsonFile(Path.Combine(contentRoot, "appsettings.json"), optional: false, reloadOnChange: false)
+            .AddJsonFile(Path.Combine(contentRoot, $"appsettings.{envName}.json"), optional: true, reloadOnChange: false)
+            .AddEnvironmentVariables()
+            .AddJsonFile(AppPaths.AppSettingsOverlay, optional: true, reloadOnChange: false);
+
+        if (File.Exists(AppPaths.AppSettingsOverlay))
+            Console.Error.WriteLine($"[INIT] config overlay {AppPaths.AppSettingsOverlay}");
+
+        builder.WebHost.UseKestrel();
+        builder.Services.AddRouting();
+        Console.Error.WriteLine("[INIT] host created");
+        return builder;
     }
 }

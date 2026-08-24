@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using CanvasManagement;
 using SkiaSharp;
+using verpixeld.MediaPlayer;
 
 namespace verpixeld.Services;
 
@@ -15,7 +16,7 @@ public class FfmpegFrameStreamer : IDisposable
 {
     private readonly int _width;
     private readonly int _height;
-    private readonly int _frameSize; // width * height * 3 (RGB24)
+    private readonly int _frameSize;
 
     // Double-buffering: decode thread writes, display thread reads
     private byte[]? _displayBuffer;
@@ -38,7 +39,7 @@ public class FfmpegFrameStreamer : IDisposable
 
     /// <summary>
     ///     Called for every frame before it is rendered to the canvas.
-    ///     Receives the raw RGB24 byte array, width, and height.
+    ///     Receives packed RGB24 bytes, width, and height.
     ///     Use this to apply visual effects in-place.
     /// </summary>
     public Action<byte[], int, int>? FrameProcessor { get; set; }
@@ -52,7 +53,7 @@ public class FfmpegFrameStreamer : IDisposable
     {
         _width = width;
         _height = height;
-        _frameSize = width * height * 3;
+        _frameSize = FfmpegRawVideo.FrameBytes(width, height);
     }
 
     /// <summary>
@@ -261,31 +262,17 @@ public class FfmpegFrameStreamer : IDisposable
 
     // ── Render RGB24 frame data to a canvas via SKBitmap ──
 
-    private void DrawFrame(byte[] rgb24Data, Canvas canvas)
+    private void DrawFrame(byte[] bgra, Canvas canvas)
     {
         try
         {
             if (_cachedBitmap == null || _cachedBitmap.Width != _width || _cachedBitmap.Height != _height)
             {
                 _cachedBitmap?.Dispose();
-                _cachedBitmap = new SKBitmap(_width, _height, SKColorType.Rgba8888, SKAlphaType.Opaque);
+                _cachedBitmap = new SKBitmap(_width, _height, SKColorType.Bgra8888, SKAlphaType.Opaque);
             }
 
-            unsafe
-            {
-                var pixels = (uint*)_cachedBitmap.GetPixels().ToPointer();
-                var pixelCount = _width * _height;
-
-                for (var i = 0; i < pixelCount; i++)
-                {
-                    var srcIdx = i * 3;
-                    pixels[i] = 0xFF000000 |
-                                ((uint)rgb24Data[srcIdx + 2] << 16) |
-                                ((uint)rgb24Data[srcIdx + 1] << 8) |
-                                rgb24Data[srcIdx];
-                }
-            }
-
+            FfmpegRawVideo.CopyToBitmap(_cachedBitmap, bgra);
             canvas.DrawBitmap(_cachedBitmap, 0, 0);
         }
         catch (ObjectDisposedException)

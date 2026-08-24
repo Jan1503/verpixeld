@@ -1,5 +1,6 @@
 using System.Text.Json;
 using PixPlane;
+using verpixeld.Configuration;
 using verpixeld.Hardware;
 
 namespace verpixeld.WebApi;
@@ -11,7 +12,7 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class SeamEndpoints
 {
-    private static readonly string DefaultSeamFile = Path.Combine(AppContext.BaseDirectory, "seam_correction.json");
+    private static string DefaultSeamFile => AppPaths.ResolveWritableConfigFile(null, "seam_correction.json");
 
     public static void MapSeamEndpoints(this WebApplication app)
     {

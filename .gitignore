@@ -9,6 +9,9 @@
 *.userprefs
 publish/
 nupkg/
+docker/publish/
+docker/*.tar
+docker/*.tar.gz
 
 ## Secrets and runtime data (never commit)
 **/*.pfx

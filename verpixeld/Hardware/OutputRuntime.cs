@@ -62,6 +62,17 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
     public void Start()
     {
         if (_started) return;
+        if (Mode == "gpio" && AppPaths.RunningInContainer())
+        {
+            var fallback = string.IsNullOrWhiteSpace(Network.Host) ? "simulation" : "network";
+            Console.WriteLine(
+                $"[OUTPUT] GPIO is not available in a container; using {fallback} " +
+                $"(set App__OutputMode=network and Network__Host=<panel-ip>).");
+            Mode = fallback;
+            App.OutputMode = fallback;
+            App.SimulationMode = fallback == "simulation";
+        }
+
         try
         {
             _inner = CreateRenderer(Mode);

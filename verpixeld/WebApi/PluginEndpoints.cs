@@ -1,5 +1,6 @@
 using CanvasManagement;
 using CanvasManagement.Interfaces;
+using verpixeld.Configuration;
 using verpixeld.Layout;
 
 namespace verpixeld.WebApi;
@@ -60,8 +61,8 @@ public static class PluginEndpoints
         content.StopAllContent();
 
         Console.WriteLine($"[PLUGIN] reload: {running.Count} extension(s), {filterSnap.Count} filter(s) to restore");
-        ext.ReloadAssemblies();
-        filt.ReloadAssemblies();
+        ext.ReloadAssemblies(AppPaths.ExtensionsDir);
+        filt.ReloadAssemblies(AppPaths.FiltersDir);
 
         var restoredExt = new List<string>();
         var failedExt = new List<string>();

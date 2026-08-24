@@ -201,10 +201,7 @@ public class AudioOutputService : IAudioOutputService
                 if (_ffmpegHasPulseSupport.Value)
                     Console.WriteLine("[AUDIO] FFmpeg has PulseAudio output support");
                 else
-                {
-                    Console.WriteLine("[AUDIO] FFmpeg does NOT have PulseAudio support - will use ALSA");
-                    Console.WriteLine("[AUDIO] To enable PulseAudio: recompile FFmpeg with --enable-libpulse");
-                }
+                    Console.WriteLine("[AUDIO] FFmpeg has no PulseAudio muxer (will use ALSA only if a sound card exists)");
 
                 return _ffmpegHasPulseSupport.Value;
             }
@@ -220,13 +217,7 @@ public class AudioOutputService : IAudioOutputService
 
     public string GetFFmpegAudioOutput()
     {
-        if (!IsFFmpegPulseSupported())
-        {
-            Console.WriteLine("[AUDIO] Using ALSA (FFmpeg lacks PulseAudio support)");
-            return "-f alsa default";
-        }
-
-        if (IsPulseAudioAvailable())
+        if (IsFFmpegPulseSupported() && IsPulseAudioAvailable())
         {
             try
             {
@@ -253,8 +244,33 @@ public class AudioOutputService : IAudioOutputService
             return "-f pulse default";
         }
 
-        Console.WriteLine("[AUDIO] Using ALSA for audio output");
-        return "-f alsa default";
+        if (AlsaPlaybackAvailable())
+        {
+            Console.WriteLine("[AUDIO] Using ALSA default");
+            return "-f alsa default";
+        }
+
+        Console.WriteLine("[AUDIO] No PulseAudio or ALSA playback device — video only");
+        return "";
+    }
+
+    /// <summary>
+    ///     True when the kernel has an ALSA PCM playback node. Docker images typically
+    ///     have none; forcing <c>-f alsa default</c> then kills the whole FFmpeg process
+    ///     (video pipe included).
+    /// </summary>
+    internal static bool AlsaPlaybackAvailable()
+    {
+        try
+        {
+            const string snd = "/dev/snd";
+            if (!Directory.Exists(snd)) return false;
+            return Directory.EnumerateFileSystemEntries(snd, "pcmC*D*p").Any();
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public async Task<List<AudioSink>> GetAudioSinksAsync()

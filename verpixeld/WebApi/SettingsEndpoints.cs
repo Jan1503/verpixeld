@@ -256,7 +256,9 @@ public static class SettingsEndpoints
 
     private static FullConfig ReadConfig()
     {
-        var path = AppSettingsStore.ConfigPath;
+        var path = AppSettingsStore.LoadPath;
+        if (!File.Exists(path))
+            path = AppSettingsStore.BundledPath;
         if (!File.Exists(path)) return new FullConfig();
 
         var json = File.ReadAllText(path);

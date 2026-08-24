@@ -724,18 +724,47 @@ public class StartupService
     }
 
     /// <summary>
-    ///     Gets the local IP address of the device
+    ///     Gets a local IPv4 address for splash / HA URLs.
+    ///     Must not call <see cref="Dns.GetHostEntry"/> — that blocks for minutes (or forever)
+    ///     in Docker/TrueNAS when the container hostname is not in DNS.
     /// </summary>
     public static IPAddress? GetLocalIPAddress()
     {
-        if (!NetworkInterface.GetIsNetworkAvailable())
+        try
+        {
+            if (!NetworkInterface.GetIsNetworkAvailable())
+                return null;
+
+            IPAddress? fallback = null;
+            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (nic.OperationalStatus != OperationalStatus.Up)
+                    continue;
+                if (nic.NetworkInterfaceType is NetworkInterfaceType.Loopback)
+                    continue;
+
+                foreach (var unicast in nic.GetIPProperties().UnicastAddresses)
+                {
+                    var ip = unicast.Address;
+                    if (ip.AddressFamily != AddressFamily.InterNetwork || IPAddress.IsLoopback(ip))
+                        continue;
+                    if (ip.ToString().StartsWith("169.254.", StringComparison.Ordinal))
+                        continue;
+
+                    fallback ??= ip;
+                    // Prefer a LAN address over the Docker bridge (172.16/12 still used on some LANs).
+                    if (!ip.ToString().StartsWith("172.", StringComparison.Ordinal))
+                        return ip;
+                }
+            }
+
+            return fallback;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[NET] local IP scan failed: {ex.Message}");
             return null;
-
-        var host = Dns.GetHostEntry(Dns.GetHostName());
-
-        return host
-            .AddressList
-            .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork && !ip.ToString().StartsWith("127."));
+        }
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 
 namespace verpixeld.MediaPlayer;
 
@@ -222,9 +223,11 @@ public static class MediaProbeService
 
         try
         {
+            // Stream duration is often N/A on MKV/HEVC; format.duration has the real length.
+            // Local files used to omit format=duration — GUI then showed 0:00 and seek was disabled.
             var ffprobeArgs = isUrl
-                ? $"-v error -timeout 10000000 -select_streams v:0 -show_entries stream=duration,r_frame_rate,width,height -show_entries format=duration -of csv=p=0 \"{videoSource}\""
-                : $"-v error -select_streams v:0 -show_entries stream=duration,r_frame_rate,width,height -of csv=p=0 \"{videoSource}\"";
+                ? $"-v error -timeout 10000000 -select_streams v:0 -show_entries stream=width,height,r_frame_rate,duration -show_entries format=duration -of csv=p=0 \"{videoSource}\""
+                : $"-v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,duration -show_entries format=duration -of csv=p=0 \"{videoSource}\"";
 
             Console.WriteLine($"[VIDEO] Probing: {(isUrl ? "network stream" : "local file")}");
 
@@ -279,77 +282,120 @@ public static class MediaProbeService
                     : Path.GetFileName(videoSource)
                 : Path.GetFileName(videoSource);
 
-            var parts = lines[0].Split(',');
-
-            if (parts.Length == 1 && double.TryParse(parts[0].Trim(), out var audioOnlyDuration))
-            {
-                Console.WriteLine($"[AUDIO] Probe result: audio-only, duration: {audioOnlyDuration:F1}s");
-                return new VideoInfo
-                {
-                    Path = videoSource, FileName = fileName,
-                    Width = 0, Height = 0, Fps = 0,
-                    Duration = TimeSpan.FromSeconds(audioOnlyDuration)
-                };
-            }
-
-            if (parts.Length == 1 && lines.Length > 1 && double.TryParse(lines[1].Trim(), out var formatDuration))
-            {
-                Console.WriteLine($"[AUDIO] Probe result: audio-only, duration: {formatDuration:F1}s");
-                return new VideoInfo
-                {
-                    Path = videoSource, FileName = fileName,
-                    Width = 0, Height = 0, Fps = 0,
-                    Duration = TimeSpan.FromSeconds(formatDuration)
-                };
-            }
-
-            if (parts.Length < 3)
-            {
-                if (double.TryParse(output.Trim(), out var fallbackDuration))
-                {
-                    Console.WriteLine(
-                        $"[AUDIO] Probe result: audio-only (fallback), duration: {fallbackDuration:F1}s");
-                    return new VideoInfo
-                    {
-                        Path = videoSource, FileName = fileName,
-                        Width = 0, Height = 0, Fps = 0,
-                        Duration = TimeSpan.FromSeconds(fallbackDuration)
-                    };
-                }
-
+            var info = ParseProbeCsv(output, videoSource, fileName);
+            if (info == null)
                 Console.WriteLine($"[VIDEO] Unexpected ffprobe output: {output}");
-                return null;
-            }
+            else if (info.Width == 0 && info.Height == 0)
+                Console.WriteLine($"[AUDIO] Probe result: audio-only, duration: {info.Duration.TotalSeconds:F1}s");
+            else
+                Console.WriteLine(
+                    $"[VIDEO] Probe result: {info.Width}x{info.Height} @ {info.Fps:F2}fps, duration: {info.Duration.TotalSeconds:F1}s");
 
-            int.TryParse(parts[0], out var width);
-            int.TryParse(parts[1], out var height);
-
-            double fps = 30;
-            if (parts.Length > 2)
-            {
-                var fpsParts = parts[2].Split('/');
-                if (fpsParts.Length == 2 && double.TryParse(fpsParts[0], out var num) &&
-                    double.TryParse(fpsParts[1], out var den) && den > 0) fps = num / den;
-            }
-
-            double duration = 0;
-            if (parts.Length > 3) double.TryParse(parts[3], out duration);
-            if (duration == 0 && lines.Length > 1) double.TryParse(lines[1].Trim(), out duration);
-
-            Console.WriteLine($"[VIDEO] Probe result: {width}x{height} @ {fps:F2}fps, duration: {duration:F1}s");
-
-            return new VideoInfo
-            {
-                Path = videoSource, FileName = fileName,
-                Width = width, Height = height,
-                Fps = fps > 0 ? fps : 30,
-                Duration = TimeSpan.FromSeconds(duration)
-            };
+            return info;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[VIDEO] Error getting video info: {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    ///     Parse ffprobe CSV from stream=width,height,r_frame_rate,duration plus optional format=duration on the next line.
+    /// </summary>
+    internal static VideoInfo? ParseProbeCsv(string output, string videoSource, string fileName)
+    {
+        var lines = output.Trim().Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        if (lines.Length == 0) return null;
+
+        var parts = lines[0].Split(',');
+
+        if (parts.Length == 1 && TryParseSeconds(parts[0], out var audioOnlyDuration))
+        {
+            return new VideoInfo
+            {
+                Path = videoSource, FileName = fileName,
+                Width = 0, Height = 0, Fps = 0,
+                Duration = TimeSpan.FromSeconds(audioOnlyDuration)
+            };
+        }
+
+        if (parts.Length == 1 && lines.Length > 1 && TryParseSeconds(lines[1], out var formatOnlyDuration))
+        {
+            return new VideoInfo
+            {
+                Path = videoSource, FileName = fileName,
+                Width = 0, Height = 0, Fps = 0,
+                Duration = TimeSpan.FromSeconds(formatOnlyDuration)
+            };
+        }
+
+        if (parts.Length < 3)
+        {
+            if (TryParseSeconds(output, out var fallbackDuration))
+            {
+                return new VideoInfo
+                {
+                    Path = videoSource, FileName = fileName,
+                    Width = 0, Height = 0, Fps = 0,
+                    Duration = TimeSpan.FromSeconds(fallbackDuration)
+                };
+            }
+
+            return null;
+        }
+
+        int.TryParse(parts[0].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var width);
+        int.TryParse(parts[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var height);
+
+        double fps = 30;
+        if (parts.Length > 2)
+        {
+            var fpsParts = parts[2].Trim().Split('/');
+            if (fpsParts.Length == 2 &&
+                double.TryParse(fpsParts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var num) &&
+                double.TryParse(fpsParts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var den) &&
+                den > 0)
+                fps = num / den;
+            else
+                double.TryParse(parts[2].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out fps);
+        }
+
+        double duration = 0;
+        if (parts.Length > 3) TryParseSeconds(parts[3], out duration);
+        if (duration <= 0)
+        {
+            for (var i = 1; i < lines.Length; i++)
+            {
+                if (TryParseSeconds(lines[i], out duration) && duration > 0)
+                    break;
+            }
+        }
+
+        return new VideoInfo
+        {
+            Path = videoSource, FileName = fileName,
+            Width = width, Height = height,
+            Fps = fps > 0 ? fps : 30,
+            Duration = TimeSpan.FromSeconds(duration)
+        };
+    }
+
+    internal static bool TryParseSeconds(string? value, out double seconds)
+    {
+        seconds = 0;
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        var s = value.Trim();
+        if (s.Equals("N/A", StringComparison.OrdinalIgnoreCase)) return false;
+        if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out seconds) && seconds > 0)
+            return true;
+        if (TimeSpan.TryParse(s, CultureInfo.InvariantCulture, out var ts) && ts > TimeSpan.Zero)
+        {
+            seconds = ts.TotalSeconds;
+            return true;
+        }
+
+        seconds = 0;
+        return false;
     }
 }

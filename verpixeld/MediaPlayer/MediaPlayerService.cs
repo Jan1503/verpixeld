@@ -728,53 +728,14 @@ public class MediaPlayerService : IDisposable
     /// <summary>
     ///     Get list of available video files
     /// </summary>
-    public IEnumerable<string> GetAvailableVideos()
-    {
-        if (!Directory.Exists(AppPaths.VideosDir))
-            return Enumerable.Empty<string>();
+    public IEnumerable<string> GetAvailableVideos() =>
+        MediaLibrary.ListRelative(MediaLibrary.VideoRoot, MediaLibrary.VideoExtensions);
 
-        var extensions = new[] { "*.mp4", "*.webm", "*.mkv", "*.avi", "*.mov", "*.flv" };
-        return extensions
-            .SelectMany(ext => Directory.GetFiles(AppPaths.VideosDir, ext, SearchOption.TopDirectoryOnly))
-            .Select(Path.GetFileName)
-            .Where(f => f != null)
-            .Cast<string>()
-            .OrderBy(f => f);
-    }
+    public IEnumerable<string> GetAvailableModFiles() =>
+        MediaLibrary.ListRelative(MediaLibrary.ModRoot, MediaLibrary.ModExtensions);
 
-    /// <summary>
-    ///     Get list of available MOD files
-    /// </summary>
-    public IEnumerable<string> GetAvailableModFiles()
-    {
-        if (!Directory.Exists(AppPaths.MusicDir))
-            return Enumerable.Empty<string>();
-
-        var extensions = new[] { "*.mod", "*.xm", "*.s3m", "*.it", "*.stm", "*.mtm" };
-        return extensions
-            .SelectMany(ext => Directory.GetFiles(AppPaths.MusicDir, ext, SearchOption.TopDirectoryOnly))
-            .Select(Path.GetFileName)
-            .Where(f => f != null)
-            .Cast<string>()
-            .OrderBy(f => f);
-    }
-
-    /// <summary>
-    ///     Get list of available audio files
-    /// </summary>
-    public IEnumerable<string> GetAvailableAudioFiles()
-    {
-        if (!Directory.Exists(AppPaths.AudioDir))
-            return Enumerable.Empty<string>();
-
-        var extensions = new[] { "*.mp3", "*.wav", "*.flac", "*.ogg", "*.aac", "*.m4a" };
-        return extensions
-            .SelectMany(ext => Directory.GetFiles(AppPaths.AudioDir, ext, SearchOption.TopDirectoryOnly))
-            .Select(Path.GetFileName)
-            .Where(f => f != null)
-            .Cast<string>()
-            .OrderBy(f => f);
-    }
+    public IEnumerable<string> GetAvailableAudioFiles() =>
+        MediaLibrary.ListRelative(MediaLibrary.AudioRoot, MediaLibrary.AudioExtensions);
 
     /// <summary>
     ///     Play an audio file (audio only - no canvas created, no cover art display)

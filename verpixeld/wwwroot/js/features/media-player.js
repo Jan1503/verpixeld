@@ -86,6 +86,10 @@ let mediaStatusInterval = null;
 /**
  * Play a video
  */
+function mediaApiPath(filename) {
+  return String(filename || '').split('/').map(encodeURIComponent).join('/');
+}
+
 async function playMediaVideo(filename, loop = true) {
   try {
     console.log('[MEDIA] playMediaVideo called:', filename);
@@ -105,7 +109,7 @@ async function playMediaVideo(filename, loop = true) {
     // Also call the function if available
     if (window.showMediaPlayerBar) window.showMediaPlayerBar();
     
-    const result = await api.post(`/api/media/play/${encodeURIComponent(filename)}?loop=${loop}`);
+    const result = await api.post(`/api/media/play/${mediaApiPath(filename)}?loop=${loop}`);
     
     if (result.success) {
       window.toast.success('Media', `Playing: ${filename}`);
@@ -488,6 +492,7 @@ async function uploadMediaVideo(input) {
     if (result.success) {
       window.toast.success('Upload', `Uploaded: ${result.filename}`);
       await fetchMediaStatus();
+      browseLocalMedia(localMediaCurrentPath());
     } else {
       window.toast.error('Upload', result.message || 'Upload failed');
     }
@@ -517,6 +522,7 @@ async function uploadModFile(input) {
     if (result.success) {
       window.toast.success('Upload', `Uploaded: ${result.filename}`);
       await fetchMediaStatus();
+      browseLocalMedia(localMediaCurrentPath());
     } else {
       window.toast.error('Upload', result.message || 'Upload failed');
     }
@@ -546,6 +552,7 @@ async function uploadAudioFile(input) {
     if (result.success) {
       window.toast.success('Upload', `Uploaded: ${result.filename}`);
       await fetchMediaStatus();
+      browseLocalMedia(localMediaCurrentPath());
     } else {
       window.toast.error('Upload', result.message || 'Upload failed');
     }
@@ -579,7 +586,7 @@ async function playAudioFile(filename, loop = false) {
     // Also call the function if available
     if (window.showMediaPlayerBar) window.showMediaPlayerBar();
     
-    const result = await api.post(`/api/media/audio/play/${encodeURIComponent(filename)}?loop=${loop}`);
+    const result = await api.post(`/api/media/audio/play/${mediaApiPath(filename)}?loop=${loop}`);
     
     if (result.success) {
       window.toast.success('Audio', `Playing: ${filename}`);
@@ -604,11 +611,12 @@ async function deleteAudioFile(filename) {
   if (!confirm(`Delete ${filename}?`)) return;
   
   try {
-    const result = await api.del(`/api/media/audio/${encodeURIComponent(filename)}`);
+    const result = await api.del(`/api/media/audio/${mediaApiPath(filename)}`);
     
     if (result.success) {
       window.toast.success('Audio', `Deleted: ${filename}`);
       await fetchMediaStatus();
+      browseLocalMedia(localMediaCurrentPath());
     } else {
       window.toast.error('Audio', result.message || 'Delete failed');
     }
@@ -624,11 +632,12 @@ async function deleteMediaVideo(filename) {
   if (!confirm(`Delete ${filename}?`)) return;
   
   try {
-    const result = await api.del(`/api/media/videos/${encodeURIComponent(filename)}`);
+    const result = await api.del(`/api/media/videos/${mediaApiPath(filename)}`);
     
     if (result.success) {
       window.toast.success('Media', `Deleted: ${filename}`);
       await fetchMediaStatus();
+      browseLocalMedia(localMediaCurrentPath());
     } else {
       window.toast.error('Media', result.message || 'Delete failed');
     }
@@ -747,21 +756,21 @@ function updateVideoList() {
       <div class="media-empty-state">
         <div class="media-empty-icon">🎬</div>
         <p>No videos yet</p>
-        <p class="text-muted">Upload media files to get started</p>
+        <p class="text-muted">Local Media lists files under Media (Docker: the /app/Media mount). Subfolders are included.</p>
       </div>
     `;
     return;
   }
-  
+
   container.innerHTML = mediaState.availableVideos.map(video => `
-    <div class="media-video-card ${mediaState.currentVideo === video ? 'active' : ''}" data-video="${video}">
+    <div class="media-video-card ${mediaState.currentVideo === video ? 'active' : ''}" data-video="${encodeURIComponent(video)}">
       <div class="media-video-icon">🎬</div>
       <div class="media-video-info">
-        <div class="media-video-name">${video}</div>
+        <div class="media-video-name">${video.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</div>
       </div>
       <div class="media-video-actions">
-        <button class="btn btn-small btn-primary" onclick="playMediaVideo('${video}')" title="Play">▶️</button>
-        <button class="btn btn-small btn-danger" onclick="deleteMediaVideo('${video}')" title="Delete">🗑️</button>
+        <button class="btn btn-small btn-primary" onclick="playMediaVideo(decodeURIComponent(this.closest('.media-video-card').dataset.video))" title="Play">▶️</button>
+        <button class="btn btn-small btn-danger" onclick="deleteMediaVideo(decodeURIComponent(this.closest('.media-video-card').dataset.video))" title="Delete">🗑️</button>
       </div>
     </div>
   `).join('');
@@ -1066,6 +1075,141 @@ function switchMediaSubTab(tab) {
   }
 }
 
+function localMediaCurrentPath() {
+  const browserEl = document.getElementById('local-media-browser');
+  return browserEl?.dataset.currentPath || '';
+}
+
+function browseLocalMedia(path = '', forceRefresh = false) {
+  const browserEl = document.getElementById('local-media-browser');
+  const listEl = document.getElementById('local-media-list');
+  const titleEl = document.getElementById('local-media-browser-title');
+  const statusEl = document.getElementById('local-media-status');
+  if (!browserEl || !listEl) return;
+
+  const rel = path || '';
+  browserEl.dataset.currentPath = rel;
+  if (titleEl) titleEl.textContent = rel ? `📂 ${rel}` : '📂 Media';
+  if (statusEl) statusEl.textContent = '⏳ Loading...';
+  const searchInput = document.getElementById('local-media-search-input');
+  if (searchInput) searchInput.value = '';
+  listEl.innerHTML = '<div class="network-empty-state"><span class="loading">⏳ Loading...</span></div>';
+
+  const params = new URLSearchParams();
+  if (rel) params.set('path', rel);
+  if (forceRefresh) params.set('refresh', 'true');
+  const query = params.toString();
+
+  api.get('/api/media/browse' + (query ? '?' + query : ''))
+    .then(result => {
+      if (!result.success) {
+        if (statusEl) statusEl.textContent = '❌';
+        listEl.innerHTML = `
+          <div class="network-empty-state">
+            <div class="empty-icon">📂</div>
+            <p>${escapeHtml(result.message || 'Failed to list folder')}</p>
+            <p class="text-muted">${escapeHtml(result.root || '')}</p>
+          </div>`;
+        return;
+      }
+
+      if (statusEl) {
+        const n = (result.directories?.length || 0) + (result.videos?.length || 0) + (result.audioFiles?.length || 0);
+        statusEl.textContent = `${n} items`;
+      }
+
+      let html = '';
+      if (result.parentPath !== null && result.parentPath !== undefined) {
+        html += `
+          <div class="network-video-item network-dir-item" data-path="${encodeURIComponent(result.parentPath)}" onclick="browseLocalMedia(decodeURIComponent(this.dataset.path))">
+            <span class="video-icon">⬆️</span>
+            <span class="video-name">..</span>
+          </div>`;
+      }
+
+      (result.directories || []).forEach(dir => {
+        html += `
+          <div class="network-video-item network-dir-item" data-path="${encodeURIComponent(dir.path)}" onclick="browseLocalMedia(decodeURIComponent(this.dataset.path))">
+            <span class="video-icon">📁</span>
+            <span class="video-name">${escapeHtml(dir.name)}</span>
+          </div>`;
+      });
+
+      (result.videos || []).forEach(video => {
+        html += `
+          <div class="network-video-item" data-path="${encodeURIComponent(video.path)}" onclick="playLocalMediaItem(this.dataset.path, 'video')">
+            <span class="video-icon">🎬</span>
+            <span class="video-name">${escapeHtml(video.name)}</span>
+            <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); playLocalMediaItem(this.closest('.network-video-item').dataset.path, 'video')" title="Play">▶️</button>
+          </div>`;
+      });
+
+      (result.audioFiles || []).forEach(audio => {
+        html += `
+          <div class="network-video-item network-audio-item" data-path="${encodeURIComponent(audio.path)}" onclick="playLocalMediaItem(this.dataset.path, 'audio')">
+            <span class="video-icon">🎵</span>
+            <span class="video-name">${escapeHtml(audio.name)}</span>
+            <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); playLocalMediaItem(this.closest('.network-video-item').dataset.path, 'audio')" title="Play">▶️</button>
+          </div>`;
+      });
+
+      if (!html) {
+        html = `
+          <div class="network-empty-state">
+            <div class="empty-icon">📂</div>
+            <p>Empty folder</p>
+            <p class="text-muted">Open a subdirectory or check that /app/Media is mounted</p>
+          </div>`;
+      }
+
+      listEl.innerHTML = html;
+    })
+    .catch(error => {
+      console.error('Failed to browse local media:', error);
+      if (statusEl) statusEl.textContent = '❌ Error';
+      listEl.innerHTML = `
+        <div class="network-empty-state">
+          <p>Failed to load folder</p>
+          <p class="text-muted">${escapeHtml(error.message || 'Check the Media mount')}</p>
+        </div>`;
+    });
+}
+
+function playLocalMediaItem(encodedPath, kind) {
+  const path = decodeURIComponent(encodedPath || '');
+  if (kind === 'audio') playAudioFile(path);
+  else playMediaVideo(path);
+}
+
+function filterLocalMediaBrowser(query) {
+  const listEl = document.getElementById('local-media-list');
+  if (!listEl) return;
+  const items = listEl.querySelectorAll('.network-video-item');
+  const lowerQuery = (query || '').toLowerCase().trim();
+  let visibleCount = 0;
+  items.forEach(item => {
+    const nameEl = item.querySelector('.video-name');
+    if (!nameEl) return;
+    const name = nameEl.textContent;
+    if (name === '..') {
+      item.style.display = '';
+      return;
+    }
+    const matches = !lowerQuery || name.toLowerCase().includes(lowerQuery);
+    item.style.display = matches ? '' : 'none';
+    if (matches && lowerQuery) {
+      const regex = new RegExp(`(${lowerQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      nameEl.innerHTML = name.replace(regex, '<mark>$1</mark>');
+      visibleCount++;
+    } else {
+      nameEl.textContent = name;
+      if (matches) visibleCount++;
+    }
+  });
+  const statusEl = document.getElementById('local-media-status');
+  if (statusEl && lowerQuery) statusEl.textContent = `🔍 ${visibleCount} matches`;
+}
+
 /**
  * Switch between media sub-pages (Favorites, Local, Network, YouTube, Tools)
  */
@@ -1089,6 +1233,8 @@ function switchMediaPage(page) {
   try {
     localStorage.setItem('verpixeld-media-page', page);
   } catch (e) { /* ignore */ }
+
+  if (page === 'local') browseLocalMedia(localMediaCurrentPath());
 }
 
 // Restore last selected media page on load
@@ -1274,6 +1420,9 @@ window.populateMediaCanvasSelector = populateMediaCanvasSelector;
 window.setMediaTargetCanvas = setMediaTargetCanvas;
 window.switchMediaSubTab = switchMediaSubTab;
 window.switchMediaPage = switchMediaPage;
+window.browseLocalMedia = browseLocalMedia;
+window.filterLocalMediaBrowser = filterLocalMediaBrowser;
+window.playLocalMediaItem = playLocalMediaItem;
 
 // ═══════════════════════════════════════════
 // CAMERA ALERT

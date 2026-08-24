@@ -91,6 +91,7 @@ public class LogService
                     if (line.Length > 0)
                         _logService.AddLine(line);
                     _lineBuffer.Clear();
+                    _original.Flush();
                 }
                 else
                 {
@@ -126,6 +127,7 @@ public class LogService
             lock (_sync)
             {
                 _original.WriteLine(value);
+                _original.Flush();
                 var line = value ?? "";
                 if (_lineBuffer.Length > 0)
                 {

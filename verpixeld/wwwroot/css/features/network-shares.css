@@ -288,6 +288,10 @@
   overflow-y: auto;
 }
 
+.network-video-list.local-media-list {
+  max-height: min(60vh, 560px);
+}
+
 .network-video-item {
   display: flex;
   align-items: center;

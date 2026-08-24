@@ -121,6 +121,38 @@ public static class MediaPlayerEndpoints
             });
         });
 
+        // Folder browser for the Media mount (same shape as /api/network/shares/{id}/browse)
+        group.MapGet("/browse", (string? path) =>
+        {
+            var result = MediaLibrary.Browse(MediaLibrary.BrowseRoot, path);
+            if (result.Error != null && result.Directories.Count == 0 &&
+                result.Videos.Count == 0 && result.AudioFiles.Count == 0)
+            {
+                return Results.Json(new
+                {
+                    success = false,
+                    message = result.Error,
+                    currentPath = result.CurrentPath,
+                    parentPath = result.ParentPath,
+                    root = MediaLibrary.BrowseRoot,
+                    directories = result.Directories,
+                    videos = result.Videos,
+                    audioFiles = result.AudioFiles
+                });
+            }
+
+            return Results.Json(new
+            {
+                success = true,
+                currentPath = result.CurrentPath,
+                parentPath = result.ParentPath,
+                root = MediaLibrary.BrowseRoot,
+                directories = result.Directories,
+                videos = result.Videos,
+                audioFiles = result.AudioFiles
+            });
+        });
+
         // List available videos
         group.MapGet("/videos", () =>
         {
@@ -135,7 +167,9 @@ public static class MediaPlayerEndpoints
         // Get video info
         group.MapGet("/videos/{filename}/info", async (string filename) =>
         {
-            var filePath = Path.Combine(AppPaths.VideosDir, filename);
+            var filePath = MediaLibrary.ResolveVideo(filename);
+            if (filePath == null)
+                return Results.Json(new { success = false, message = "Failed to get video info" });
 
             var info = await mediaService.GetVideoInfoAsync(filePath);
             if (info == null) return Results.Json(new { success = false, message = "Failed to get video info" });
@@ -156,7 +190,7 @@ public static class MediaPlayerEndpoints
         });
 
         // Play a video
-        group.MapPost("/play/{filename}", async (string filename, bool? loop) =>
+        group.MapPost("/play/{*filename}", async (string filename, bool? loop) =>
         {
             if (!MediaPlayerService.FFmpegAvailable)
                 return Results.Json(new
@@ -165,13 +199,13 @@ public static class MediaPlayerEndpoints
                     message = "FFmpeg not available. Install with: sudo apt install ffmpeg"
                 });
 
-            var filePath = Path.Combine(AppPaths.VideosDir, filename);
+            var filePath = MediaLibrary.ResolveVideo(filename);
 
-            if (!File.Exists(filePath))
+            if (filePath == null)
                 return Results.Json(new
                 {
                     success = false,
-                    message = $"Video not found: {filename}. Upload videos to the Media/Videos folder."
+                    message = $"Video not found: {filename}. Bind the library at /app/Media or put files in Media/Videos."
                 });
 
             // Extract thumbnail first (fast for local files)
@@ -433,9 +467,9 @@ public static class MediaPlayerEndpoints
                     message = "No MOD player available. Install xmp, mikmod, or openmpt123."
                 });
 
-            var filePath = Path.Combine(AppPaths.MusicDir, filename);
+            var filePath = MediaLibrary.Resolve(MediaLibrary.ModRoot, filename);
 
-            if (!mediaService.SetModFile(filePath))
+            if (filePath == null || !mediaService.SetModFile(filePath))
                 return Results.Json(new
                 {
                     success = false,
@@ -546,11 +580,11 @@ public static class MediaPlayerEndpoints
         }).DisableAntiforgery();
 
         // Delete a video
-        group.MapDelete("/videos/{filename}", (string filename) =>
+        group.MapDelete("/videos/{*filename}", (string filename) =>
         {
-            var filePath = Path.Combine(AppPaths.VideosDir, filename);
+            var filePath = MediaLibrary.ResolveVideo(filename);
 
-            if (!File.Exists(filePath)) return Results.Json(new { success = false, message = "Video not found" });
+            if (filePath == null || !File.Exists(filePath)) return Results.Json(new { success = false, message = "Video not found" });
 
             try
             {
@@ -628,7 +662,7 @@ public static class MediaPlayerEndpoints
         }).DisableAntiforgery();
 
         // Play an audio file (with optional visualization)
-        group.MapPost("/audio/play/{filename}", async (string filename, bool? loop) =>
+        group.MapPost("/audio/play/{*filename}", async (string filename, bool? loop) =>
         {
             if (!MediaPlayerService.FFmpegAvailable)
                 return Results.Json(new
@@ -637,13 +671,13 @@ public static class MediaPlayerEndpoints
                     message = "FFmpeg not available. Install with: sudo apt install ffmpeg"
                 });
 
-            var filePath = Path.Combine(AppPaths.AudioDir, filename);
+            var filePath = MediaLibrary.ResolveAudio(filename);
 
-            if (!File.Exists(filePath))
+            if (filePath == null)
                 return Results.Json(new
                 {
                     success = false,
-                    message = $"Audio file not found: {filename}. Upload audio files to the Media/Audio folder."
+                    message = $"Audio file not found: {filename}. Bind the library at /app/Media or put files in Media/Audio."
                 });
 
             await mediaService.PlayAudioAsync(filePath, loop ?? false);
@@ -689,9 +723,9 @@ public static class MediaPlayerEndpoints
             }
 
             // Replay local audio
-            var filePath = Path.Combine(AppPaths.AudioDir, mediaService.LastPlayedAudio);
+            var filePath = MediaLibrary.ResolveAudio(mediaService.LastPlayedAudio);
 
-            if (!File.Exists(filePath))
+            if (filePath == null)
                 return Results.Json(new
                 {
                     success = false,
@@ -711,11 +745,11 @@ public static class MediaPlayerEndpoints
         });
 
         // Delete an audio file
-        group.MapDelete("/audio/{filename}", (string filename) =>
+        group.MapDelete("/audio/{*filename}", (string filename) =>
         {
-            var filePath = Path.Combine(AppPaths.AudioDir, filename);
+            var filePath = MediaLibrary.ResolveAudio(filename);
 
-            if (!File.Exists(filePath)) return Results.Json(new { success = false, message = "Audio file not found" });
+            if (filePath == null || !File.Exists(filePath)) return Results.Json(new { success = false, message = "Audio file not found" });
 
             try
             {

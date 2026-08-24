@@ -3,6 +3,7 @@ using System.Text.Json;
 using CanvasManagement;
 using SkiaSharp;
 using verpixeld.Configuration;
+using verpixeld.MediaPlayer;
 
 namespace verpixeld.Services;
 
@@ -78,7 +79,7 @@ public class LocalCameraService : IDisposable
                              $"-f v4l2 -input_format {InputFormat} " +
                              $"-framerate {Fps} -video_size {InputResolution} " +
                              $"-i {VideoDevice} " +
-                             $"-f rawvideo -pix_fmt rgb24 " +
+                             $"-f rawvideo -pix_fmt {FfmpegRawVideo.PixFmt} " +
                              $"-vf \"scale={_width}:{_height}:flags={ScaleFilter}\" " +
                              $"-fps_mode cfr -an pipe:1";
 
@@ -126,7 +127,7 @@ public class LocalCameraService : IDisposable
                              $"-f v4l2 -input_format {InputFormat} " +
                              $"-framerate {Fps} -video_size {InputResolution} " +
                              $"-i {dev} " +
-                             $"-f rawvideo -pix_fmt rgb24 " +
+                             $"-f rawvideo -pix_fmt {FfmpegRawVideo.PixFmt} " +
                              $"-vf \"scale={w}:{h}:flags={ScaleFilter}\" " +
                              $"-fps_mode cfr -an pipe:1";
 
@@ -201,7 +202,7 @@ public class LocalCameraService : IDisposable
         {
             var args = $"-f v4l2 -input_format {InputFormat} -video_size {InputResolution} " +
                        $"-i {VideoDevice} " +
-                       $"-frames:v 1 -f rawvideo -pix_fmt rgb24 " +
+                       $"-frames:v 1 -f rawvideo -pix_fmt {FfmpegRawVideo.PixFmt} " +
                        $"-vf \"scale={_width}:{_height}:flags={ScaleFilter}\" pipe:1";
 
             var psi = new ProcessStartInfo("ffmpeg", args)
@@ -215,7 +216,7 @@ public class LocalCameraService : IDisposable
             using var process = Process.Start(psi);
             if (process == null) return null;
 
-            var frameSize = _width * _height * 3;
+            var frameSize = FfmpegRawVideo.FrameBytes(_width, _height);
             var buffer = new byte[frameSize];
             var stream = process.StandardOutput.BaseStream;
             var bytesRead = 0;
@@ -231,20 +232,8 @@ public class LocalCameraService : IDisposable
 
             if (bytesRead < frameSize) return null;
 
-            // Convert RGB24 to PNG base64
-            using var bitmap = new SKBitmap(_width, _height, SKColorType.Rgba8888, SKAlphaType.Opaque);
-            unsafe
-            {
-                var pixels = (uint*)bitmap.GetPixels().ToPointer();
-                for (var i = 0; i < _width * _height; i++)
-                {
-                    var idx = i * 3;
-                    pixels[i] = 0xFF000000 |
-                                ((uint)buffer[idx + 2] << 16) |
-                                ((uint)buffer[idx + 1] << 8) |
-                                buffer[idx];
-                }
-            }
+            using var bitmap = new SKBitmap(_width, _height, SKColorType.Bgra8888, SKAlphaType.Opaque);
+            FfmpegRawVideo.CopyToBitmap(bitmap, buffer);
 
             using var img = SKImage.FromBitmap(bitmap);
             using var data = img.Encode(SKEncodedImageFormat.Png, 100);
@@ -436,6 +425,7 @@ public class LocalCameraService : IDisposable
                 }
             }
     }
+
 
     // ═══════════════════════════════════════════════════════════════
     // Device Discovery

@@ -12,7 +12,10 @@ public interface IAudioOutputService
     /// <summary>Check if PulseAudio is available.</summary>
     bool IsPulseAudioAvailable();
 
-    /// <summary>Get the FFmpeg audio output argument (-f pulse default or -f alsa default).</summary>
+    /// <summary>
+    ///     FFmpeg audio output args, e.g. <c>-f pulse default</c> or <c>-f alsa default</c>.
+    ///     Empty when there is no usable device (typical in Docker) so video can still play.
+    /// </summary>
     string GetFFmpegAudioOutput();
 
     /// <summary>Get list of available audio output sinks.</summary>

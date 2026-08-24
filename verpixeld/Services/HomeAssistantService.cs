@@ -193,7 +193,10 @@ public sealed class HomeAssistantService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[HA] Connection error: {ex.Message}");
+                var hint = wsUrl.Contains(".local", StringComparison.OrdinalIgnoreCase)
+                    ? " Docker cannot resolve .local (mDNS). Use the Home Assistant LAN IP, e.g. http://192.168.10.20:8123"
+                    : "";
+                Console.WriteLine($"[HA] Connection error: {ex.Message}.{hint}");
             }
 
             HomeAssistantBridge.Connected = false;

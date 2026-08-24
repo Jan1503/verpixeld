@@ -32,6 +32,9 @@ public static class AppPaths
     public static readonly string NightModeConfig = Path.Combine(ConfigDir, "nightmode.json");
     public static readonly string ShareEncryptionKey = Path.Combine(ConfigDir, ".share_key");
     public static readonly string Certificate = Path.Combine(ConfigDir, "server.pfx");
+    public static readonly string SeamCorrection = Path.Combine(ConfigDir, "seam_correction.json");
+    public static readonly string AppSettingsOverlay = Path.Combine(ConfigDir, "appsettings.json");
+    public static readonly string AppSettingsBundled = Path.Combine(Base, "appsettings.json");
 
     // ── Data files ──
     public static readonly string Favorites = Path.Combine(DataDir, "favorites.json");
@@ -46,6 +49,15 @@ public static class AppPaths
     public static readonly string GalleryDir = Path.Combine(DataDir, "Gallery");
     public static readonly string LayoutsDir = Path.Combine(DataDir, "Layouts");
     public static readonly string SchedulesDir = Path.Combine(DataDir, "Schedules");
+
+    /// <summary>
+    ///     Plugins and BDFs live next to the DLL on the Pi. In Docker they live on the Data
+    ///     volume so extras can be dropped in without extra mounts.
+    /// </summary>
+    public static string ExtensionsDir => Path.Combine(ContentRoot, "Extensions");
+    public static string FiltersDir => Path.Combine(ContentRoot, "Filters");
+    public static string FontsDir => Path.Combine(ContentRoot, "Fonts");
+    private static string ContentRoot => RunningInContainer() ? DataDir : Base;
 
     // ── Media directories ──
     public static readonly string VideosDir = Path.Combine(MediaDir, "Videos");
@@ -62,8 +74,113 @@ public static class AppPaths
         Directory.CreateDirectory(GalleryDir);
         Directory.CreateDirectory(LayoutsDir);
         Directory.CreateDirectory(SchedulesDir);
-        Directory.CreateDirectory(VideosDir);
-        Directory.CreateDirectory(MusicDir);
-        Directory.CreateDirectory(AudioDir);
+        if (RunningInContainer())
+        {
+            Directory.CreateDirectory(MediaDir);
+        }
+        else
+        {
+            Directory.CreateDirectory(VideosDir);
+            Directory.CreateDirectory(MusicDir);
+            Directory.CreateDirectory(AudioDir);
+        }
+        Directory.CreateDirectory(ExtensionsDir);
+        Directory.CreateDirectory(FiltersDir);
+        Directory.CreateDirectory(FontsDir);
+        MigrateLegacySeamFile();
+        SeedSharePlugins();
+    }
+
+    /// <summary>
+    ///     TrueNAS/Docker set this. The Pi host does not — persist paths stay next to the DLL there.
+    /// </summary>
+    public static bool RunningInContainer() =>
+        string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true",
+            StringComparison.OrdinalIgnoreCase)
+        || File.Exists("/.dockerenv");
+
+    /// <summary>
+    ///     Older builds wrote seam_correction.json next to the DLL (/app in Docker). Copy into
+    ///     Config once when running in a container. The Pi keeps the file next to the app.
+    /// </summary>
+    private static void MigrateLegacySeamFile()
+    {
+        if (!RunningInContainer()) return;
+        var legacy = Path.Combine(Base, "seam_correction.json");
+        if (File.Exists(SeamCorrection) || !File.Exists(legacy)) return;
+        try
+        {
+            File.Copy(legacy, SeamCorrection);
+            Console.WriteLine($"[SEAM] migrated {legacy} -> {SeamCorrection}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SEAM] migrate failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    ///     Copy image Extensions/Filters/Fonts onto the Data volume when a file or plugin
+    ///     folder is missing. Never overwrites user files. No-op on the Pi.
+    /// </summary>
+    private static void SeedSharePlugins()
+    {
+        if (!RunningInContainer()) return;
+        SeedTree(Path.Combine(Base, "Extensions"), ExtensionsDir);
+        SeedTree(Path.Combine(Base, "Filters"), FiltersDir);
+        SeedTree(Path.Combine(Base, "Fonts"), FontsDir);
+    }
+
+    private static void SeedTree(string src, string dest)
+    {
+        if (!Directory.Exists(src)) return;
+        Directory.CreateDirectory(dest);
+        var n = 0;
+        foreach (var dir in Directory.GetDirectories(src))
+        {
+            var target = Path.Combine(dest, Path.GetFileName(dir));
+            if (Directory.Exists(target)) continue;
+            CopyDirectory(dir, target);
+            n++;
+        }
+
+        foreach (var file in Directory.GetFiles(src))
+        {
+            var target = Path.Combine(dest, Path.GetFileName(file));
+            if (File.Exists(target)) continue;
+            File.Copy(file, target);
+            n++;
+        }
+
+        if (n > 0)
+            Console.WriteLine($"[DATA] seeded {n} item(s) into {dest}");
+    }
+
+    private static void CopyDirectory(string src, string dest)
+    {
+        Directory.CreateDirectory(dest);
+        foreach (var file in Directory.GetFiles(src))
+            File.Copy(file, Path.Combine(dest, Path.GetFileName(file)));
+        foreach (var dir in Directory.GetDirectories(src))
+            CopyDirectory(dir, Path.Combine(dest, Path.GetFileName(dir)));
+    }
+
+    /// <summary>
+    ///     Writable config file. Existing Config or Base copies win; new files go to
+    ///     Config in a container and next to the DLL on the Pi.
+    /// </summary>
+    public static string ResolveWritableConfigFile(string? relativeOrAbsolute, string fallbackFileName)
+    {
+        if (!string.IsNullOrWhiteSpace(relativeOrAbsolute) && Path.IsPathRooted(relativeOrAbsolute))
+            return relativeOrAbsolute;
+
+        var name = Path.GetFileName(string.IsNullOrWhiteSpace(relativeOrAbsolute)
+            ? fallbackFileName
+            : relativeOrAbsolute);
+        var inConfig = Path.Combine(ConfigDir, name);
+        var inBase = Path.Combine(Base, name);
+        if (File.Exists(inConfig)) return inConfig;
+        if (File.Exists(inBase)) return inBase;
+        return RunningInContainer() ? inConfig : inBase;
     }
 }

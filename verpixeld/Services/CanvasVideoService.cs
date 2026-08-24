@@ -47,7 +47,7 @@ public class CanvasVideoService : IDisposable
         var loopArg = loop ? "-stream_loop -1 " : "";
         // -re paces the file at its native rate; -an drops audio (multiple simultaneous videos = no audio mix).
         var args = $"-hide_banner -loglevel warning -re {loopArg}-i \"{filePath}\" " +
-                   $"-f rawvideo -pix_fmt rgb24 -vf \"scale={w}:{h}:flags=area\" -fps_mode cfr -an pipe:1";
+                   $"-f rawvideo -pix_fmt {FfmpegRawVideo.PixFmt} -vf \"scale={w}:{h}:flags=area\" -fps_mode cfr -an pipe:1";
 
         var streamer = new FfmpegFrameStreamer(w, h);
         FfmpegFrameStreamer? old;

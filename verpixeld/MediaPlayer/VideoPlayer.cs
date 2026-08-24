@@ -382,14 +382,20 @@ public class VideoPlayer : IDisposable
             // YouTube adaptive streams: video URL + audio URL combined
             var adaptiveScaleFlags = (ScaleFilter != "auto" && FfmpegCapabilities.AvailableScaleFilters.ContainsKey(ScaleFilter))
                 ? ScaleFilter : "fast_bilinear";
-            var videoFilter = $"scale={_targetWidth}:{_targetHeight}:flags={adaptiveScaleFlags},format=rgb24";
+            var videoFilter = $"scale={_targetWidth}:{_targetHeight}:flags={adaptiveScaleFlags},format={FfmpegRawVideo.PixFmt}";
 
-            // Audio output setup - using PulseAudio
+            // Audio output setup — skip Pulse when this host has no audio device (Docker/NAS)
             string audioOutput = "";
-            var defaultSink = _audioOutputService?.CurrentSinkName;
+            var defaultSink = _audioOutputService.CurrentSinkName;
             if (playAudio)
             {
-                if (!string.IsNullOrEmpty(defaultSink) && defaultSink != "auto_null")
+                var ffmpegAudio = _audioOutputService.GetFFmpegAudioOutput();
+                if (string.IsNullOrWhiteSpace(ffmpegAudio))
+                {
+                    playAudio = false;
+                    Console.WriteLine("[VIDEO] Adaptive: no audio device, video only");
+                }
+                else if (!string.IsNullOrEmpty(defaultSink) && defaultSink != "auto_null")
                 {
                     audioOutput = defaultSink;
                     Console.WriteLine($"[VIDEO] Adaptive: Using PulseAudio sink: {defaultSink}");
@@ -408,7 +414,7 @@ public class VideoPlayer : IDisposable
             // Video-only FFmpeg command
             var videoFfmpegArgs = $"-hide_banner -loglevel warning " +
                         $"{seekArg}{networkOpts}-i \"{videoUrl}\" " +
-                        $"-vf \"{videoFilter}\" -f rawvideo -pix_fmt rgb24 -an pipe:1";
+                        $"-vf \"{videoFilter}\" -f rawvideo -pix_fmt {FfmpegRawVideo.PixFmt} -an pipe:1";
 
             Console.WriteLine($"[VIDEO] FFmpeg video command (truncated): ffmpeg {videoFfmpegArgs.Substring(0, Math.Min(200, videoFfmpegArgs.Length))}...");
             
@@ -457,7 +463,7 @@ public class VideoPlayer : IDisposable
 
             // Read video frames from stdout
             var stdout = proc.StandardOutput.BaseStream;
-            var frameSize = _targetWidth * _targetHeight * 3; // RGB24
+            var frameSize = FfmpegRawVideo.FrameBytes(_targetWidth, _targetHeight);
             var buffer = new byte[frameSize];
             var frameCount = 0;
             
@@ -670,8 +676,14 @@ public class VideoPlayer : IDisposable
                     networkOpts += "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 ";
             }
 
-            // Get audio output (PulseAudio if available, otherwise ALSA)
+            // Get audio output (PulseAudio / ALSA)
             var audioOutput = _audioOutputService.GetFFmpegAudioOutput();
+            if (string.IsNullOrWhiteSpace(audioOutput))
+            {
+                Console.WriteLine("[AUDIO] No audio output device — cannot play audio-only here");
+                OnError?.Invoke("No audio output device (Pulse/ALSA)");
+                break;
+            }
 
             // Pace local files at native duration. Without -re, FFmpeg dumps decoded audio into
             // Pulse as fast as it can, bloating the sink buffer — the visualizer then lags/stutters.
@@ -956,7 +968,7 @@ public class VideoPlayer : IDisposable
     private async Task PlayVideoWithSyncedAudioAsync(string videoPath, Canvas canvas, bool playAudio,
         TimeSpan startPosition, CancellationToken ct)
     {
-        var frameBuffer = new byte[_targetWidth * _targetHeight * 3]; // RGB24
+        var frameBuffer = new byte[FfmpegRawVideo.FrameBytes(_targetWidth, _targetHeight)];
 
         // Detect if this is a network stream
         var isHttpStream = videoPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
@@ -1064,37 +1076,36 @@ public class VideoPlayer : IDisposable
             // Total audio delay = base + user adjustment
             var totalAudioDelayMs = baseAudioDelayMs + _audioSyncOffsetMs;
 
-            // Audio sync filter
-            var audioFilter = "";
+            // Empty when there is no device — do not pass `-f alsa default` or FFmpeg
+            // dies before the first video frame (Docker/NAS has no sound card).
+            var audioOutput = playAudio ? _audioOutputService.GetFFmpegAudioOutput() : "";
+            var emitAudio = playAudio && !string.IsNullOrWhiteSpace(audioOutput);
+            if (playAudio && !emitAudio)
+                Console.WriteLine("[VIDEO] No audio device — decoding video only");
 
-            if (totalAudioDelayMs > 0 && playAudio)
+            var audioFilter = "";
+            if (totalAudioDelayMs > 0 && emitAudio)
             {
-                // Delay audio using adelay filter (works better than itsoffset for large delays)
-                // Use all=1 to apply same delay to ALL channels (works with 5.1, 7.1, etc.)
                 audioFilter = $"-af \"adelay={totalAudioDelayMs}:all=1\" ";
                 Console.WriteLine(
                     $"[VIDEO] Audio sync: delaying audio by {totalAudioDelayMs}ms (base: {baseAudioDelayMs}ms + user: {_audioSyncOffsetMs}ms)");
             }
-            else if (totalAudioDelayMs < 0)
+            else if (totalAudioDelayMs < 0 && emitAudio)
             {
-                // Negative delay = delay video instead (handled in display loop)
                 Console.WriteLine($"[VIDEO] Audio sync: delaying video by {-totalAudioDelayMs}ms (user adjustment)");
             }
 
-            // Get audio output (PulseAudio if available, otherwise ALSA)
-            var audioOutput = _audioOutputService.GetFFmpegAudioOutput();
-
-            if (playAudio)
+            if (emitAudio)
                 // Single FFmpeg process handles both video (to pipe) and audio (to PulseAudio/ALSA)
                 // hwaccel must come BEFORE -i
                 ffmpegArgs = $"{seekArg}{hwAccelArg}{networkOpts}{realtimeFlag}-i \"{videoPath}\" " +
-                             $"-map 0:v:0 -f rawvideo -pix_fmt rgb24 -s {_targetWidth}x{_targetHeight} " +
+                             $"-map 0:v:0 -f rawvideo -pix_fmt {FfmpegRawVideo.PixFmt} -s {_targetWidth}x{_targetHeight} " +
                              $"-vf \"scale={_targetWidth}:{_targetHeight}:flags={scaleFlags}\" pipe:1 " +
                              $"-map 0:a:0? {audioFilter}{audioOutput}";
             else
                 // Video only (no audio) - still use hardware acceleration
                 ffmpegArgs = $"{seekArg}{hwAccelArg}{networkOpts}{realtimeFlag}-i \"{videoPath}\" " +
-                             $"-f rawvideo -pix_fmt rgb24 -s {_targetWidth}x{_targetHeight} " +
+                             $"-f rawvideo -pix_fmt {FfmpegRawVideo.PixFmt} -s {_targetWidth}x{_targetHeight} " +
                              $"-vf \"scale={_targetWidth}:{_targetHeight}:flags={scaleFlags}\" -";
 
             var psi = new ProcessStartInfo("ffmpeg", ffmpegArgs)
@@ -1111,7 +1122,7 @@ public class VideoPlayer : IDisposable
             var seekInfo = startPosition > TimeSpan.Zero ? $" from {startPosition:mm\\:ss}" : "";
             var streamInfo = isNetworkStream ? " (network stream)" : "";
             Console.WriteLine(
-                $"[VIDEO] Starting FFmpeg{seekInfo}{streamInfo}: {(playAudio ? "audio+video" : "video only")}");
+                $"[VIDEO] Starting FFmpeg{seekInfo}{streamInfo}: {(emitAudio ? "audio+video" : "video only")}");
             Console.WriteLine($"[VIDEO] FFmpeg args: {ffmpegArgs}");
 
             _ffmpegProcess = Process.Start(psi);
@@ -1137,8 +1148,13 @@ public class VideoPlayer : IDisposable
                             line.Contains("Invalid") || line.Contains("Unable") ||
                             line.Contains("Connection refused") || line.Contains("pulse"))
                             Console.WriteLine($"[FFMPEG] {line}");
-                        if (line.Contains("403") || line.Contains("429") ||
-                            line.Contains("HTTP error") || line.Contains("Server returned"))
+                        // Do not treat FFmpeg progress (`frame=  668 ... bitrate=...`) as HTTP 403/429.
+                        if (line.Contains("frame=", StringComparison.Ordinal))
+                            continue;
+                        if (line.Contains("HTTP error", StringComparison.OrdinalIgnoreCase) ||
+                            line.Contains("Server returned", StringComparison.OrdinalIgnoreCase) ||
+                            line.Contains("403 Forbidden", StringComparison.OrdinalIgnoreCase) ||
+                            line.Contains("429 Too", StringComparison.OrdinalIgnoreCase))
                             OnError?.Invoke(line.Trim());
                     }
                 }
@@ -1162,7 +1178,7 @@ public class VideoPlayer : IDisposable
 
                 for (var i = 0; i < preBufferCount && !ct.IsCancellationRequested; i++)
                 {
-                    var frame = new byte[_targetWidth * _targetHeight * 3];
+                    var frame = new byte[FfmpegRawVideo.FrameBytes(_targetWidth, _targetHeight)];
                     var bytesRead = 0;
                     while (bytesRead < frame.Length)
                     {
@@ -1252,7 +1268,7 @@ public class VideoPlayer : IDisposable
                     break;
                 }
 
-                // Convert RGB24 to SKBitmap and draw with timing
+                // Convert BGRA to SKBitmap and draw with timing
                 var drawStart = DateTime.UtcNow;
                 DrawFrame(canvas, frameBuffer);
                 NotifyFirstFrame();
@@ -1318,39 +1334,22 @@ public class VideoPlayer : IDisposable
             OnFirstFrame?.Invoke();
     }
 
-    private void DrawFrame(Canvas canvas, byte[] rgb24Data)
+    private void DrawFrame(Canvas canvas, byte[] bgra)
     {
         // Check if canvas is still valid
         if (canvas == null || _canvasDisposed) return;
 
         try
         {
-            // Reuse cached bitmap to avoid memory allocation per frame
             if (_cachedBitmap == null || _cachedBitmapWidth != _targetWidth || _cachedBitmapHeight != _targetHeight)
             {
                 _cachedBitmap?.Dispose();
-                _cachedBitmap = new SKBitmap(_targetWidth, _targetHeight, SKColorType.Rgba8888, SKAlphaType.Opaque);
+                _cachedBitmap = new SKBitmap(_targetWidth, _targetHeight, SKColorType.Bgra8888, SKAlphaType.Opaque);
                 _cachedBitmapWidth = _targetWidth;
                 _cachedBitmapHeight = _targetHeight;
             }
 
-            unsafe
-            {
-                var pixels = (uint*)_cachedBitmap.GetPixels().ToPointer();
-                var pixelCount = _targetWidth * _targetHeight;
-                
-                // Unroll loop for better performance
-                for (var i = 0; i < pixelCount; i++)
-                {
-                    var srcIdx = i * 3;
-                    // RGBA8888 format: 0xAABBGGRR
-                    pixels[i] = 0xFF000000 | 
-                               ((uint)rgb24Data[srcIdx + 2] << 16) | 
-                               ((uint)rgb24Data[srcIdx + 1] << 8) | 
-                               rgb24Data[srcIdx];
-                }
-            }
-
+            FfmpegRawVideo.CopyToBitmap(_cachedBitmap, bgra);
             canvas.DrawBitmap(_cachedBitmap, 0, 0);
         }
         catch (ObjectDisposedException)

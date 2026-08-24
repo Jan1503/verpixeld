@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="/css/features/draw-mode.css?v=20260208a">
     <link rel="stylesheet" href="/css/features/camera-stream.css?v=20260208a">
     <link rel="stylesheet" href="/css/features/media-player.css?v=20260208a">
-    <link rel="stylesheet" href="/css/features/network-shares.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/network-shares.css?v=20260824a">
     <link rel="stylesheet" href="/css/features/audio-output.css?v=20260208a">
     <link rel="stylesheet" href="/css/features/favorites.css?v=20260208a">
     <link rel="stylesheet" href="/css/features/console-log.css?v=20260208a">
@@ -1448,49 +1448,31 @@
         <div class="media-page" id="media-page-local">
           <div class="tab-section">
             <div class="tab-section-body">
-              <!-- Mini tab navigation for Videos/Audio -->
-              <div class="media-sub-tabs">
-                <button class="media-sub-tab active" data-media-tab="videos" onclick="switchMediaSubTab('videos')">
-                  🎬 Videos
-                </button>
-                <button class="media-sub-tab" data-media-tab="audio" onclick="switchMediaSubTab('audio')">
-                  🎵 Audio
-                </button>
+              <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
+                <label class="btn btn-small btn-primary" style="margin: 0;">
+                  📤 Upload Video
+                  <input type="file" accept=".mp4,.webm,.mkv,.avi,.mov,.flv" onchange="uploadMediaVideo(this)" style="display: none;">
+                </label>
+                <label class="btn btn-small btn-primary" style="margin: 0;">
+                  📤 Upload Audio
+                  <input type="file" accept=".mp3,.wav,.flac,.ogg,.aac,.m4a" onchange="uploadAudioFile(this)" style="display: none;">
+                </label>
+                <span class="text-muted" style="font-size: 0.85rem;">Browse folders like Network Shares. Uploads need a writable Media/Videos or Media/Audio folder.</span>
               </div>
-              
-              <!-- Videos sub-panel -->
-              <div class="media-sub-panel active" id="media-sub-videos">
-                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                  <label class="btn btn-small btn-primary" style="margin: 0;">
-                    📤 Upload Video
-                    <input type="file" accept=".mp4,.webm,.mkv,.avi,.mov,.flv" onchange="uploadMediaVideo(this)" style="display: none;">
-                  </label>
-                  <span class="text-muted" style="font-size: 0.85rem;">MP4, WebM, MKV, AVI, MOV, FLV</span>
-                </div>
-                <div class="media-video-list" id="media-video-list">
-                  <div class="media-empty-state">
-                    <div class="media-empty-icon">🎬</div>
-                    <p>No videos yet</p>
-                    <p class="text-muted">Upload media files to get started</p>
+              <div class="network-video-browser" id="local-media-browser">
+                <div class="network-browser-header">
+                  <h4 id="local-media-browser-title">📂 Media</h4>
+                  <div class="network-browser-actions">
+                    <span id="local-media-status" class="cache-status"></span>
+                    <button class="btn btn-small" onclick="browseLocalMedia(document.getElementById('local-media-browser').dataset.currentPath || '', true)" title="Refresh">🔄</button>
                   </div>
                 </div>
-              </div>
-              
-              <!-- Audio sub-panel -->
-              <div class="media-sub-panel" id="media-sub-audio" style="display: none;">
-                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                  <label class="btn btn-small btn-primary" style="margin: 0;">
-                    📤 Upload Audio
-                    <input type="file" accept=".mp3,.wav,.flac,.ogg,.aac,.m4a" onchange="uploadAudioFile(this)" style="display: none;">
-                  </label>
-                  <span class="text-muted" style="font-size: 0.85rem;">MP3, WAV, FLAC, OGG, AAC, M4A</span>
+                <div class="network-search-box" id="local-media-search-box">
+                  <input type="text" id="local-media-search-input" placeholder="🔍 Filter current folder..."
+                         oninput="filterLocalMediaBrowser(this.value)" autocomplete="off">
                 </div>
-                <div class="media-audio-list" id="media-audio-list">
-                  <div class="media-empty-state">
-                    <div class="media-empty-icon">🎵</div>
-                    <p>No audio files yet</p>
-                    <p class="text-muted">Upload audio files to play with visualizations</p>
-                  </div>
+                <div class="network-video-list local-media-list" id="local-media-list">
+                  <div class="network-empty-state"><span class="loading">⏳ Loading...</span></div>
                 </div>
               </div>
             </div>
@@ -1608,7 +1590,7 @@
                 <span class="media-warning-icon">⚠️</span>
                 <div>
                   <strong>yt-dlp not available</strong><br>
-                  <span class="text-muted">Install with: <code>pip install yt-dlp</code> (required for YouTube only)</span>
+                  <span class="text-muted">yt-dlp is included in the Docker image. On the Pi: <code>pip install yt-dlp</code></span>
                 </div>
               </div>
               <div id="youtube-controls">
@@ -2938,7 +2920,7 @@
   <script src="/js/features/extension-management.js?v=20260822a"></script>
   <script src="/js/features/layout-management.js?v=20260823a"></script>
   <script src="/js/features/camera-stream.js?v=20260624a"></script>
-  <script src="/js/features/media-player.js?v=20260822g"></script>
+  <script src="/js/features/media-player.js?v=20260824b"></script>
   <script src="/js/features/network-shares.js?v=20260208a"></script>
   <script src="/js/features/audio-output.js?v=20260208a"></script>
   <script src="/js/features/favorites.js?v=20260208a"></script>
