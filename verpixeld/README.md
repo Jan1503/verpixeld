@@ -28,7 +28,7 @@
 *Transform your RGB LED matrix into a dynamic, controllable display*
 
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple?style=for-the-badge)](https://dotnet.microsoft.com/)
-[![Platform](https://img.shields.io/badge/Platform-Raspberry%20Pi%20%2B%20network%20panel-red?style=for-the-badge)](https://www.raspberrypi.org/)
+[![Platform](https://img.shields.io/badge/Platform-Raspberry%20Pi%20%2B%20NAS%20Docker%20%2B%20network%20panel-red?style=for-the-badge)](https://www.raspberrypi.org/)
 [![License](https://img.shields.io/badge/License-GPL--3.0--or--later-blue?style=for-the-badge)](#-license)
 
 </div>
@@ -37,7 +37,7 @@
 
 ## 🌟 What is verpixeld?
 
-**verpixeld** is a .NET 10 LED display host: it composes multi-layer canvas content and drives it from one web UI. It started on a Raspberry Pi with HUB75 panels and now talks to several output backends.
+**verpixeld** is a .NET 10 LED display host: it composes multi-layer canvas content and drives it from one web UI. It started on a Raspberry Pi with HUB75 panels and now talks to several output backends. **Network output** can run on the Pi or in **Docker on a NAS** (linux-x64); GPIO still needs the Pi.
 
 | `App.OutputMode` | Backend | Typical hardware |
 |------------------|---------|------------------|
@@ -88,6 +88,7 @@ Local layout (siblings under `RGB-Display/`):
 
 ```
 verpixeld/           this host (web UI, media, outputs)
+  docker/            NAS image (Dockerfile, compose, build.ps1)
 CanvasManagement/    canvas engine, extensions, filters, deploy.ps1
 pixplane/            BGRA → bit-plane UDP library
 DesktopStreamer/     DeskCast (Windows capture)
@@ -110,6 +111,20 @@ CanvasManagement is the shared framework ([Jan1503/canvasmanagement](https://git
 ## What's new
 
 Dated from the public GitHub history so you can follow what landed when. Newest first.
+
+### 2026-08-24 — Docker on a NAS, local media browser
+
+The host can run as a **linux-x64 Docker image** (`verpixeld:nas`) on TrueNAS / Portainer and send PixPlane UDP to the wall. GPIO, HDMI, SPI and Pulse/ALSA stay on the Pi — the container is **network output only**. Do not run the Pi host and the container at the same time (both would send to UDP 7777).
+
+Build on a machine with Docker: `docker/build.ps1 -Tar`, then Portainer **Images → Import**. Compose example: `docker/docker-compose.yml` (set `Network__Host` to the panel IP). Volumes: **Data** (layouts, plugins, fonts), **Config** (settings overlay, certs, seam JSON), **Media** (NAS library, typically read-only). The image bakes Fonts / Extensions / Filters and seeds them into Data. Config saves go to `/app/Config` so a recreate does not keep GPIO or a Pi resolution from the bundled JSON.
+
+The image compiles **FFmpeg 7.1 with libsmbclient** (Ubuntu’s ffmpeg has no `smb` protocol), plus **smbclient** and **yt-dlp**. YouTube and Network Shares work without compiling FFmpeg on the NAS. There is no sound card in the container: video still plays; ALSA is skipped so FFmpeg does not die before the first frame. `homeassistant.local` is mDNS — Docker bridge DNS will not resolve it; use the LAN IP or `extra_hosts`.
+
+**Local Media** is the same folder browser as Network Shares (`GET /api/media/browse`). Docker lists `/app/Media`; the Pi still uses `Media/Videos` and `Media/Audio` next to the DLL. MKV/HEVC duration comes from `format.duration` (stream duration is often `N/A`), so the seek bar works. Nested paths play without `%2F` 404s.
+
+Packed UDP send stays on a latest-wins thread. High-motion video stays dirty-deltas in [PixPlane](https://github.com/Jan1503/pixplane) (keys = first frame + 1s recovery).
+
+The Pi install path is unchanged: persist next to `verpixeld.dll`, Pulse/ALSA audio, `~/verpixeld/Media/Videos`.
 
 ### 2026-08-23 — Composition root, scheduler, tests
 
@@ -299,8 +314,8 @@ Interactive drawing with freehand tools, shapes, color picker, and the ability t
 Full video and audio playback system powered by FFmpeg:
 
 - **Playback canvas** — Target empty/`Main` plays on overlay canvas `MediaPlayer`; pick another canvas to play there. Main can still run an extension beside video.
-- **Local Files** — Play videos and audio from the device filesystem
-- **Network Streaming** — Native SMB/CIFS support via FFmpeg libsmbclient (no mount required)
+- **Local files** — Folder browser (same UX as Network Shares). Docker: the `/app/Media` mount. Pi: `Media/Videos` and `Media/Audio` next to the DLL
+- **Network Streaming** — Native SMB/CIFS via FFmpeg libsmbclient (image includes it; on the Pi compile with `--enable-libsmbclient`)
 - **YouTube** — Stream YouTube videos via `yt-dlp` with automatic format selection
 - **Generic Streams** — Play any HTTP/HTTPS/RTSP/RTMP stream URL directly (e.g. IP cameras)
 - **Audio-Only Mode** — Efficient playback for MP3/FLAC/etc without video decoding overhead
@@ -592,7 +607,8 @@ Depends on the output you use:
 
 | Path | You need |
 |------|----------|
-| **Network panel** | Panel flashed with [verpixeld-panel](https://github.com/Jan1503/verpixeld-panel), LAN, `OutputMode: "network"` |
+| **Network panel** | Panel flashed with [verpixeld-panel](https://github.com/Jan1503/verpixeld-panel), LAN, `OutputMode: "network"` (Pi **or** Docker on a NAS) |
+| **Docker on a NAS** | linux-x64, Portainer/TrueNAS, `docker/build.ps1 -Tar` — network output only; see [Docker on a NAS](#docker-on-a-nas) |
 | **Pi GPIO HUB75** | Raspberry Pi 4 (or 3), HUB75 wall, [rpi-rgb-led-matrix](https://github.com/hzeller/rpi-rgb-led-matrix) built as a sibling |
 | **HDMI wall** | Pi with `/dev/fb0` + sender card, `OutputMode: "hdmi"` |
 | **SPI bridge** | Pi SPI enabled + RP2040 firmware, `OutputMode: "spi"` |
@@ -602,7 +618,7 @@ Depends on the output you use:
 Common stack:
 
 - .NET 10.0 ASP.NET Core Runtime (framework-dependent publish)
-- FFmpeg (PulseAudio + libsmbclient — see [compilation guide](docs/FFMPEG_SMB.md))
+- FFmpeg (PulseAudio + libsmbclient on the Pi — see [compilation guide](docs/FFMPEG_SMB.md); the Docker image already includes both plus yt-dlp)
 - `yt-dlp` (optional, YouTube — install a current binary, not the apt package)
 - Sibling checkouts: `CanvasManagement`, `pixplane` (and rpi-rgb-led-matrix for GPIO)
 
@@ -659,6 +675,31 @@ Common stack:
    - HTTP: `http://<pi-ip>:5000`
    - HTTPS: `https://<pi-ip>:5001`
 
+### Docker on a NAS
+
+Network output only. The Pi host must be **stopped** while the container sends to UDP 7777.
+
+1. On a machine with Docker Desktop (linux-x64):
+   ```powershell
+   powershell -NoProfile -File docker/build.ps1 -Tar
+   ```
+   Produces `docker/verpixeld-nas.tar` (`verpixeld:nas`). Fonts, extensions and filters are baked in.
+
+2. Portainer: **Images → Import** that tar (not “Build from upload”). Tag `verpixeld:nas`. `pull_policy: never`.
+
+3. Stack from `docker/docker-compose.yml`. Set `Network__Host` to the **panel** IP. Example volume layout:
+   - host data → `/app/Data` (layouts, plugins, fonts)
+   - host config → `/app/Config` (settings overlay, `server.pfx`, seam JSON)
+   - NAS media library → `/app/Media` (read-only is fine)
+
+   Do not bind the same host path to Data and Config. Do not create `Videos/` / `Audio/` folders inside a NAS library from the container.
+
+4. Web UI: `http://<nas-ip>:5000` (HTTPS off in the image). Local Media browses `/app/Media` folder by folder.
+
+`DOTNET_RUNNING_IN_CONTAINER` (or `/.dockerenv`) switches persist paths: Pi keeps files next to the DLL; Docker writes the overlay to `/app/Config` and plugins/fonts on the Data volume. File watchers on `/app` are disabled so Kestrel starts when Data/Config/Media are mounts.
+
+Bridge DNS has no mDNS: use a LAN IP for Home Assistant, or `extra_hosts`.
+
 ---
 
 ## 🔌 API Reference
@@ -670,6 +711,7 @@ verpixeld exposes a comprehensive REST API for integration with external systems
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/media/status` | Full media player status (playback, position, metadata, alert state) |
+| `GET` | `/api/media/browse` | Folder listing for Local Media (`path=` relative to the Media root) |
 | `POST` | `/api/media/play/{filename}` | Play a local video file |
 | `POST` | `/api/media/pause` | Toggle pause/resume |
 | `POST` | `/api/media/stop` | Stop playback |
@@ -896,9 +938,9 @@ The microphone source name (e.g. `alsa_input.usb-Lenovo_Lenovo_510_Camera-...`) 
 
 ## 🔊 Audio & Bluetooth Setup (Raspberry Pi)
 
-verpixeld supports audio playback via ALSA or PulseAudio, with optional Bluetooth speaker support.
+verpixeld supports audio playback via ALSA or PulseAudio, with optional Bluetooth speaker support. **Docker on a NAS has no sound card** — video still plays; FFmpeg does not open ALSA.
 
-> **Quick Start**: If you just want basic ALSA audio (no Bluetooth), verpixeld works out of the box — no extra setup needed.
+> **Quick Start (Pi)**: If you just want basic ALSA audio (no Bluetooth), verpixeld works out of the box — no extra setup needed.
 
 For Bluetooth speaker support, you need to:
 
