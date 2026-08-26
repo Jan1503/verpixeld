@@ -518,8 +518,6 @@ public class CanvasContentManager(IDisplayLayoutManager layoutManager, IExtensio
         if (content.ContentType != ContentType.DynamicExtension || content.ExtensionInstance == null)
             throw new InvalidOperationException($"Canvas '{canvasName}' does not have a dynamic extension");
 
-        Console.WriteLine($"[CONTENT] Invoking method '{methodName}' on canvas '{canvasName}'");
-
         try
         {
             // The ExtensionInstance is a DynamicExtension which has InvokeMethod
@@ -530,10 +528,7 @@ public class CanvasContentManager(IDisplayLayoutManager layoutManager, IExtensio
             {
                 // No arguments
                 if (dynamicExt.TryInvokeMethod(methodName, out object? result, out string? error))
-                {
-                    Console.WriteLine($"[CONTENT] Method '{methodName}' invoked successfully, result: {result}");
                     return result;
-                }
 
                 throw new InvalidOperationException($"Method invocation failed: {error}");
             }
@@ -544,9 +539,7 @@ public class CanvasContentManager(IDisplayLayoutManager layoutManager, IExtensio
                 var invokeArgs = new object?[] { methodName, null, null }.Concat(args).ToArray();
 
                 // Use InvokeMethod directly with args
-                var result = dynamicExt.InvokeMethod(methodName, args);
-                Console.WriteLine($"[CONTENT] Method '{methodName}' invoked with {args.Length} args, result: {result}");
-                return result;
+                return dynamicExt.InvokeMethod(methodName, args);
             }
         }
         catch (Exception ex)
@@ -583,6 +576,7 @@ public class CanvasContentManager(IDisplayLayoutManager layoutManager, IExtensio
                     DisplayName = m.DisplayName ?? m.Name,
                     Category = m.Category ?? "General",
                     Description = m.Description ?? "",
+                    KeyboardShortcut = m.KeyboardShortcut,
                     Parameters = m.Parameters?.Select(p => new ExtensionMethodParameterInfo
                     {
                         Name = p.Name,
@@ -640,6 +634,7 @@ public class ExtensionMethodInfo
     public string DisplayName { get; init; } = string.Empty;
     public string Category { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
+    public string? KeyboardShortcut { get; init; }
     public List<ExtensionMethodParameterInfo> Parameters { get; init; } = new();
 }
 

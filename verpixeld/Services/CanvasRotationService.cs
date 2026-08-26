@@ -632,7 +632,14 @@ public class CanvasRotationService
             _content.StopContent(canvas); // clear any extension occupying the canvas
             var surface = _cm.GetCanvasByName(canvas);
             if (surface == null) return;
-            _video.Play(surface, Path.Combine(AppPaths.VideosDir, file), loop);
+            var path = MediaLibrary.ResolveVideo(file);
+            if (path == null)
+            {
+                Console.WriteLine($"[CVID] File not found: '{file}' (looked under {MediaLibrary.VideoRoot} and {AppPaths.VideosDir})");
+                return;
+            }
+
+            _video.Play(surface, path, loop);
             return;
         }
 

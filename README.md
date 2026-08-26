@@ -68,7 +68,8 @@ Whether you want to show the time, display weather information, run animations, 
 - 🖼️ **Image & Video Upload** — Upload photos or stream video clips from any device to the display
 - 🏠 **Home Assistant Integration** — Live tiles (sensor, grid, graph, energy, weather, now-playing, climate, waste, **departures**), configurable wall toasts, and the wall itself as an MQTT device (notify, layout, brightness, night mode)
 - 🧲 **Live Layer Editor** — Drag, resize, reorder and configure canvases directly over the live display preview, with per-canvas transparent backgrounds
-- 🕒 **Rich Clocks & Extensions** — Flexible Digital Clock (12/24h, BDF/seven-segment, glow, colour cycle) plus many extensions: games (Pac-Man, Snake, Pong, Tetris, Space Invaders, Dino, Flappy Bird), Weather, News Ticker, Now Playing, Falling Sand, and more
+- 🕒 **Rich Clocks & Extensions** — Flexible Digital Clock (12/24h, BDF/seven-segment, glow, colour cycle) plus many extensions: games (Pac-Man, Snake, Pong, Tetris, Pixel Plumber, Street Crosser, Rainbow Breakout, Bubble Pop, Bomber Maze, Fruit Fall, Space Invaders, Dino, Flappy Bird), Weather, News Ticker, Now Playing, Falling Sand, and more
+- 🎮 **Play games from Studio** — The wall has no keyboard. Keys in the browser invoke **Controls** methods (`KeyboardShortcut`) on the selected game canvas; AutoPilot stops on the first key
 - 🤖 **AI Art Generation** — Generate images with Azure OpenAI or OpenAI, with image-to-image stylization, gallery storage, and scheduled auto-generation
 - 🎙️ **Voice Assistant** — Hands-free voice commands with wake word detection, fast-path instant execution, intent classification, spoken responses with audio ducking, via Azure Speech + OpenAI
 - 🎵 **Music Search & Radio** — Search and play YouTube Music songs, start endless genre radio, or tune into internet radio stations (Radio Browser) by voice or through the web UI
@@ -111,6 +112,12 @@ CanvasManagement is the shared framework ([Jan1503/canvasmanagement](https://git
 ## What's new
 
 Dated from the public GitHub history so you can follow what landed when. Newest first.
+
+### 2026-08-26 — Studio keyboard for games, Docker media paths
+
+The LED wall has no keyboard. Studio now binds keys to extension methods whose `Category` is **Controls** (`wwwroot/js/features/game-input.js`). Shortcuts show as `<kbd>` on the method buttons. Typing in inputs is ignored; key-repeat is ignored. `POST /api/layout/invoke/{canvas}` accepts `args` **or** `parameters`. The first key takes over from AutoPilot — see the game list in [CanvasManagement](https://github.com/Jan1503/canvasmanagement).
+
+Layer editor **Add Media** lists the recursive NAS library (`GET /api/media/videos`) with a wait state so a large share does not look frozen. Video rotation resolves files against `Media/` as well as `Media/Videos/`, so a Docker mount with movies at `Media/Movies/…` actually plays.
 
 ### 2026-08-24 — Docker on a NAS, local media browser
 

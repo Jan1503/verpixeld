@@ -284,6 +284,21 @@
   color: var(--color-text-primary);
 }
 
+kbd.method-key {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+  color: var(--color-accent, #7ec8ff);
+  background: rgba(126, 200, 255, 0.12);
+  border: 1px solid rgba(126, 200, 255, 0.35);
+  border-radius: 4px;
+  vertical-align: 1px;
+}
+
 .method-description {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);

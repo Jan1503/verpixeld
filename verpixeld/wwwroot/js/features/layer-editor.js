@@ -1072,7 +1072,7 @@ function renderContentSection() {
          <div id="le-params-0" class="le-params"></div>
          <div class="le-add-row">
            <button class="btn btn-small btn-secondary" onclick="contentAdd()">+ Add</button>
-           <button class="btn btn-small btn-secondary" onclick="contentAddMedia()">🎬 Media</button>
+           <button class="btn btn-small btn-secondary le-add-media" onclick="contentAddMedia()">🎬 Media</button>
            <button class="btn btn-small btn-secondary" onclick="contentAddCamera()">📷 Camera</button>
          </div>`;
     } else {
@@ -1080,7 +1080,7 @@ function renderContentSection() {
         `<p class="le-hint">No content yet.</p>
          <div class="le-add-row">
            <button class="btn btn-small btn-primary" onclick="contentAdd()">+ Add</button>
-           <button class="btn btn-small btn-secondary" onclick="contentAddMedia()">🎬 Media</button>
+           <button class="btn btn-small btn-secondary le-add-media" onclick="contentAddMedia()">🎬 Media</button>
            <button class="btn btn-small btn-secondary" onclick="contentAddCamera()">📷 Camera</button>
          </div>`;
     }
@@ -1122,11 +1122,12 @@ function renderContentSection() {
     `<div class="playlist-list">${rows}</div>
      <div class="le-add-row">
        <button class="btn btn-small btn-secondary" onclick="contentAdd()">+ Add</button>
-       <button class="btn btn-small btn-secondary" onclick="contentAddMedia()">🎬 Media</button>
+       <button class="btn btn-small btn-secondary le-add-media" onclick="contentAddMedia()">🎬 Media</button>
        <button class="btn btn-small btn-secondary" onclick="contentAddCamera()">📷 Camera</button>
      </div>`;
   const tsel = document.getElementById('le-rot-transition');
   if (tsel) tsel.value = s.transition;
+  if (leMediaBusy) setAddMediaBusy(true);
 }
 
 function contentAdd() {
@@ -1166,34 +1167,65 @@ function contentChangeSingle() {
   });
 }
 
-// Add a Media (video) content item — opens a small picker of available videos.
+// Add a Media (video) content item — opens a picker. The library walk can take a while on a NAS.
+let leMediaScanId = 0;
+let leMediaBusy = false;
+
+function setAddMediaBusy(busy) {
+  leMediaBusy = !!busy;
+  document.querySelectorAll('.le-add-media').forEach(b => { b.disabled = leMediaBusy; });
+}
+
 async function contentAddMedia() {
   const name = window.leContent?.name || layerEditor.selected;
   if (!name || LE_SYS.includes(name)) return;
-  let videos = [];
-  try { const r = await window.api.get('/api/media/status'); videos = (r.data && r.data.availableVideos) || []; } catch (e) { /* ignore */ }
+  if (document.getElementById('le-media-modal')) return;
+
+  setAddMediaBusy(true);
+  const scanId = ++leMediaScanId;
   document.getElementById('le-media-modal')?.remove();
-  const opts = videos.map(v => `<option value="${String(v).replace(/"/g, '&quot;')}">${v}</option>`).join('');
-  const body = videos.length
-    ? `<label class="le-sel-lbl">Video file</label>
-       <select id="le-media-file" style="width:100%;margin:4px 0 10px;">${opts}</select>
-       <label class="checkbox-label"><input type="checkbox" id="le-media-loop" checked> <span>Loop while shown</span></label>`
-    : `<p class="le-hint">No videos found. Upload videos in the Media tab first.</p>`;
   const html = `
   <div class="modal-overlay" id="le-media-modal" style="z-index:10010;">
     <div class="modal-content" style="max-width:460px;">
       <div class="modal-header"><h2>🎬 Add Media</h2><button class="modal-close" onclick="leMediaClose()">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button></div>
-      <div class="modal-body">${body}<p class="le-hint" style="margin-top:10px;">Note: one media stream plays at a time across the display.</p></div>
+      <div class="modal-body" id="le-media-body">
+        <p class="le-hint">Scanning the media folder recursively. On a large NAS library this can take a while — please wait.</p>
+      </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="leMediaClose()">Cancel</button>
-        ${videos.length ? '<button class="btn btn-primary" onclick="leMediaAdd()">Add</button>' : ''}
+        <span id="le-media-add-slot"></span>
       </div>
     </div>
   </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
+
+  let videos = [];
+  try {
+    const r = await window.api.get('/api/media/videos');
+    videos = r.videos || [];
+  } catch (e) { /* ignore */ }
+  if (scanId !== leMediaScanId) return;
+  const body = document.getElementById('le-media-body');
+  const addSlot = document.getElementById('le-media-add-slot');
+  if (!body) { setAddMediaBusy(false); return; }
+
+  if (videos.length) {
+    const opts = videos.map(v => `<option value="${String(v).replace(/"/g, '&quot;')}">${v}</option>`).join('');
+    body.innerHTML = `<label class="le-sel-lbl">Video file</label>
+       <select id="le-media-file" style="width:100%;margin:4px 0 10px;">${opts}</select>
+       <label class="checkbox-label"><input type="checkbox" id="le-media-loop" checked> <span>Loop while shown</span></label>
+       <p class="le-hint" style="margin-top:10px;">Note: one media stream plays at a time across the display.</p>`;
+    if (addSlot) addSlot.innerHTML = '<button class="btn btn-primary" onclick="leMediaAdd()">Add</button>';
+  } else {
+    body.innerHTML = `<p class="le-hint">No videos found. Bind the library at /app/Media or upload files in the Media tab.</p>`;
+  }
 }
 
-function leMediaClose() { document.getElementById('le-media-modal')?.remove(); }
+function leMediaClose() {
+  leMediaScanId++;
+  document.getElementById('le-media-modal')?.remove();
+  setAddMediaBusy(false);
+}
 
 async function leMediaAdd() {
   const name = window.leContent?.name || layerEditor.selected;

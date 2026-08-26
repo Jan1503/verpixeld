@@ -525,7 +525,7 @@ function showExtensionEditForm(canvasName, extension, currentConfig) {
         
         methodsHtml += `<div class="method-item" data-method="${method.name}">
           <div class="method-header">
-            <span class="method-name">${method.displayName || method.name}</span>
+            <span class="method-name">${method.displayName || method.name}${method.keyboardShortcut ? ` <kbd class="method-key">${method.keyboardShortcut}</kbd>` : ''}</span>
             ${method.description ? `<span class="method-description">${method.description}</span>` : ''}
           </div>`;
         

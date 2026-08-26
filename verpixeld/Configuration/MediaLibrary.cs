@@ -27,10 +27,30 @@ public static class MediaLibrary
     public const int MaxBrowseEntries = 2000;
 
     public static string? ResolveVideo(string? relative) =>
-        Resolve(VideoRoot, relative) ?? Resolve(AppPaths.MediaDir, relative);
+        ResolveMediaFile(relative, VideoRoot, AppPaths.VideosDir, AppPaths.MediaDir);
 
     public static string? ResolveAudio(string? relative) =>
-        Resolve(AudioRoot, relative) ?? Resolve(AppPaths.MediaDir, relative);
+        ResolveMediaFile(relative, AudioRoot, AppPaths.AudioDir, AppPaths.MediaDir);
+
+    /// <summary>
+    ///     Resolves a picker-relative path against the library roots. In Docker the NAS is mounted
+    ///     at Media/ (movies live in Media/Movies/…, not Media/Videos/Movies/…).
+    /// </summary>
+    public static string? ResolveMediaFile(string? relative, params string[] roots)
+    {
+        if (string.IsNullOrWhiteSpace(relative)) return null;
+        var rel = Uri.UnescapeDataString(relative).Replace('\\', '/').Trim();
+        if (Path.IsPathRooted(relative) && File.Exists(relative))
+            return Path.GetFullPath(relative);
+
+        foreach (var root in roots)
+        {
+            var hit = Resolve(root, rel);
+            if (hit != null) return hit;
+        }
+
+        return null;
+    }
 
     public static string? ParentPath(string? current)
     {

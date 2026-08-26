@@ -407,8 +407,10 @@ public static class LayoutEndpoints
 
                 // Extract parameters if present
                 object[]? parameters = null;
-                if (jsonDoc.RootElement.TryGetProperty("parameters", out var paramsElement) &&
-                    paramsElement.ValueKind == JsonValueKind.Array)
+                JsonElement paramsElement = default;
+                var hasParams = jsonDoc.RootElement.TryGetProperty("parameters", out paramsElement)
+                                || jsonDoc.RootElement.TryGetProperty("args", out paramsElement);
+                if (hasParams && paramsElement.ValueKind == JsonValueKind.Array)
                     parameters = paramsElement.EnumerateArray()
                         .Select(p => p.ValueKind switch
                         {
@@ -424,7 +426,6 @@ public static class LayoutEndpoints
                         })
                         .ToArray();
 
-                Console.WriteLine($"[API] Invoking method '{methodName}' on canvas '{canvasName}'");
                 var result = ctx.ContentManager!.InvokeMethod(canvasName, methodName, parameters);
 
                 return Results.Json(new
