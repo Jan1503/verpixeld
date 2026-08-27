@@ -55,11 +55,31 @@ async function confirmRestartRender() {
   }
 }
 
+function applyHostRestartButton() {
+  const btn = document.getElementById('reboot-btn');
+  if (!btn) return;
+  if (window.__inContainer) {
+    btn.title = 'Restart container';
+    btn.setAttribute('aria-label', 'Restart container');
+  } else {
+    btn.title = 'Reboot System';
+    btn.setAttribute('aria-label', 'Reboot System');
+  }
+}
+
 /**
- * System reboot with confirmation
+ * System reboot (Pi) or container process restart (Docker).
  */
 async function confirmSystemReboot() {
-  const confirmed = await showConfirm({
+  const inContainer = !!window.__inContainer;
+  const confirmed = await showConfirm(inContainer ? {
+    title: '↻ Restart container',
+    message: 'This stops the verpixeld process. Docker will start it again if the compose restart policy is unless-stopped (the NAS stack already uses that). The NAS itself is not rebooted.',
+    confirmText: 'Restart container',
+    cancelText: 'Cancel',
+    type: 'warning',
+    icon: '↻'
+  } : {
     title: '⏻ Reboot System',
     message: 'Are you sure you want to reboot the system? All active displays will be interrupted and the device will restart.',
     confirmText: 'Reboot Now',
@@ -76,8 +96,10 @@ async function confirmSystemReboot() {
       await window.api.post('/api/system/reboot');
       toast.show({
         type: 'warning',
-        title: 'Rebooting...',
-        message: 'System is restarting. Please wait...',
+        title: inContainer ? 'Restarting container…' : 'Rebooting...',
+        message: inContainer
+          ? 'The process is stopping. Studio will reconnect when Docker brings it back.'
+          : 'System is restarting. Please wait...',
         duration: 30000
       });
       
@@ -130,4 +152,5 @@ function startReconnectionCheck() {
 window.updateConnectionStatus = updateConnectionStatus;
 window.confirmRestartRender = confirmRestartRender;
 window.confirmSystemReboot = confirmSystemReboot;
+window.applyHostRestartButton = applyHostRestartButton;
 window.startReconnectionCheck = startReconnectionCheck;

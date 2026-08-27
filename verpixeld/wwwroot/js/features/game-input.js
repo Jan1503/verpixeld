@@ -165,4 +165,8 @@
   document.addEventListener('keyup', e => onKey(e, 'up'), true);
   setInterval(refresh, 4000);
   setTimeout(refresh, 800);
+
+  window.studioGameKeys = function (canvasName) {
+    return !!(canvasName && (maps[canvasName] || []).length);
+  };
 })();

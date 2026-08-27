@@ -36,6 +36,8 @@ public static class OutputSettingsEndpoints
             {
                 var body = await ReadObject(ctx);
                 var mode = GetString(body, "mode", output.Mode);
+                if (!OutputAvailability.Allows(mode, AppPaths.RunningInContainer()))
+                    return ApiResponse.Fail(OutputAvailability.ContainerBlockMessage);
                 var result = output.SetMode(mode);
                 return ApiResponse.Ok(new
                 {
@@ -57,6 +59,8 @@ public static class OutputSettingsEndpoints
         {
             try
             {
+                if (AppPaths.RunningInContainer())
+                    return ApiResponse.Fail(OutputAvailability.ContainerBlockMessage);
                 var body = await ReadObject(ctx);
                 var h = output.Hdmi;
                 h.FramebufferDevice = GetString(body, "framebufferDevice", h.FramebufferDevice);
@@ -92,6 +96,8 @@ public static class OutputSettingsEndpoints
         {
             try
             {
+                if (AppPaths.RunningInContainer())
+                    return ApiResponse.Fail(OutputAvailability.ContainerBlockMessage);
                 var body = await ReadObject(ctx);
                 var s = output.Spi;
                 s.Device = GetString(body, "device", s.Device);
@@ -121,6 +127,8 @@ public static class OutputSettingsEndpoints
         {
             try
             {
+                if (AppPaths.RunningInContainer())
+                    return ApiResponse.Fail(OutputAvailability.ContainerBlockMessage);
                 var body = await ReadObject(ctx);
                 var m = output.Matrix;
                 var oldW = m.Cols * m.ChainLength;
@@ -289,6 +297,10 @@ public static class OutputSettingsEndpoints
             activeMode = output.Mode,
             savedMode = string.IsNullOrWhiteSpace(output.App.OutputMode) ? output.Mode : output.App.OutputMode,
             canvas = new { width = output.Width, height = output.Height },
+            inContainer = AppPaths.RunningInContainer(),
+            unavailableModes = AppPaths.RunningInContainer()
+                ? OutputAvailability.HostOnlyModes
+                : Array.Empty<string>(),
             app = new
             {
                 displayWidth = output.App.DisplayWidth,

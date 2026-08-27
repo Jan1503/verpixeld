@@ -67,7 +67,7 @@ Whether you want to show the time, display weather information, run animations, 
 - 📹 **Camera Motion Alerts** — Auto-switch to a camera feed when motion is detected
 - 🖼️ **Image & Video Upload** — Upload photos or stream video clips from any device to the display
 - 🏠 **Home Assistant Integration** — Live tiles (sensor, grid, graph, energy, weather, now-playing, climate, waste, **departures**), configurable wall toasts, and the wall itself as an MQTT device (notify, layout, brightness, night mode)
-- 🧲 **Live Layer Editor** — Drag, resize, reorder and configure canvases directly over the live display preview, with per-canvas transparent backgrounds
+- 🧲 **Live Layer Editor** — Drag, resize, duplicate, lock, nudge and undo canvases over the live preview; per-canvas brightness, opacity, and overlap hatching
 - 🕒 **Rich Clocks & Extensions** — Flexible Digital Clock (12/24h, BDF/seven-segment, glow, colour cycle) plus many extensions: games (Pac-Man, Snake, Pong, Tetris, Pixel Plumber, Street Crosser, Rainbow Breakout, Bubble Pop, Bomber Maze, Fruit Fall, Space Invaders, Dino, Flappy Bird), Weather, News Ticker, Now Playing, Falling Sand, and more
 - 🎮 **Play games from Studio** — The wall has no keyboard. Keys in the browser invoke **Controls** methods (`KeyboardShortcut`) on the selected game canvas; AutoPilot stops on the first key
 - 🤖 **AI Art Generation** — Generate images with Azure OpenAI or OpenAI, with image-to-image stylization, gallery storage, and scheduled auto-generation
@@ -112,6 +112,14 @@ CanvasManagement is the shared framework ([Jan1503/canvasmanagement](https://git
 ## What's new
 
 Dated from the public GitHub history so you can follow what landed when. Newest first.
+
+### 2026-08-27 — Studio layout tools, container restart
+
+Studio can **duplicate** a canvas (geometry, brightness, opacity, extension + params, rotation playlist). Inspector has **per-canvas brightness**, **lock position & size**, and **lock aspect**. Arrow keys nudge 1 px (Shift = snap grid); Alt+Arrow always nudges so games keep their own arrows. Ctrl+Z / Ctrl+Y undo move, resize, z-order, opacity and brightness. The selected box hatches pixels covered by a higher z-order layer.
+
+The header **reboot** button detects Docker (`DOTNET_RUNNING_IN_CONTAINER` / `/.dockerenv`) and **stops the process** instead of `systemctl reboot`. Compose `restart: unless-stopped` brings the container back; the NAS is not rebooted. On a Pi it still reboots the host.
+
+Settings → Output greys out **HDMI**, **SPI** and **Hardware (GPIO)** in Docker — those need Pi devices. Network and Simulation stay. The API rejects a switch to the blocked modes so a stale config cannot enable them.
 
 ### 2026-08-26 — Studio keyboard for games, Docker media paths
 
@@ -287,7 +295,10 @@ Pull live state from Home Assistant over its WebSocket API (long-lived token, ke
 ### 🧲 Live Layer Editor
 
 - Drag, resize and reorder canvases directly over the live MJPEG preview
-- Per-canvas **opacity**, **z-order**, **rename**, **hide**, and **transparent background** (alpha compositing reveals layers beneath)
+- **Duplicate** copies size, position (offset), appearance, extension config and rotation steps
+- Per-canvas **opacity**, **brightness**, **z-order**, **rename**, **hide**, **lock**, **aspect lock**, and **transparent background**
+- Arrow-key nudge (1 px / Shift+grid); Alt+Arrow when a game owns the arrows; Ctrl+Z undo
+- Overlap hatching on the selected canvas where a higher layer covers it
 - Align / fit tools in the inspector; snap defaults to 4 px; stage refits on window resize
 - Extensions reflow to the new size automatically
 
@@ -703,7 +714,7 @@ Network output only. The Pi host must be **stopped** while the container sends t
 
 4. Web UI: `http://<nas-ip>:5000` (HTTPS off in the image). Local Media browses `/app/Media` folder by folder.
 
-`DOTNET_RUNNING_IN_CONTAINER` (or `/.dockerenv`) switches persist paths: Pi keeps files next to the DLL; Docker writes the overlay to `/app/Config` and plugins/fonts on the Data volume. File watchers on `/app` are disabled so Kestrel starts when Data/Config/Media are mounts.
+`DOTNET_RUNNING_IN_CONTAINER` (or `/.dockerenv`) switches persist paths: Pi keeps files next to the DLL; Docker writes the overlay to `/app/Config` and plugins/fonts on the Data volume. File watchers on `/app` are disabled so Kestrel starts when Data/Config/Media are mounts. The Studio reboot control becomes **Restart container** in Docker and exits the process — keep `restart: unless-stopped` so Docker starts it again.
 
 Bridge DNS has no mDNS: use a LAN IP for Home Assistant, or `extra_hosts`.
 

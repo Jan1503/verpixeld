@@ -54,7 +54,8 @@ public record SystemStatus(
     string DisplayResolution,
     long UptimeSeconds,
     string UptimeFormatted,
-    string Fps
+    string Fps,
+    bool InContainer
 );
 
 /// <summary>

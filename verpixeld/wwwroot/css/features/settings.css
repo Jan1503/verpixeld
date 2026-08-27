@@ -286,6 +286,19 @@
   border-color: var(--color-accent);
 }
 
+.output-mode-card.is-unavailable,
+.output-mode-card.is-unavailable:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--color-border);
+  box-shadow: none;
+  background: var(--color-bg-primary);
+}
+
+.output-mode-card.is-unavailable .output-mode-desc {
+  color: var(--color-text-muted);
+}
+
 .output-mode-card:has(input:checked) {
   border-color: var(--color-accent);
   background: var(--color-accent-light);

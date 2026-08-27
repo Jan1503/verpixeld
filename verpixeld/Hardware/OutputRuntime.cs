@@ -137,6 +137,10 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
     public OutputSwitchResult SetMode(string requested, bool persist = true)
     {
         var mode = NormalizeMode(requested, simulation: false);
+        if (!OutputAvailability.Allows(mode, AppPaths.RunningInContainer()))
+            return new OutputSwitchResult(false, false, Mode, Mode,
+                OutputAvailability.ContainerBlockMessage);
+
         if (persist)
             PersistMode(mode);
 

@@ -2,6 +2,8 @@
 # Set Network__Host to the panel IP. Unicast UDP works on the bridge; discovery (VPXD)
 # needs host networking — uncomment network_mode and drop ports if the NAS allows it.
 #
+# restart: unless-stopped is required so Studio "Restart container" (process exit) comes back.
+#
 # Do not run this at the same time as the Pi host (both would send to UDP 7777).
 # Host paths below are TrueNAS examples — change them to yours.
 

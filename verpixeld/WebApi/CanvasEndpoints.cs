@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CanvasManagement;
+using verpixeld.Layout;
 using verpixeld.MediaPlayer;
 using verpixeld.Services;
 
@@ -39,6 +40,7 @@ public static class CanvasEndpoints
                         height = c.Height,
                         zOrder = c.ZOrder,
                         opacity = c.Opacity,
+                        brightness = c.Brightness,
                         panelColorBits = c.PanelColorBits,
                         isVisible = !c.IsHidden,
                         transparentBackground = c.TransparentBackground,
@@ -450,6 +452,73 @@ public static class CanvasEndpoints
             }
         });
 
+        // Duplicate geometry + appearance + extension/rotation onto a new overlay canvas.
+        app.MapPost("/api/canvas/{canvasName}/duplicate", (string canvasName) =>
+        {
+            try
+            {
+                var src = ResolveCanvas(canvasName);
+                if (src == null)
+                    return Results.Json(new ApiResponse<object>(false, Error: $"Canvas '{canvasName}' not found"));
+                if (SystemOverlayCanvases.IsSystem(canvasName))
+                    return Results.Json(new ApiResponse<object>(false,
+                        Error: "Host overlays cannot be duplicated"));
+
+                var existing = canvasManager.GetCanvasesByZOrder().Select(c => c.Name);
+                var name = CanvasCopy.UniqueName(src.Name, existing);
+                var dispW = canvasManager.Width;
+                var dispH = canvasManager.Height;
+                var grid = 8;
+                var x = src.XPos + grid;
+                var y = src.YPos + grid;
+                if (x + src.Width > dispW) x = Math.Max(0, dispW - src.Width);
+                if (y + src.Height > dispH) y = Math.Max(0, dispH - src.Height);
+                var z = canvasManager.GetCanvasesByZOrder().Select(c => c.ZOrder).DefaultIfEmpty(0).Max() + 1;
+
+                var copy = layoutManager.CreateCustomCanvas(name, x, y, src.Width, src.Height, z);
+                copy.Opacity = src.Opacity;
+                copy.Brightness = src.Brightness;
+                copy.PanelColorBits = src.PanelColorBits;
+                copy.TransparentBackground = src.TransparentBackground;
+                if (src.IsHidden) copy.Hide();
+                else copy.Show();
+
+                var content = contentManager.GetContent(canvasName);
+                if (content is { ContentType: ContentType.DynamicExtension, ExtensionDisplayName: not null })
+                {
+                    var cfg = content.Configuration.Count > 0
+                        ? new Dictionary<string, object>(content.Configuration)
+                        : null;
+                    contentManager.AssignExtension(name, content.ExtensionDisplayName, cfg);
+                }
+
+                var rot = ctx.RotationService.GetConfig(canvasName);
+                if (rot.Steps.Count > 0)
+                {
+                    var cloned = JsonSerializer.Deserialize<CanvasRotationConfig>(
+                                    JsonSerializer.Serialize(rot))
+                                ?? new CanvasRotationConfig();
+                    ctx.RotationService.ImportConfig(name, cloned);
+                }
+
+                Console.WriteLine($"[API] Duplicated '{canvasName}' → '{name}' ({copy.Width}x{copy.Height} @ {x},{y})");
+                return Results.Json(new ApiResponse<object>(true, new
+                {
+                    name,
+                    x,
+                    y,
+                    width = copy.Width,
+                    height = copy.Height,
+                    zOrder = copy.ZOrder
+                }));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[API] Duplicate '{canvasName}' failed: {ex.Message}");
+                return Results.Json(new ApiResponse<object>(false, Error: ex.Message));
+            }
+        });
+
         // Get single canvas info
         app.MapGet("/api/canvas/{canvasName}", (string canvasName) =>
         {
@@ -468,6 +537,7 @@ public static class CanvasEndpoints
                     height = canvas.Height,
                     zOrder = canvas.ZOrder,
                     opacity = canvas.Opacity,
+                    brightness = canvas.Brightness,
                     panelColorBits = canvas.PanelColorBits,
                     isVisible = !canvas.IsHidden,
                     transparentBackground = canvas.TransparentBackground

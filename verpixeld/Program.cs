@@ -56,6 +56,15 @@ public class Program
 
         var app = builder.Build();
 
+        var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
+        var stopOnce = 0;
+        void OnStopping()
+        {
+            if (Interlocked.Exchange(ref stopOnce, 1) != 0) return;
+            StopRuntime(app.Services);
+        }
+        lifetime.ApplicationStopping.Register(OnStopping);
+
         app.UseDisplayMiddleware(
             certificate,
             useVerboseLogging,
@@ -120,7 +129,7 @@ public class Program
         {
             e.Cancel = true;
             Console.WriteLine("\nShutdown requested...");
-            StopRuntime(app.Services);
+            OnStopping();
             shutdownCts.Cancel();
         };
 

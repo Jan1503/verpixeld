@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using verpixeld.Configuration;
 using verpixeld.Services;
 
 namespace verpixeld.WebApi;
@@ -12,6 +13,7 @@ public static class SystemEndpoints
     {
         var ctx = app.Services.GetRequiredService<EndpointContext>();
         var render = app.Services.GetRequiredService<IRenderService>();
+        var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
 
         // System status
         app.MapGet("/api/status", () =>
@@ -30,19 +32,32 @@ public static class SystemEndpoints
                 resolution,
                 (long)uptime.TotalSeconds,
                 $"{uptime.Days}d {uptime.Hours}h {uptime.Minutes}m",
-                fps > 0 ? $"{fps:F1}" : "--"
+                fps > 0 ? $"{fps:F1}" : "--",
+                AppPaths.RunningInContainer()
             );
             return ApiResponse.Ok(status);
         });
 
-        // System reboot endpoint
-        // NOTE: Requires sudoers configuration for passwordless reboot:
-        //   sudo visudo
-        //   Add: daemon ALL=(ALL) NOPASSWD: /sbin/reboot, /sbin/shutdown
-        app.MapPost("/api/system/reboot", async () =>
+        // Host reboot, or process exit in Docker (compose `restart: unless-stopped` brings it back).
+        app.MapPost("/api/system/reboot", () =>
         {
             try
             {
+                if (AppPaths.RunningInContainer())
+                {
+                    Console.WriteLine("[REBOOT] Container restart requested — stopping the process");
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(800);
+                        lifetime.StopApplication();
+                    });
+                    return ApiResponse.Ok(new
+                    {
+                        mode = "container",
+                        message = "Container is restarting. Docker will bring the process back if restart is unless-stopped."
+                    });
+                }
+
                 Console.WriteLine("[REBOOT] System reboot requested via API");
 
                 _ = Task.Run(async () =>
@@ -113,6 +128,7 @@ public static class SystemEndpoints
 
                 return ApiResponse.Ok(new
                 {
+                    mode = "host",
                     message = "System reboot initiated. The device will restart shortly.",
                     hint = "If reboot fails, run: sudo visudo and add: daemon ALL=(ALL) NOPASSWD: /sbin/reboot"
                 });

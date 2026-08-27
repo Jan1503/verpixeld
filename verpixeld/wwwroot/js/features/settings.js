@@ -10,12 +10,19 @@ const OUTPUT_LABELS = {
   simulation: 'Simulation'
 };
 
+const HOST_ONLY_OUTPUTS = ['hdmi', 'spi', 'gpio'];
+
 const outputState = {
   active: '',
   saved: '',
   editing: '',
-  canvas: null
+  canvas: null,
+  unavailable: []
 };
+
+function outputBlocked(mode) {
+  return (outputState.unavailable || []).includes(mode);
+}
 
 async function initSettings() {
   await loadCurrentSettings();
@@ -104,6 +111,10 @@ async function loadCurrentSettings() {
 
     const active = d.activeMode || app.outputMode || 'simulation';
     const saved = d.savedMode || app.outputMode || active;
+    outputState.unavailable = Array.isArray(d.unavailableModes)
+      ? d.unavailableModes
+      : (d.inContainer ? HOST_ONLY_OUTPUTS : []);
+    applyContainerOutputLock();
     setOutputModeUi(active, saved, d.canvas, outputState.editing || active);
     updateCalculatedResolution();
     updateSystemInfo(d.systemInfo);
@@ -113,11 +124,34 @@ async function loadCurrentSettings() {
   }
 }
 
+function applyContainerOutputLock() {
+  const blocked = outputState.unavailable || [];
+  document.querySelectorAll('.output-mode-card').forEach(el => {
+    const mode = el.dataset.mode;
+    const off = blocked.includes(mode);
+    el.classList.toggle('is-unavailable', off);
+    const input = el.querySelector('input');
+    if (input) input.disabled = off;
+    el.title = off
+      ? 'Not available in Docker — HDMI, SPI and GPIO need the Pi host'
+      : '';
+  });
+  const hint = document.getElementById('output-mode-hint');
+  if (hint) {
+    hint.innerHTML = blocked.length
+      ? 'This host is a <strong>Docker container</strong>. HDMI, SPI and Hardware GPIO need a Pi — they cannot be selected. Use <strong>Network</strong> for the UDP panel, or Simulation for preview only.'
+      : 'Click a card to edit that output’s settings — only the selected panel is shown. Nothing is switched until you save and confirm, or press <strong>Use this output</strong>. Live switch when the canvas size matches; GPIO always needs a restart.';
+  }
+}
+
 function setOutputModeUi(active, saved, canvas, editing) {
   outputState.active = active || outputState.active || 'simulation';
   outputState.saved = saved || outputState.saved || outputState.active;
   outputState.editing = editing || outputState.editing || outputState.active;
+  if (outputBlocked(outputState.editing))
+    outputState.editing = outputBlocked(outputState.active) ? 'network' : outputState.active;
   if (canvas) outputState.canvas = canvas;
+  applyContainerOutputLock();
 
   document.querySelectorAll('input[name="output-mode"]').forEach(el => {
     el.checked = el.value === outputState.editing;
@@ -155,6 +189,10 @@ function setOutputModeUi(active, saved, canvas, editing) {
 }
 
 function selectOutputPanel(mode) {
+  if (outputBlocked(mode)) {
+    window.toast?.info('Output', 'HDMI, SPI and GPIO are not available in Docker.');
+    return;
+  }
   setOutputModeUi(outputState.active, outputState.saved, outputState.canvas, mode);
   const panel = document.getElementById('out-' + mode);
   if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -170,6 +208,7 @@ function gpioGeometryLooksLikeCanvas() {
 
 async function maybeOfferSwitch(mode) {
   if (!mode || mode === outputState.active) return;
+  if (outputBlocked(mode)) return;
   const label = OUTPUT_LABELS[mode] || mode;
   const gpioRestart = mode === 'gpio' || outputState.active === 'gpio';
   const ok = await showConfirm({
@@ -186,6 +225,10 @@ async function maybeOfferSwitch(mode) {
 }
 
 async function requestOutputSwitch(mode) {
+  if (outputBlocked(mode)) {
+    window.toast?.info('Output', 'HDMI, SPI and GPIO are not available in Docker.');
+    return;
+  }
   if (mode === outputState.active) {
     window.toast?.info('Output', `Already using ${OUTPUT_LABELS[mode] || mode}.`);
     return;
@@ -212,6 +255,10 @@ async function requestOutputSwitch(mode) {
 }
 
 async function switchOutput(mode) {
+  if (outputBlocked(mode)) {
+    window.toast?.info('Output', 'HDMI, SPI and GPIO are not available in Docker.');
+    return;
+  }
   try {
     const result = await api.put('/api/settings/output', { mode });
     const d = result.data || result;
@@ -249,6 +296,10 @@ function updateCalculatedResolution() {
 }
 
 async function saveMatrixConfig() {
+  if (outputBlocked('gpio')) {
+    window.toast?.info('Output', 'Hardware GPIO is not available in Docker.');
+    return;
+  }
   const config = {
     rows: num('matrix-rows', 64),
     cols: num('matrix-cols', 64),
@@ -301,6 +352,10 @@ async function saveAppSettings() {
 }
 
 async function saveHdmiSettings() {
+  if (outputBlocked('hdmi')) {
+    window.toast?.info('Output', 'HDMI is not available in Docker.');
+    return;
+  }
   const body = {
     framebufferDevice: val('hdmi-device') || '/dev/fb0',
     offsetX: num('hdmi-offset-x', 0),
@@ -321,6 +376,10 @@ async function saveHdmiSettings() {
 }
 
 async function saveSpiSettings() {
+  if (outputBlocked('spi')) {
+    window.toast?.info('Output', 'SPI is not available in Docker.');
+    return;
+  }
   const body = {
     device: val('spi-device') || '/dev/spidev0.0',
     speedHz: num('spi-speed', 40000000),

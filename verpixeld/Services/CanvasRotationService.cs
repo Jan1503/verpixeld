@@ -492,7 +492,12 @@ public class CanvasRotationService
             Save();
             StopInternal(canvas);
             _index[canvas] = -1;
-            if (cfg is { Enabled: true, Steps.Count: > 0 } && CanvasIsLive(canvas)) StartInternal(canvas);
+            if (cfg is { Enabled: true, Steps.Count: > 0 } && CanvasIsLive(canvas))
+            {
+                // Studio suspends timers while editing — remember this copy so ResumeAll starts it.
+                if (_suspended) _suspendedRunning.Add(canvas);
+                else StartInternal(canvas);
+            }
         }
     }
 

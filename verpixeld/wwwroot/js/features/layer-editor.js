@@ -16,7 +16,10 @@ const layerEditor = {
   grid: 4,
   snap: true,
   drawMode: false,     // when true, dragging on the stage draws a NEW canvas
-  draw: null           // { sx, sy, cx, cy } in display pixels while drawing
+  draw: null,          // { sx, sy, cx, cy } in display pixels while drawing
+  locks: {},           // { [name]: { locked, aspect } } — Studio-only, localStorage
+  history: { stack: [], index: -1, applying: false },
+  _appear: null        // { name, opacity, brightness } captured on slider pointerdown
 };
 
 // Unified pointer position for mouse + touch.
@@ -29,6 +32,211 @@ function lePoint(ev) {
 const LE_SYS = ['HaToast', 'VoiceFeedback', 'CameraAlert'];
 const LE_STD = ['Main', 'Header', 'Content', 'Footer', 'Left', 'Right',
   'TopLeft', 'TopRight', 'BottomLeft', 'BottomRight'];
+
+const LE_LOCK_KEY = 'verpixeld.studio.locks';
+const LE_HIST_MAX = 50;
+
+function leLoadLocks() {
+  try { layerEditor.locks = JSON.parse(localStorage.getItem(LE_LOCK_KEY) || '{}') || {}; }
+  catch { layerEditor.locks = {}; }
+}
+
+function leSaveLocks() {
+  try { localStorage.setItem(LE_LOCK_KEY, JSON.stringify(layerEditor.locks)); } catch (e) { /* ignore */ }
+}
+
+function leLockState(name) {
+  const s = layerEditor.locks[name];
+  return { locked: !!(s && s.locked), aspect: !!(s && s.aspect) };
+}
+
+function leIsLocked(name) { return leLockState(name).locked; }
+function leIsAspect(name) { return leLockState(name).aspect; }
+
+function leSetLockFlags(name, patch) {
+  layerEditor.locks[name] = { ...leLockState(name), ...patch };
+  leSaveLocks();
+  renderLayerBoxes();
+}
+
+function leTyping(el) {
+  if (!el) return false;
+  const tag = (el.tagName || '').toUpperCase();
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  return !!el.isContentEditable;
+}
+
+function leHistorySync() {
+  const u = document.getElementById('le-undo-btn');
+  const r = document.getElementById('le-redo-btn');
+  const h = layerEditor.history;
+  if (u) u.disabled = h.applying || h.index < 0;
+  if (r) r.disabled = h.applying || h.index >= h.stack.length - 1;
+}
+
+function leRecord(action) {
+  if (!action || layerEditor.history.applying) return;
+  const h = layerEditor.history;
+  h.stack = h.stack.slice(0, h.index + 1);
+  h.stack.push(action);
+  if (h.stack.length > LE_HIST_MAX) h.stack.shift();
+  else h.index++;
+  leHistorySync();
+}
+
+function leSameGeom(a, b) {
+  if (!a || !b) return false;
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+function leGeomOf(rec) {
+  return rec ? { x: rec.x, y: rec.y, width: rec.width, height: rec.height } : null;
+}
+
+async function leApplyHistory(action, inverse) {
+  if (!action) return;
+  if (action.type === 'bounds') {
+    const g = inverse ? action.before : action.after;
+    await leSendBounds(action.name, g, true);
+  } else if (action.type === 'z') {
+    const z = inverse ? action.before : action.after;
+    await window.api.put('/api/canvas/' + encodeURIComponent(action.name) + '/zorder', { zOrder: z });
+  } else if (action.type === 'opacity') {
+    const opacity = inverse ? action.before : action.after;
+    await window.api.put('/api/canvas/' + encodeURIComponent(action.name) + '/opacity', { opacity });
+  } else if (action.type === 'brightness') {
+    const brightness = inverse ? action.before : action.after;
+    await window.api.post('/api/brightness/canvas/' + encodeURIComponent(action.name), { brightness });
+  } else if (action.type === 'create' && inverse) {
+    await window.api.post('/api/canvas/' + encodeURIComponent(action.name) + '/remove');
+    if (layerEditor.selected === action.name) layerEditor.selected = null;
+  } else if (action.type === 'create' && !inverse) {
+    // Redo of duplicate is not reconstructed; skip.
+    return;
+  }
+}
+
+async function leUndo() {
+  const h = layerEditor.history;
+  if (h.applying || h.index < 0) return;
+  const action = h.stack[h.index];
+  h.applying = true;
+  leHistorySync();
+  try {
+    await leApplyHistory(action, true);
+    h.index--;
+    await refreshLayerEditor();
+  } catch (e) {
+    if (typeof showMessage === 'function') showMessage('Undo failed: ' + (e.message || e), 'error');
+  } finally {
+    h.applying = false;
+    leHistorySync();
+  }
+}
+
+async function leRedo() {
+  const h = layerEditor.history;
+  if (h.applying || h.index >= h.stack.length - 1) return;
+  const action = h.stack[h.index + 1];
+  if (action.type === 'create') return;
+  h.applying = true;
+  leHistorySync();
+  try {
+    await leApplyHistory(action, false);
+    h.index++;
+    await refreshLayerEditor();
+  } catch (e) {
+    if (typeof showMessage === 'function') showMessage('Redo failed: ' + (e.message || e), 'error');
+  } finally {
+    h.applying = false;
+    leHistorySync();
+  }
+}
+
+function leCaptureAppear() {
+  const name = layerEditor.selected;
+  const rec = layerEditor.canvases.find(c => c.name === name);
+  if (!rec) { layerEditor._appear = null; return; }
+  layerEditor._appear = { name, opacity: rec.opacity ?? 1, brightness: rec.brightness ?? 1 };
+}
+
+function leCommitAppear(kind) {
+  const snap = layerEditor._appear;
+  const rec = snap && layerEditor.canvases.find(c => c.name === snap.name);
+  if (!snap || !rec) return;
+  const before = snap[kind];
+  const after = rec[kind] ?? before;
+  if (Math.abs(before - after) < 0.005) return;
+  leRecord({ type: kind, name: snap.name, before, after });
+}
+
+function leOverlapHits(c) {
+  if (!c) return [];
+  const hits = [];
+  for (const o of layerEditor.canvases) {
+    if (o.name === c.name || o.isVisible === false || o.zOrder <= c.zOrder) continue;
+    const x = Math.max(c.x, o.x);
+    const y = Math.max(c.y, o.y);
+    const r = Math.min(c.x + c.width, o.x + o.width);
+    const b = Math.min(c.y + c.height, o.y + o.height);
+    if (r > x && b > y)
+      hits.push({ x: x - c.x, y: y - c.y, w: r - x, h: b - y, name: o.name, area: (r - x) * (b - y) });
+  }
+  return hits;
+}
+
+function leOverlapSummary(c) {
+  const hits = leOverlapHits(c);
+  if (!hits.length) return '';
+  const area = c.width * c.height;
+  const covered = Math.min(area, hits.reduce((s, h) => s + h.area, 0));
+  const pct = area > 0 ? Math.round(100 * covered / area) : 0;
+  const names = [...new Set(hits.map(h => h.name))].join(', ');
+  return `${pct}% covered by ${names}`;
+}
+
+function leClampGeom(g) {
+  const dispW = layerEditor.dispW, dispH = layerEditor.dispH;
+  let width = Math.max(1, Math.min(g.width, dispW));
+  let height = Math.max(1, Math.min(g.height, dispH));
+  let x = Math.max(0, Math.min(g.x, dispW - width));
+  let y = Math.max(0, Math.min(g.y, dispH - height));
+  return { x, y, width, height };
+}
+
+async function leNudge(dx, dy) {
+  const c = layerEditor.canvases.find(x => x.name === layerEditor.selected);
+  if (!c || leIsLocked(c.name) || LE_SYS.includes(c.name)) return;
+  const before = leGeomOf(c);
+  const after = leClampGeom({ x: c.x + dx, y: c.y + dy, width: c.width, height: c.height });
+  if (leSameGeom(before, after)) return;
+  leRecord({ type: 'bounds', name: c.name, before, after });
+  await leSendBounds(c.name, after, true);
+  await refreshLayerEditor();
+}
+
+function leOnKey(e) {
+  if (!layerEditor.open) return;
+  if (leTyping(e.target)) return;
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+    e.preventDefault();
+    if (e.shiftKey) leRedo(); else leUndo();
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+    e.preventDefault();
+    leRedo();
+    return;
+  }
+  const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  const delta = arrows[e.key];
+  if (!delta) return;
+  const gameKeys = typeof window.studioGameKeys === 'function' && window.studioGameKeys(layerEditor.selected);
+  if (gameKeys && !e.altKey) return;
+  e.preventDefault();
+  const step = e.shiftKey ? layerEditor.grid : 1;
+  leNudge(delta[0] * step, delta[1] * step);
+}
 
 let _studioMounted = false;
 let _studioPoll = null;
@@ -55,6 +263,9 @@ function buildStudioBodyHtml() {
         <div class="le-center">
           <div class="le-toolbar">
             <button class="btn btn-small btn-primary" onclick="layerEditorAdd()">+ Add</button>
+            <button class="btn btn-small btn-secondary" onclick="layerEditorDuplicate()" title="Duplicate selected canvas">Duplicate</button>
+            <button class="btn btn-small btn-secondary" id="le-undo-btn" onclick="leUndo()" title="Undo (Ctrl+Z)" disabled>Undo</button>
+            <button class="btn btn-small btn-secondary" id="le-redo-btn" onclick="leRedo()" title="Redo (Ctrl+Y)" disabled>Redo</button>
             <span class="le-menu">
               <button class="btn btn-small btn-secondary" onclick="leToggleNew(event)">✨ New ▾</button>
               <div class="le-dropdown" id="le-new-menu" hidden>
@@ -67,6 +278,7 @@ function buildStudioBodyHtml() {
             </span>
             <button class="btn btn-small btn-secondary" id="le-draw-btn" onclick="layerEditorToggleDraw()">Draw</button>
             <label class="le-snap"><input type="checkbox" id="le-snap" ${layerEditor.snap ? 'checked' : ''} onchange="layerEditor.snap=this.checked"> snap ${layerEditor.grid}px</label>
+            <span class="le-hint" title="Arrows nudge 1px, Shift+Arrow by the grid. Alt+Arrow always nudges (even on a game).">Arrows nudge</span>
             <span class="le-readout" id="le-readout"></span>
           </div>
           <div class="le-stage-wrap">
@@ -96,6 +308,8 @@ async function mountStudio() {
   panel.innerHTML = buildStudioBodyHtml();
   _studioMounted = true;
   layerEditor.open = true;
+  leLoadLocks();
+  leHistorySync();
 
   // Fit the stage between the Layers (left) and Inspector (right) panes.
   const avail = Math.max(160, (panel.clientWidth || 900) - 580);
@@ -125,6 +339,7 @@ async function mountStudio() {
   document.addEventListener('touchend', leOnUp);
   document.addEventListener('touchcancel', leOnUp);
   document.addEventListener('click', leCloseMenus);
+  document.addEventListener('keydown', leOnKey);
   window.addEventListener('resize', leFitStage);
 }
 
@@ -161,7 +376,7 @@ async function lePollLayout() {
     (content?.data?.contents || []).forEach(c => { contentMap[c.canvasName] = c; });
     const fp = leLayoutFingerprint(canvases, contentMap);
     if (fp === _studioFp) return;
-    await refreshLayerEditor({ skipInspector: true });
+    await refreshLayerEditor({ skipInspector: true, emitLayout: false });
   } catch (e) { /* intro / not ready yet */ }
 }
 
@@ -175,6 +390,7 @@ function unmountStudio() {
   document.removeEventListener('touchend', leOnUp);
   document.removeEventListener('touchcancel', leOnUp);
   document.removeEventListener('click', leCloseMenus);
+  document.removeEventListener('keydown', leOnKey);
   window.removeEventListener('resize', leFitStage);
   layerEditor.drawMode = false;
   layerEditor.draw = null;
@@ -241,9 +457,9 @@ async function refreshLayerEditor(opts) {
     _studioFp = leLayoutFingerprint(layerEditor.canvases, layerEditor.contentMap);
     const skipInspector = !!(opts && opts.skipInspector) && !selGone && prevSel === layerEditor.selected;
     renderLayerBoxes(skipInspector);
-    // Let the rest of the UI (Canvas/Media/AI/Draw/Visualizer selectors) pick up added/removed/renamed/
-    // resized canvases without a page refresh.
-    window.dispatchEvent(new CustomEvent('layoutChanged'));
+    if (skipInspector) leSyncInspectorGeom();
+    if (!opts || opts.emitLayout !== false)
+      window.dispatchEvent(new CustomEvent('layoutChanged'));
   } catch (e) {
     console.error('Layer editor refresh failed:', e);
   }
@@ -261,8 +477,11 @@ function renderLayerBoxes(skipInspector) {
     const label = content ? content.extensionName : '(empty)';
     const sel = layerEditor.selected === c.name;
     const hidden = c.isVisible === false;
+    const locked = leIsLocked(c.name);
+    const aspect = leIsAspect(c.name);
     const box = document.createElement('div');
-    box.className = 'le-box' + (sel ? ' selected' : '') + (hidden ? ' hidden' : '');
+    box.className = 'le-box' + (sel ? ' selected' : '') + (hidden ? ' hidden' : '') +
+      (locked ? ' locked' : '') + (aspect && !locked ? ' lock-aspect' : '');
     box.dataset.name = c.name;
     box.style.left = (c.x * s) + 'px';
     box.style.top = (c.y * s) + 'px';
@@ -272,8 +491,21 @@ function renderLayerBoxes(skipInspector) {
     // z-order) so a fully-covered canvas can still be grabbed once selected via the chip bar.
     box.style.zIndex = sel ? 1000 : (10 + c.zOrder);
     box.innerHTML =
-      `<div class="le-box-label">${c.name} · ${label}<br><span class="le-box-dims">${c.width}×${c.height}</span></div>` +
-      ['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'].map(h => `<div class="le-h le-h-${h}" data-h="${h}"></div>`).join('');
+      `<div class="le-box-label">${c.name} · ${label}${locked ? ' 🔒' : ''}<br><span class="le-box-dims">${c.width}×${c.height}</span></div>` +
+      (locked ? '' : ['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'].map(h => `<div class="le-h le-h-${h}" data-h="${h}"></div>`).join(''));
+    if (sel) {
+      const sPx = layerEditor.scale;
+      for (const hit of leOverlapHits(c)) {
+        const ov = document.createElement('div');
+        ov.className = 'le-overlap';
+        ov.title = 'Covered by ' + hit.name;
+        ov.style.left = (hit.x * sPx) + 'px';
+        ov.style.top = (hit.y * sPx) + 'px';
+        ov.style.width = (hit.w * sPx) + 'px';
+        ov.style.height = (hit.h * sPx) + 'px';
+        box.appendChild(ov);
+      }
+    }
     box.addEventListener('mousedown', (ev) => leOnDown(ev, c));
     box.addEventListener('touchstart', (ev) => leOnDown(ev, c), { passive: false });
     stage.appendChild(box);
@@ -299,7 +531,7 @@ function renderLayers() {
         : (content ? content.extensionName : '(empty)');
       const nm = c.name.replace(/'/g, "\\'");
       const icon = leExtIcon(label === '(empty)' ? '' : label);
-      return `<div class="le-layer${sel}${hidden ? ' is-hidden' : ''}" onclick="selectLayerCanvas('${nm}')" title="z:${c.zOrder} · ${c.width}×${c.height}">
+      return `<div class="le-layer${sel}${hidden ? ' is-hidden' : ''}" data-name="${c.name}" onclick="selectLayerCanvas('${nm}')" title="z:${c.zOrder} · ${c.width}×${c.height}">
         ${icon}
         <div class="le-layer-main"><span class="le-layer-name">${c.name}</span><span class="le-layer-ext">${label}</span></div>
         <button class="le-eye" title="${hidden ? 'Show' : 'Hide'}" onclick="layerEditorToggleVisible('${nm}', event)">${hidden ? '○' : '●'}</button>
@@ -318,12 +550,18 @@ function renderInspector() {
     return;
   }
   const pct = Math.round((c.opacity ?? 1) * 100);
+  const bright = Math.round((c.brightness ?? 1) * 100);
   const isStd = LE_STD.includes(c.name);
   const isSys = LE_SYS.includes(c.name) || c.isSystem;
+  const locked = leIsLocked(c.name);
+  const aspect = leIsAspect(c.name);
+  const overlap = leOverlapSummary(c);
+  const dis = locked ? ' disabled' : '';
   pane.innerHTML = `
     <div class="le-insp-head">
       <strong class="le-insp-name">${c.name}</strong>
       <span class="le-insp-actions">
+        ${isSys ? '' : `<button class="le-ico" title="Duplicate" onclick="layerEditorDuplicate()">⧉</button>`}
         ${isStd || isSys ? '' : `<button class="le-ico" title="Rename" onclick="layerEditorRename()">✎</button>`}
         ${isStd || isSys ? '' : `<button class="le-ico le-ico-danger" title="Remove canvas" onclick="layerEditorRemove()">🗑</button>`}
       </span>
@@ -332,28 +570,35 @@ function renderInspector() {
     <div class="le-section">
       <div class="le-section-title">Transform</div>
       <div class="le-grid4">
-        <label><span class="le-axis">X</span><input type="number" id="le-x" value="${c.x}" onchange="leApplyTransform()"></label>
-        <label><span class="le-axis">Y</span><input type="number" id="le-y" value="${c.y}" onchange="leApplyTransform()"></label>
-        <label><span class="le-axis">W</span><input type="number" id="le-w" value="${c.width}" onchange="leApplyTransform()"></label>
-        <label><span class="le-axis">H</span><input type="number" id="le-h" value="${c.height}" onchange="leApplyTransform()"></label>
+        <label><span class="le-axis">X</span><input type="number" id="le-x" value="${c.x}" onchange="leApplyTransform()"${dis}></label>
+        <label><span class="le-axis">Y</span><input type="number" id="le-y" value="${c.y}" onchange="leApplyTransform()"${dis}></label>
+        <label><span class="le-axis">W</span><input type="number" id="le-w" value="${c.width}" onchange="leApplyTransform()"${dis}></label>
+        <label><span class="le-axis">H</span><input type="number" id="le-h" value="${c.height}" onchange="leApplyTransform()"${dis}></label>
       </div>
-      <p class="le-hint">Or drag / resize on the stage.</p>
+      <p class="le-hint">${locked ? 'Locked — unlock to move or resize.' : 'Or drag / resize on the stage. Arrows nudge 1px, Shift+Arrow by the grid.'}</p>
+      <div class="le-row">
+        <label class="le-sel-lbl"><input type="checkbox" ${locked ? 'checked' : ''} onchange="layerEditorSetLocked(this.checked)"> Lock position &amp; size</label>
+      </div>
+      <div class="le-row">
+        <label class="le-sel-lbl"><input type="checkbox" ${aspect ? 'checked' : ''} ${locked ? 'disabled' : ''} onchange="layerEditorSetAspect(this.checked)"> Lock aspect</label>
+      </div>
+      ${overlap ? `<p class="le-overlap-hint">${overlap}</p>` : ''}
       <div class="le-align">
         <span class="le-sel-lbl">Align</span>
-        <button class="le-preset" title="Left" onclick="layerEditorAlign('left')">⟸</button>
-        <button class="le-preset" title="Center H" onclick="layerEditorAlign('hcenter')">⬌</button>
-        <button class="le-preset" title="Right" onclick="layerEditorAlign('right')">⟹</button>
-        <button class="le-preset" title="Top" onclick="layerEditorAlign('top')">⇑</button>
-        <button class="le-preset" title="Center V" onclick="layerEditorAlign('vcenter')">⬍</button>
-        <button class="le-preset" title="Bottom" onclick="layerEditorAlign('bottom')">⇓</button>
+        <button class="le-preset" title="Left" onclick="layerEditorAlign('left')"${dis}>⟸</button>
+        <button class="le-preset" title="Center H" onclick="layerEditorAlign('hcenter')"${dis}>⬌</button>
+        <button class="le-preset" title="Right" onclick="layerEditorAlign('right')"${dis}>⟹</button>
+        <button class="le-preset" title="Top" onclick="layerEditorAlign('top')"${dis}>⇑</button>
+        <button class="le-preset" title="Center V" onclick="layerEditorAlign('vcenter')"${dis}>⬍</button>
+        <button class="le-preset" title="Bottom" onclick="layerEditorAlign('bottom')"${dis}>⇓</button>
       </div>
       <div class="le-align">
         <span class="le-sel-lbl">Fit</span>
-        <button class="le-preset" onclick="layerEditorFit('full')">Full</button>
-        <button class="le-preset" onclick="layerEditorFit('top')">Top</button>
-        <button class="le-preset" onclick="layerEditorFit('bottom')">Bottom</button>
-        <button class="le-preset" onclick="layerEditorFit('center')">Center</button>
-        <button class="le-preset" onclick="layerEditorFit('corner')">Corner</button>
+        <button class="le-preset" onclick="layerEditorFit('full')"${dis}>Full</button>
+        <button class="le-preset" onclick="layerEditorFit('top')"${dis}>Top</button>
+        <button class="le-preset" onclick="layerEditorFit('bottom')"${dis}>Bottom</button>
+        <button class="le-preset" onclick="layerEditorFit('center')"${dis}>Center</button>
+        <button class="le-preset" onclick="layerEditorFit('corner')"${dis}>Corner</button>
       </div>
     </div>
 
@@ -361,8 +606,13 @@ function renderInspector() {
       <div class="le-section-title">Appearance</div>
       <div class="le-row">
         <span class="le-sel-lbl">Opacity</span>
-        <input type="range" id="le-opacity" min="0" max="100" value="${pct}" oninput="layerEditorSetOpacity(this.value)">
+        <input type="range" id="le-opacity" min="0" max="100" value="${pct}" onpointerdown="leCaptureAppear()" oninput="layerEditorSetOpacity(this.value)" onchange="leCommitAppear('opacity')">
         <span id="le-opacity-val" class="le-sel-lbl">${pct}%</span>
+      </div>
+      <div class="le-row">
+        <span class="le-sel-lbl">Brightness</span>
+        <input type="range" id="le-bright" min="0" max="100" value="${bright}" onpointerdown="leCaptureAppear()" oninput="layerEditorSetBrightness(this.value)" onchange="leCommitAppear('brightness')">
+        <span id="le-bright-val" class="le-sel-lbl">${bright}%</span>
       </div>
       <div class="le-row">
         <span class="le-sel-lbl">Panel depth</span>
@@ -386,16 +636,64 @@ function renderInspector() {
 
     <div class="le-section">
       <div class="le-section-title">Content</div>
-      <div id="le-content">${isSys
-        ? '<p class="le-hint">Host overlay — you can move it on the stage. Assign clocks, media, draw or AI to another canvas.</p>'
-        : '<p class="le-hint">Loading…</p>'}</div>
+      <div id="le-content"></div>
     </div>`;
-  if (!isSys) loadContentSection(c.name);
+  if (isSys) {
+    const host = document.getElementById('le-content');
+    if (host)
+      host.innerHTML = '<p class="le-hint">Host overlay — you can move it on the stage. Assign clocks, media, draw or AI to another canvas.</p>';
+    return;
+  }
+  // Paint from the cache immediately so the pane never collapses to "Loading…"
+  // (that height jump moved the page scrollbar). Rotation details fill in after the fetch.
+  if (window.leContent && window.leContent.name === c.name) {
+    renderContentSection();
+  } else {
+    window.leContent = {
+      name: c.name,
+      steps: [],
+      interval: 12,
+      transition: 'Fade',
+      loop: true,
+      isRunning: false,
+      activeIndex: -1,
+      single: layerEditor.contentMap[c.name] || null
+    };
+    renderContentSection();
+  }
+  loadContentSection(c.name);
 }
 
 function selectLayerCanvas(name) {
+  if (layerEditor.selected === name) return;
   layerEditor.selected = name;
   renderLayerBoxes();
+}
+
+function leMarkSelected(name) {
+  document.querySelectorAll('.le-box').forEach(b => {
+    const sel = b.dataset.name === name;
+    b.classList.toggle('selected', sel);
+    const rec = layerEditor.canvases.find(c => c.name === b.dataset.name);
+    b.style.zIndex = sel ? 1000 : (10 + (rec?.zOrder || 0));
+  });
+  document.querySelectorAll('.le-layer').forEach(el => {
+    el.classList.toggle('selected', el.dataset.name === name);
+  });
+}
+
+function leSyncInspectorGeom() {
+  const c = layerEditor.canvases.find(x => x.name === layerEditor.selected);
+  if (!c) return;
+  const fill = (id, v) => {
+    const el = document.getElementById(id);
+    if (el && document.activeElement !== el) el.value = v;
+  };
+  fill('le-x', c.x);
+  fill('le-y', c.y);
+  fill('le-w', c.width);
+  fill('le-h', c.height);
+  updateReadout();
 }
 
 function updateReadout() {
@@ -409,7 +707,14 @@ function leOnDown(ev, c) {
   ev.preventDefault();
   ev.stopPropagation();
   const pt = lePoint(ev);
+  const switched = layerEditor.selected !== c.name;
   layerEditor.selected = c.name;
+  if (leIsLocked(c.name)) {
+    layerEditor.drag = null;
+    if (switched) renderLayerBoxes();
+    else leMarkSelected(c.name);
+    return;
+  }
   const mode = (ev.target.classList && ev.target.classList.contains('le-h')) ? ev.target.dataset.h : 'move';
   layerEditor.drag = {
     name: c.name,
@@ -418,7 +723,8 @@ function leOnDown(ev, c) {
     startY: pt.y,
     orig: { x: c.x, y: c.y, w: c.width, h: c.height }
   };
-  renderLayerBoxes();
+  if (switched) renderLayerBoxes();
+  else leMarkSelected(c.name);
 }
 
 function leSnap(v) {
@@ -458,7 +764,35 @@ function leComputeGeometry(d, dx, dy) {
   if (right - left < minS) { if (m.includes('w')) left = Math.max(0, right - minS); else right = Math.min(dispW, left + minS); }
   if (bottom - top < minS) { if (m.includes('n')) top = Math.max(0, bottom - minS); else bottom = Math.min(dispH, top + minS); }
 
-  return { x: left, y: top, width: Math.max(minS, right - left), height: Math.max(minS, bottom - top) };
+  let g = { x: left, y: top, width: Math.max(minS, right - left), height: Math.max(minS, bottom - top) };
+  if (leIsAspect(d.name)) g = leApplyAspect(g, d, m);
+  return g;
+}
+
+function leApplyAspect(g, d, m) {
+  const ratio = d.orig.w / Math.max(1, d.orig.h);
+  const minS = layerEditor.snap ? layerEditor.grid : 4;
+  const dispW = layerEditor.dispW, dispH = layerEditor.dispH;
+  let { x, y, width, height } = g;
+  const horiz = m.includes('e') || m.includes('w');
+  const vert = m.includes('n') || m.includes('s');
+  if (horiz && !vert) height = Math.max(minS, Math.round(width / ratio));
+  else if (vert && !horiz) width = Math.max(minS, Math.round(height * ratio));
+  else {
+    const dw = Math.abs(width - d.orig.w) / Math.max(1, d.orig.w);
+    const dh = Math.abs(height - d.orig.h) / Math.max(1, d.orig.h);
+    if (dw >= dh) height = Math.max(minS, Math.round(width / ratio));
+    else width = Math.max(minS, Math.round(height * ratio));
+  }
+  if (m.includes('w')) x = d.orig.x + d.orig.w - width;
+  else x = d.orig.x;
+  if (m.includes('n')) y = d.orig.y + d.orig.h - height;
+  else y = d.orig.y;
+  if (x < 0) { width += x; x = 0; height = Math.max(minS, Math.round(width / ratio)); }
+  if (y < 0) { height += y; y = 0; width = Math.max(minS, Math.round(height * ratio)); }
+  if (x + width > dispW) { width = dispW - x; height = Math.max(minS, Math.round(width / ratio)); }
+  if (y + height > dispH) { height = dispH - y; width = Math.max(minS, Math.round(height * ratio)); }
+  return leClampGeom({ x, y, width, height });
 }
 
 function leOnMove(ev) {
@@ -530,9 +864,22 @@ async function leOnUp() {
   if (!d) return;
   layerEditor.drag = null;
   const rec = layerEditor.canvases.find(c => c.name === d.name);
-  if (rec) await leSendBounds(d.name, { x: rec.x, y: rec.y, width: rec.width, height: rec.height }, true);
-  // A resize recreates content; pull fresh truth so labels/dims are accurate.
-  await refreshLayerEditor();
+  if (rec) {
+    const before = { x: d.orig.x, y: d.orig.y, width: d.orig.w, height: d.orig.h };
+    const after = { x: rec.x, y: rec.y, width: rec.width, height: rec.height };
+    const moved = !leSameGeom(before, after);
+    if (moved) leRecord({ type: 'bounds', name: d.name, before, after });
+    await leSendBounds(d.name, after, true);
+    if (!moved) {
+      leSyncInspectorGeom();
+      return;
+    }
+    const resized = before.width !== after.width || before.height !== after.height;
+    await refreshLayerEditor({ skipInspector: true, emitLayout: resized });
+    leSyncInspectorGeom();
+    return;
+  }
+  await refreshLayerEditor({ skipInspector: true, emitLayout: false });
 }
 
 /* ----- Draw-to-create / presets (absorbed from the old "Create Overlay Canvas" control) ----- */
@@ -651,6 +998,9 @@ async function layerEditorFit(kind) {
   }
   const g = lePresetGeom(kind);
   if (!g) return;
+  const before = leGeomOf(c);
+  if (leIsLocked(c.name) || leSameGeom(before, g)) return;
+  leRecord({ type: 'bounds', name: c.name, before, after: g });
   await leSendBounds(c.name, g, true);
   await refreshLayerEditor();
 }
@@ -671,7 +1021,12 @@ async function layerEditorAlign(kind) {
   else if (kind === 'vcenter') y = Math.round((H - c.height) / 2);
   x = Math.max(0, Math.min(x, Math.max(0, W - c.width)));
   y = Math.max(0, Math.min(y, Math.max(0, H - c.height)));
-  await leSendBounds(c.name, { x, y, width: c.width, height: c.height }, true);
+  if (leIsLocked(c.name)) return;
+  const before = leGeomOf(c);
+  const after = { x, y, width: c.width, height: c.height };
+  if (leSameGeom(before, after)) return;
+  leRecord({ type: 'bounds', name: c.name, before, after });
+  await leSendBounds(c.name, after, true);
   await refreshLayerEditor();
 }
 
@@ -783,6 +1138,56 @@ async function layerEditorSetOpacity(value) {
   }
 }
 
+async function layerEditorSetBrightness(value) {
+  const name = layerEditor.selected;
+  const el = document.getElementById('le-bright-val');
+  if (el) el.textContent = value + '%';
+  if (!name) return;
+  const brightness = parseInt(value, 10) / 100;
+  const rec = layerEditor.canvases.find(c => c.name === name);
+  if (rec) rec.brightness = brightness;
+  try {
+    await window.api.post('/api/brightness/canvas/' + encodeURIComponent(name), { brightness });
+  } catch (e) {
+    console.error('Brightness update failed:', e);
+  }
+}
+
+function layerEditorSetLocked(on) {
+  const name = layerEditor.selected;
+  if (!name) return;
+  leSetLockFlags(name, { locked: !!on });
+}
+
+function layerEditorSetAspect(on) {
+  const name = layerEditor.selected;
+  if (!name) return;
+  leSetLockFlags(name, { aspect: !!on });
+}
+
+async function layerEditorDuplicate() {
+  const name = layerEditor.selected;
+  if (!name) {
+    if (typeof showMessage === 'function') showMessage('Select a canvas first', 'info');
+    return;
+  }
+  if (LE_SYS.includes(name)) {
+    if (typeof showMessage === 'function') showMessage('Host overlays cannot be duplicated', 'info');
+    return;
+  }
+  try {
+    const res = await window.api.post('/api/canvas/' + encodeURIComponent(name) + '/duplicate');
+    const copy = res?.data?.name;
+    if (!copy) throw new Error(res?.error || 'Duplicate failed');
+    layerEditor.selected = copy;
+    leRecord({ type: 'create', name: copy });
+    await refreshLayerEditor();
+    if (typeof showMessage === 'function') showMessage(`Duplicated as '${copy}'`, 'success');
+  } catch (e) {
+    if (typeof showMessage === 'function') showMessage('Duplicate failed: ' + (e.message || e), 'error');
+  }
+}
+
 async function layerEditorSetPanelBits(value) {
   const name = layerEditor.selected;
   if (!name) return;
@@ -799,10 +1204,15 @@ async function layerEditorSetPanelBits(value) {
 async function layerEditorZ(dir) {
   const name = layerEditor.selected;
   if (!name) { if (typeof showMessage === 'function') showMessage('Select a canvas first', 'info'); return; }
+  const rec = layerEditor.canvases.find(c => c.name === name);
+  const before = rec ? rec.zOrder : null;
   const ep = dir === 'up' ? 'move-up' : 'move-down';
   try {
     await window.api.post('/api/canvas/' + encodeURIComponent(name) + '/' + ep);
     await refreshLayerEditor();
+    const after = layerEditor.canvases.find(c => c.name === name)?.zOrder;
+    if (before != null && after != null && before !== after)
+      leRecord({ type: 'z', name, before, after });
   } catch (e) {
     if (typeof showMessage === 'function') showMessage('Z-order change failed: ' + e.message, 'error');
   }
@@ -929,18 +1339,25 @@ async function leSaveSceneConfirm() {
 
 async function leApplyTransform() {
   const name = layerEditor.selected;
-  if (!name) return;
+  if (!name || leIsLocked(name)) return;
+  const rec = layerEditor.canvases.find(c => c.name === name);
   const x = parseInt(document.getElementById('le-x').value, 10);
   const y = parseInt(document.getElementById('le-y').value, 10);
-  const w = parseInt(document.getElementById('le-w').value, 10);
-  const h = parseInt(document.getElementById('le-h').value, 10);
+  let w = parseInt(document.getElementById('le-w').value, 10);
+  let h = parseInt(document.getElementById('le-h').value, 10);
   if ([x, y, w, h].some(v => isNaN(v))) return;
-  const g = {
-    x: Math.max(0, Math.min(x, layerEditor.dispW - 1)),
-    y: Math.max(0, Math.min(y, layerEditor.dispH - 1)),
-    width: Math.max(4, Math.min(w, layerEditor.dispW)),
-    height: Math.max(4, Math.min(h, layerEditor.dispH))
-  };
+  if (leIsAspect(name) && rec) {
+    const ratio = rec.width / Math.max(1, rec.height);
+    if (w !== rec.width) h = Math.max(4, Math.round(w / ratio));
+    else if (h !== rec.height) w = Math.max(4, Math.round(h * ratio));
+  }
+  const g = leClampGeom({
+    x, y,
+    width: Math.max(4, w),
+    height: Math.max(4, h)
+  });
+  const before = leGeomOf(rec);
+  if (before && !leSameGeom(before, g)) leRecord({ type: 'bounds', name, before, after: g });
   await leSendBounds(name, g, true);
   await refreshLayerEditor();
 }
@@ -1035,7 +1452,6 @@ async function loadContentSection(name) {
     layerEditor.contentMap = {};
     list.forEach(c => { layerEditor.contentMap[c.canvasName] = c; });
     live = layerEditor.contentMap[name] || null;
-    renderLayerBoxes(true);
   } catch (e) { /* ignore */ }
   if (layerEditor.selected !== name) return; // selection changed while loading
   window.leContent = {
@@ -1511,8 +1927,11 @@ function ensureLayerEditorStyles() {
   .le-stage{position:relative;background:#111;background-image:linear-gradient(45deg,#1a1a1a 25%,transparent 25%),linear-gradient(-45deg,#1a1a1a 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#1a1a1a 75%),linear-gradient(-45deg,transparent 75%,#1a1a1a 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;border:1px solid #333;overflow:hidden;touch-action:none;user-select:none;}
   .le-stream{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;pointer-events:none;}
   .le-box{position:absolute;box-sizing:border-box;border:1px solid rgba(80,180,255,.9);background:rgba(80,180,255,.10);cursor:move;}
+  .le-box.locked{cursor:default;border-style:dashed;}
+  .le-overlap{position:absolute;background:repeating-linear-gradient(-45deg,rgba(224,85,85,.4) 0 3px,rgba(224,85,85,.12) 3px 6px);pointer-events:none;z-index:2;}
+  .le-overlap-hint{font-size:.74rem;color:#e88;margin:6px 0 0;}
   .le-box.selected{border-color:#ffcc33;background:rgba(255,204,51,.14);box-shadow:0 0 0 1px rgba(255,204,51,.5);}
-  .le-box-label{position:absolute;top:1px;left:2px;font-size:9px;line-height:1.05;color:#fff;text-shadow:0 1px 2px #000;pointer-events:none;white-space:nowrap;}
+  .le-box-label{position:absolute;top:1px;left:2px;z-index:3;font-size:9px;line-height:1.05;color:#fff;text-shadow:0 1px 2px #000;pointer-events:none;white-space:nowrap;}
   .le-box-dims{color:#9fd;}
   .le-h{position:absolute;width:9px;height:9px;background:#ffcc33;border:1px solid #6b5400;box-sizing:border-box;}
   .le-h-nw{left:-5px;top:-5px;cursor:nwse-resize;} .le-h-ne{right:-5px;top:-5px;cursor:nesw-resize;}
@@ -1536,7 +1955,8 @@ function ensureLayerEditorStyles() {
   .playlist-actions .btn-icon:disabled{opacity:.3;cursor:default;}
   .playlist-empty{padding:12px 10px;font-size:12px;color:#888;}
   .le-step-detail{color:#7fb7ff;font-size:.82em;}
-  .le-studio{width:100%;}
+  .le-studio{width:100%;overflow-anchor:none;}
+  .le-inspector{overflow-anchor:none;}
   .le-studio-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
   .le-scene{font-size:.82rem;color:#7fb7ff;}
   .le-studio-body{display:flex;gap:12px;align-items:stretch;}
@@ -1605,11 +2025,15 @@ window.openLayerEditor = openLayerEditor;
 window.closeLayerEditor = closeLayerEditor;
 window.selectLayerCanvas = selectLayerCanvas;
 window.layerEditorAdd = layerEditorAdd;
+window.layerEditorDuplicate = layerEditorDuplicate;
 window.layerEditorRename = layerEditorRename;
 window.layerEditorRemove = layerEditorRemove;
 window.layerEditorZ = layerEditorZ;
 window.layerEditorSetTransparent = layerEditorSetTransparent;
 window.layerEditorSetOpacity = layerEditorSetOpacity;
+window.layerEditorSetBrightness = layerEditorSetBrightness;
+window.layerEditorSetLocked = layerEditorSetLocked;
+window.layerEditorSetAspect = layerEditorSetAspect;
 window.layerEditorSetPanelBits = layerEditorSetPanelBits;
 window.layerEditorToggleDraw = layerEditorToggleDraw;
 window.layerEditorToggleVisible = layerEditorToggleVisible;
@@ -1620,6 +2044,10 @@ window.leSaveScene = leSaveScene;
 window.leSaveSceneClose = leSaveSceneClose;
 window.leSaveSceneConfirm = leSaveSceneConfirm;
 window.leApplyTransform = leApplyTransform;
+window.leUndo = leUndo;
+window.leRedo = leRedo;
+window.leCaptureAppear = leCaptureAppear;
+window.leCommitAppear = leCommitAppear;
 window.leToggleScenes = leToggleScenes;
 window.leToggleNew = leToggleNew;
 window.leOpenScene = leOpenScene;

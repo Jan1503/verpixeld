@@ -54,6 +54,9 @@ async function fetchStatus() {
       
       const uptimeEl = document.getElementById('stat-uptime');
       if (uptimeEl) uptimeEl.textContent = data.uptimeFormatted;
+
+      window.__inContainer = !!data.inContainer;
+      if (typeof applyHostRestartButton === 'function') applyHostRestartButton();
       
       updateConnectionStatus('connected');
     }
