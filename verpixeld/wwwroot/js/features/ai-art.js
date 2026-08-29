@@ -18,19 +18,28 @@ let aiState = {
   galleryPreviewBase64: null,
   slideshowInterval: null,
   slideshowIndex: 0,
+  displayWidth: 256,
+  displayHeight: 128,
+  statusPoll: null,
+  overlayVisible: false,
 };
+
+const AI_PREVIEW_CANVAS_IDS = [
+  'ai-preview-canvas',
+  'gallery-preview-canvas',
+  'ai-edit-before-canvas',
+  'ai-edit-after-canvas',
+];
 
 // ═══════════════════════════════════════════════════════════════
 // Initialization
 // ═══════════════════════════════════════════════════════════════
 
 function initAiArt() {
-  // Load saved config into form
   loadAiConfig();
   loadAiHistory();
   initAiEditDropzone();
 
-  // Ctrl+Enter to generate
   const promptEl = document.getElementById('ai-prompt');
   if (promptEl) {
     promptEl.addEventListener('keydown', (e) => {
@@ -56,12 +65,9 @@ async function generateAiImage() {
 
   const statusEl = document.getElementById('ai-status');
   const statusText = document.getElementById('ai-status-text');
-  const genBtn = document.getElementById('ai-generate-btn');
 
-  // Show loading
-  if (statusEl) statusEl.style.display = 'flex';
-  if (statusText) statusText.textContent = 'Generating image... this may take 10-30 seconds';
-  if (genBtn) genBtn.disabled = true;
+  setAiBusy(true, 'Generating image... this may take 10-30 seconds');
+  startAiStatusPoll();
 
   try {
     const result = await api.post('/api/ai/generate', {
@@ -73,36 +79,38 @@ async function generateAiImage() {
     });
 
     aiState.lastGeneratedImage = result.imageBase64;
-
-    // Show preview
     showAiPreview(result.imageBase64);
-    
-    // Refresh history
     loadAiHistory();
-    
     window.toast?.success('AI Art', 'Image generated successfully!');
   } catch (err) {
     console.error('[AI] Generation error:', err);
-    window.toast?.error('AI Art', err.message || 'Generation failed');
+    window.toast?.error('AI Art', formatAiError(err));
   } finally {
+    stopAiStatusPoll();
+    setAiBusy(false);
     if (statusEl) statusEl.style.display = 'none';
-    if (genBtn) genBtn.disabled = false;
+    if (statusText) statusText.textContent = 'Generating...';
   }
+}
+
+function drawPixelated(canvas, src) {
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const img = new Image();
+  img.onload = () => {
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  };
+  img.src = src;
 }
 
 function showAiPreview(base64Image) {
   const container = document.getElementById('ai-preview-container');
   const canvas = document.getElementById('ai-preview-canvas');
   if (!container || !canvas) return;
-
-  const ctx = canvas.getContext('2d');
-  const img = new Image();
-  img.onload = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    container.style.display = '';
-  };
-  img.src = 'data:image/png;base64,' + base64Image;
+  drawPixelated(canvas, 'data:image/png;base64,' + base64Image);
+  container.style.display = '';
 }
 
 async function applyAiImageToDisplay() {
@@ -116,7 +124,9 @@ async function applyAiImageToDisplay() {
 
 async function saveAiImageToGallery() {
   if (!aiState.lastGeneratedImage) return;
-  window.toast?.info('AI Art', 'Image saved to history');
+  const prompt = document.getElementById('ai-prompt')?.value?.trim() || 'generated';
+  const style = document.getElementById('ai-style')?.value || '';
+  await saveBase64ToGallery(aiState.lastGeneratedImage, prompt, style);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -156,19 +166,19 @@ function loadAiEditImage(file) {
   }
 
   const reader = new FileReader();
-  reader.onload = (e) => {
-    aiState.editSourceImage = e.target.result; // data URL
-
-    // Update dropzone to show thumbnail
-    const content = document.getElementById('ai-edit-dropzone-content');
-    if (content) {
-      content.innerHTML = `
-        <img src="${e.target.result}" style="max-width:120px;max-height:60px;border-radius:4px;margin-bottom:4px">
-        <span class="upload-dropzone-text">${file.name} — <a href="#" onclick="event.preventDefault();event.stopPropagation();document.getElementById('ai-edit-file-input').click()">change</a></span>
-      `;
-    }
-  };
+  reader.onload = (e) => setAiEditSource(e.target.result, file.name);
   reader.readAsDataURL(file);
+}
+
+function setAiEditSource(dataUrl, label) {
+  aiState.editSourceImage = dataUrl;
+  const content = document.getElementById('ai-edit-dropzone-content');
+  if (content) {
+    content.innerHTML = `
+      <img src="${dataUrl}" style="max-width:120px;max-height:60px;border-radius:4px;margin-bottom:4px;image-rendering:pixelated">
+      <span class="upload-dropzone-text">${escapeHtml(label || 'Image')} — <a href="#" onclick="event.preventDefault();event.stopPropagation();document.getElementById('ai-edit-file-input').click()">change</a></span>
+    `;
+  }
 }
 
 async function generateAiEdit() {
@@ -182,11 +192,11 @@ async function generateAiEdit() {
 
   const statusEl = document.getElementById('ai-edit-status');
   const statusText = document.getElementById('ai-edit-status-text');
-  const editBtn = document.getElementById('ai-edit-btn');
 
+  setAiBusy(true, 'Stylizing image... this may take 10-30 seconds');
   if (statusEl) statusEl.style.display = 'flex';
   if (statusText) statusText.textContent = 'Stylizing image... this may take 10-30 seconds';
-  if (editBtn) editBtn.disabled = true;
+  startAiStatusPoll();
 
   try {
     const result = await api.post('/api/ai/edit', {
@@ -197,49 +207,24 @@ async function generateAiEdit() {
     });
 
     aiState.lastEditImage = result.imageBase64;
-
-    // Show comparison
     showAiEditComparison(aiState.editSourceImage, result.imageBase64);
-    
     loadAiHistory();
     window.toast?.success('AI Art', 'Image stylized successfully!');
   } catch (err) {
     console.error('[AI] Edit error:', err);
-    window.toast?.error('AI Art', err.message || 'Stylization failed');
+    window.toast?.error('AI Art', formatAiError(err));
   } finally {
+    stopAiStatusPoll();
+    setAiBusy(false);
     if (statusEl) statusEl.style.display = 'none';
-    if (editBtn) editBtn.disabled = false;
   }
 }
 
 function showAiEditComparison(originalDataUrl, resultBase64) {
   const container = document.getElementById('ai-edit-preview-container');
   if (!container) return;
-
-  // Before (original)
-  const beforeCanvas = document.getElementById('ai-edit-before-canvas');
-  if (beforeCanvas) {
-    const ctx = beforeCanvas.getContext('2d');
-    const img = new Image();
-    img.onload = () => {
-      ctx.clearRect(0, 0, beforeCanvas.width, beforeCanvas.height);
-      ctx.drawImage(img, 0, 0, beforeCanvas.width, beforeCanvas.height);
-    };
-    img.src = originalDataUrl;
-  }
-
-  // After (stylized)
-  const afterCanvas = document.getElementById('ai-edit-after-canvas');
-  if (afterCanvas) {
-    const ctx = afterCanvas.getContext('2d');
-    const img = new Image();
-    img.onload = () => {
-      ctx.clearRect(0, 0, afterCanvas.width, afterCanvas.height);
-      ctx.drawImage(img, 0, 0, afterCanvas.width, afterCanvas.height);
-    };
-    img.src = 'data:image/png;base64,' + resultBase64;
-  }
-
+  drawPixelated(document.getElementById('ai-edit-before-canvas'), originalDataUrl);
+  drawPixelated(document.getElementById('ai-edit-after-canvas'), 'data:image/png;base64,' + resultBase64);
   container.style.display = '';
 }
 
@@ -252,9 +237,11 @@ async function applyAiEditToDisplay() {
   await applyBase64ToDisplay(aiState.lastEditImage, canvasName);
 }
 
-function saveAiEditToGallery() {
+async function saveAiEditToGallery() {
   if (!aiState.lastEditImage) return;
-  window.toast?.info('AI Art', 'Image saved to history');
+  const prompt = document.getElementById('ai-edit-prompt')?.value?.trim() || 'stylized';
+  const style = document.getElementById('ai-edit-style')?.value || '';
+  await saveBase64ToGallery(aiState.lastEditImage, prompt, style);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -281,35 +268,51 @@ function renderAiHistory() {
   }
 
   container.innerHTML = aiState.history.map(item => {
-    const imgSrc = item.thumbnailBase64
-      ? `data:image/png;base64,${item.thumbnailBase64}`
-      : '';
     const time = new Date(item.createdAt).toLocaleString();
     const label = item.isEdit ? '✨ Edit' : item.style || 'Custom';
-    
+    const thumb = `${AI_GALLERY_BASE}/history/${encodeURIComponent(item.id)}/thumb`;
+
     return `
       <div class="ai-history-item" title="${escapeHtml(item.prompt)}">
-        ${imgSrc ? `<img src="${imgSrc}" alt="Generated image">` : '<div style="aspect-ratio:2/1;background:var(--color-bg-tertiary)"></div>'}
+        <img src="${thumb}" alt="Generated image" onerror="this.style.display='none'">
         <div class="ai-history-item-info">
           <div class="ai-history-item-prompt">${escapeHtml(item.prompt || '(no prompt)')}</div>
           <div class="ai-history-item-time">${label} &middot; ${time}</div>
         </div>
         <div class="ai-history-item-actions">
           <button class="btn btn-small btn-primary" onclick="applyHistoryItem('${item.id}')">Apply</button>
+          <button class="btn btn-small btn-warning ai-dismiss-overlay-btn" style="display:${aiState.overlayVisible ? '' : 'none'}" onclick="dismissImageOverlay()">Dismiss</button>
+          <button class="btn btn-small btn-secondary" onclick="stylizeHistoryItem('${item.id}')">Stylize</button>
         </div>
       </div>
     `;
   }).join('');
 }
 
+async function fetchHistoryImage(id) {
+  const data = await api.get(`/api/ai/history/${encodeURIComponent(id)}`);
+  return data.imageBase64;
+}
+
 async function applyHistoryItem(id) {
-  const item = aiState.history.find(h => h.id === id);
-  if (!item || !item.thumbnailBase64) {
-    window.toast?.error('AI Art', 'Image data not available');
-    return;
+  try {
+    const imageBase64 = await fetchHistoryImage(id);
+    const canvasName = document.getElementById('ai-target-canvas')?.value || 'Main';
+    await applyBase64ToDisplay(imageBase64, canvasName);
+  } catch (err) {
+    window.toast?.error('AI Art', formatAiError(err));
   }
-  const canvasName = document.getElementById('ai-target-canvas')?.value || 'Main';
-  await applyBase64ToDisplay(item.thumbnailBase64, canvasName);
+}
+
+async function stylizeHistoryItem(id) {
+  try {
+    const item = aiState.history.find(h => h.id === id);
+    const imageBase64 = await fetchHistoryImage(id);
+    setAiEditSource('data:image/png;base64,' + imageBase64, item?.prompt || 'History');
+    switchAiSubtab('stylize');
+  } catch (err) {
+    window.toast?.error('AI Art', formatAiError(err));
+  }
 }
 
 async function clearAiHistory() {
@@ -385,18 +388,25 @@ async function loadAiConfig() {
       schedPromptsEl.value = data.schedulePrompts.join('\n');
     }
 
-    // Status indicator
     const statusEl = document.getElementById('ai-config-status');
     if (statusEl) {
       statusEl.textContent = data.configured ? 'Configured' : 'Not configured';
       statusEl.style.color = data.configured ? 'var(--color-success)' : 'var(--color-danger)';
+    }
+
+    applyAiPreviewSize(data.displayWidth, data.displayHeight);
+    applyAiScheduleMeta(data);
+    setAiDismissButtonsVisible(!!data.overlayVisible);
+    if (data.generating) {
+      setAiBusy(true, 'A generation is already in progress...');
+      startAiStatusPoll();
     }
   } catch {
     return;
   }
 }
 
-async function saveAiConfig() {
+async function saveAiConfig(opts = {}) {
   const provider = document.getElementById('ai-provider')?.value || 'azure';
 
   const payload = { provider };
@@ -418,14 +428,27 @@ async function saveAiConfig() {
 
   try {
     const result = await api.post('/api/ai/configure', payload);
-    window.toast?.success('AI Art', 'Settings saved');
     const statusEl = document.getElementById('ai-config-status');
     if (statusEl) {
       statusEl.textContent = result.configured ? 'Configured' : 'Not configured';
       statusEl.style.color = result.configured ? 'var(--color-success)' : 'var(--color-danger)';
     }
+    if (!opts.silent) window.toast?.success('AI Art', 'Settings saved');
+    return result;
   } catch (err) {
-    window.toast?.error('AI Art', err.message);
+    if (!opts.silent) window.toast?.error('AI Art', err.message);
+    throw err;
+  }
+}
+
+async function saveAllAiSettings() {
+  try {
+    await saveAiConfig({ silent: true });
+    if (typeof saveVoiceConfig === 'function')
+      await saveVoiceConfig({ silent: true });
+    window.toast?.success('AI Art', 'All settings saved');
+  } catch (err) {
+    window.toast?.error('AI Art', err.message || 'Save failed');
   }
 }
 
@@ -465,10 +488,41 @@ async function saveAiSchedule() {
       prompts
     });
     window.toast?.success('AI Art', result.message);
+    try {
+      const status = await api.get('/api/ai/status');
+      applyAiScheduleMeta(status);
+    } catch { /* keep local label */ }
     const statusEl = document.getElementById('ai-schedule-status');
     if (statusEl) statusEl.textContent = enabled ? `Active — every ${intervalMinutes}min` : 'Disabled';
   } catch (err) {
-    window.toast?.error('AI Art', err.message);
+    window.toast?.error('AI Art', formatAiError(err));
+  }
+}
+
+async function runAiScheduleNow() {
+  const runBtn = document.getElementById('ai-schedule-run-btn');
+  if (runBtn) runBtn.disabled = true;
+  setAiBusy(true, 'Auto-generating...');
+  startAiStatusPoll();
+  try {
+    const result = await api.post('/api/ai/schedule/run');
+    applyAiScheduleMeta(result);
+    if (result.imageBase64) {
+      aiState.lastGeneratedImage = result.imageBase64;
+      showAiPreview(result.imageBase64);
+    }
+    loadAiHistory();
+    loadGallery();
+    window.toast?.success('AI Art', result.record?.prompt
+      ? `Generated: ${result.record.prompt}`
+      : 'Auto-generate finished');
+  } catch (err) {
+    window.toast?.error('AI Art', formatAiError(err));
+    try { applyAiScheduleMeta(await api.get('/api/ai/status')); } catch { /* ignore */ }
+  } finally {
+    stopAiStatusPoll();
+    setAiBusy(false);
+    if (runBtn) runBtn.disabled = false;
   }
 }
 
@@ -479,11 +533,27 @@ async function saveAiSchedule() {
 async function applyBase64ToDisplay(base64Image, canvasName) {
   try {
     await api.post('/api/ai/apply', { imageBase64: base64Image, canvasName });
-    window.toast?.success('AI Art', 'Image applied to display');
-    const dismissBtn = document.getElementById('gallery-dismiss-overlay-btn');
-    if (dismissBtn) dismissBtn.style.display = '';
+    window.toast?.success('AI Art', `Image applied to ${canvasName}`);
+    setAiDismissButtonsVisible(true);
   } catch (err) {
-    window.toast?.error('AI Art', err.message);
+    window.toast?.error('AI Art', formatAiError(err));
+  }
+}
+
+async function saveBase64ToGallery(imageBase64, prompt, style, force = false) {
+  try {
+    const result = await api.post('/api/ai/gallery', { imageBase64, prompt, style, force });
+    if (result.alreadyExists && !force) {
+      const again = window.confirm(
+        `This image is already in the gallery as ${result.filename}.\nSave another copy?`
+      );
+      if (again) return saveBase64ToGallery(imageBase64, prompt, style, true);
+      return;
+    }
+    window.toast?.success('Gallery', result.filename ? `Saved ${result.filename}` : 'Saved to gallery');
+    loadGallery();
+  } catch (err) {
+    window.toast?.error('Gallery', formatAiError(err));
   }
 }
 
@@ -491,10 +561,107 @@ async function dismissImageOverlay() {
   try {
     await api.post('/api/ai/dismiss');
     window.toast?.success('AI Art', 'Image removed from display');
-    const dismissBtn = document.getElementById('gallery-dismiss-overlay-btn');
-    if (dismissBtn) dismissBtn.style.display = 'none';
+    setAiDismissButtonsVisible(false);
   } catch (err) {
-    window.toast?.error('AI Art', err.message);
+    window.toast?.error('AI Art', formatAiError(err));
+  }
+}
+
+function setAiDismissButtonsVisible(visible) {
+  aiState.overlayVisible = !!visible;
+  document.querySelectorAll('.ai-dismiss-overlay-btn').forEach(btn => {
+    btn.style.display = visible ? '' : 'none';
+  });
+}
+
+function formatAiError(err) {
+  const msg = err?.message || 'Request failed';
+  if (err?.status === 429) return 'Rate limited. Wait a minute and try again.';
+  return msg;
+}
+
+function applyAiPreviewSize(width, height) {
+  const w = Math.max(1, width || aiState.displayWidth || 256);
+  const h = Math.max(1, height || aiState.displayHeight || 128);
+  aiState.displayWidth = w;
+  aiState.displayHeight = h;
+  for (const id of AI_PREVIEW_CANVAS_IDS) {
+    const canvas = document.getElementById(id);
+    if (!canvas) continue;
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
+  }
+  const sizeEl = document.getElementById('ai-preview-size');
+  if (sizeEl) sizeEl.textContent = `${w}\u00D7${h}`;
+}
+
+function setAiBusy(busy, text) {
+  const genBtn = document.getElementById('ai-generate-btn');
+  const editBtn = document.getElementById('ai-edit-btn');
+  const runBtn = document.getElementById('ai-schedule-run-btn');
+  if (genBtn) genBtn.disabled = !!busy;
+  if (editBtn) editBtn.disabled = !!busy;
+  if (runBtn) runBtn.disabled = !!busy;
+
+  const statusEl = document.getElementById('ai-status');
+  const statusText = document.getElementById('ai-status-text');
+  if (busy) {
+    if (statusEl) statusEl.style.display = 'flex';
+    if (statusText && text) statusText.textContent = text;
+  } else if (statusEl) {
+    statusEl.style.display = 'none';
+  }
+}
+
+function startAiStatusPoll() {
+  stopAiStatusPoll();
+  aiState.statusPoll = setInterval(async () => {
+    try {
+      const data = await api.get('/api/ai/status');
+      applyAiScheduleMeta(data);
+      if (!data.generating) {
+        stopAiStatusPoll();
+      }
+    } catch { /* ignore poll errors */ }
+  }, 2000);
+}
+
+function stopAiStatusPoll() {
+  if (aiState.statusPoll) {
+    clearInterval(aiState.statusPoll);
+    aiState.statusPoll = null;
+  }
+}
+
+function applyAiScheduleMeta(data) {
+  if (!data) return;
+  const lastEl = document.getElementById('ai-schedule-last-run');
+  const nextEl = document.getElementById('ai-schedule-next-run');
+  const errEl = document.getElementById('ai-schedule-last-error');
+  const statusEl = document.getElementById('ai-schedule-status');
+
+  if (lastEl) {
+    const when = data.scheduleLastRunUtc ? new Date(data.scheduleLastRunUtc).toLocaleString() : '—';
+    const prompt = data.scheduleLastPrompt ? ` — ${data.scheduleLastPrompt}` : '';
+    lastEl.textContent = `Last run: ${when}${prompt}`;
+  }
+  if (nextEl) {
+    nextEl.textContent = data.scheduleEnabled && data.scheduleNextRunUtc
+      ? `Next run: ${new Date(data.scheduleNextRunUtc).toLocaleString()}`
+      : 'Next run: —';
+  }
+  if (errEl) {
+    errEl.textContent = data.scheduleLastError
+      ? data.scheduleLastError
+      : (data.scheduleLastSkip || '');
+    errEl.style.color = data.scheduleLastError
+      ? 'var(--color-danger)'
+      : 'var(--color-text-muted)';
+  }
+  if (statusEl && data.scheduleEnabled != null) {
+    statusEl.textContent = data.scheduleEnabled
+      ? `Active — every ${data.scheduleIntervalMinutes || 60}min`
+      : 'Disabled';
   }
 }
 
@@ -519,8 +686,14 @@ function switchAiSubtab(subId) {
   });
   // Load gallery when switching to it
   if (subId === 'gallery') loadGallery();
-  // Refresh history when switching to generate tab
   if (subId === 'generate') loadAiHistory();
+  if (subId === 'schedule') {
+    api.get('/api/ai/status').then(applyAiScheduleMeta).catch(() => {});
+  }
+  if (subId === 'settings') {
+    loadAiConfig();
+    if (typeof loadVoiceConfig === 'function') loadVoiceConfig();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -544,7 +717,7 @@ function renderGallery() {
   if (!grid) return;
 
   if (aiState.gallery.length === 0) {
-    grid.innerHTML = '<div class="ai-history-empty">No saved images. Enable "Save to disk" in AI → Auto-generate to build your gallery.</div>';
+    grid.innerHTML = '<div class="ai-history-empty">No saved images. Use Save to Gallery after generating, or enable Save to disk in Auto-generate.</div>';
     return;
   }
 
@@ -575,24 +748,16 @@ async function previewGalleryImage(filename) {
     aiState.galleryPreviewFilename = filename;
     aiState.galleryPreviewBase64 = data.imageBase64;
 
-    // Draw to preview canvas
     const container = document.getElementById('gallery-preview-large');
     const canvas = document.getElementById('gallery-preview-canvas');
     const info = document.getElementById('gallery-preview-info');
     if (!container || !canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    img.onload = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      container.style.display = '';
-    };
-    img.src = 'data:image/png;base64,' + data.imageBase64;
+    drawPixelated(canvas, 'data:image/png;base64,' + data.imageBase64);
+    container.style.display = '';
 
     if (info) info.textContent = filename;
 
-    // Highlight in grid
     document.querySelectorAll('.gallery-item').forEach(el => el.classList.remove('selected'));
   } catch {
     return;
@@ -603,6 +768,15 @@ async function applyGalleryPreviewToDisplay() {
   if (!aiState.galleryPreviewBase64) return;
   const canvasName = document.getElementById('gallery-slideshow-canvas')?.value || 'Main';
   await applyBase64ToDisplay(aiState.galleryPreviewBase64, canvasName);
+}
+
+function stylizeGalleryPreview() {
+  if (!aiState.galleryPreviewBase64) return;
+  setAiEditSource(
+    'data:image/png;base64,' + aiState.galleryPreviewBase64,
+    aiState.galleryPreviewFilename || 'Gallery'
+  );
+  switchAiSubtab('stylize');
 }
 
 async function deleteGalleryPreviewImage() {
@@ -622,9 +796,6 @@ function closeGalleryPreview() {
   if (container) container.style.display = 'none';
   aiState.galleryPreviewFilename = null;
   aiState.galleryPreviewBase64 = null;
-  // Hide dismiss button when closing preview
-  const dismissBtn = document.getElementById('gallery-dismiss-overlay-btn');
-  if (dismissBtn) dismissBtn.style.display = 'none';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -727,16 +898,20 @@ window.handleAiEditFileUpload = handleAiEditFileUpload;
 window.applyAiEditToDisplay = applyAiEditToDisplay;
 window.saveAiEditToGallery = saveAiEditToGallery;
 window.applyHistoryItem = applyHistoryItem;
+window.stylizeHistoryItem = stylizeHistoryItem;
 window.clearAiHistory = clearAiHistory;
 window.toggleAiProviderFields = toggleAiProviderFields;
 window.saveAiConfig = saveAiConfig;
+window.saveAllAiSettings = saveAllAiSettings;
 window.toggleAiSchedule = toggleAiSchedule;
 window.saveAiSchedule = saveAiSchedule;
+window.runAiScheduleNow = runAiScheduleNow;
 window.loadAiConfig = loadAiConfig;
 window.switchAiSubtab = switchAiSubtab;
 window.loadGallery = loadGallery;
 window.previewGalleryImage = previewGalleryImage;
 window.applyGalleryPreviewToDisplay = applyGalleryPreviewToDisplay;
+window.stylizeGalleryPreview = stylizeGalleryPreview;
 window.deleteGalleryPreviewImage = deleteGalleryPreviewImage;
 window.closeGalleryPreview = closeGalleryPreview;
 window.startGallerySlideshow = startGallerySlideshow;

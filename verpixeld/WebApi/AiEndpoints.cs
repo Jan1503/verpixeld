@@ -142,7 +142,10 @@ public static class AiEndpoints
                 success = true,
                 configured = aiService.IsConfigured,
                 generating = aiService.IsGenerating,
+                overlayVisible = aiService.HasImageOverlay,
                 provider = aiService.Provider,
+                displayWidth = aiService.DisplayWidth,
+                displayHeight = aiService.DisplayHeight,
                 // Don't expose API keys
                 azureEndpoint = aiService.AzureEndpoint,
                 azureDeployment = aiService.AzureDeployment,
@@ -157,7 +160,12 @@ public static class AiEndpoints
                 scheduleStyle = aiService.ScheduleStyle,
                 scheduleCanvasName = aiService.ScheduleCanvasName,
                 scheduleSaveToDisk = aiService.ScheduleSaveToDisk,
-                schedulePrompts = aiService.SchedulePrompts
+                schedulePrompts = aiService.SchedulePrompts,
+                scheduleLastRunUtc = aiService.ScheduleLastRunUtc,
+                scheduleLastPrompt = aiService.ScheduleLastPrompt,
+                scheduleLastError = aiService.ScheduleLastError,
+                scheduleNextRunUtc = aiService.ScheduleNextRunUtc,
+                scheduleLastSkip = aiService.ScheduleLastSkip
             });
         });
 
@@ -230,7 +238,32 @@ public static class AiEndpoints
                 {
                     success = true,
                     scheduleEnabled = aiService.ScheduleEnabled,
+                    scheduleNextRunUtc = aiService.ScheduleNextRunUtc,
                     message = enabled ? "Schedule enabled" : "Schedule disabled"
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
+            }
+        });
+
+        // Run one scheduled generation immediately
+        group.MapPost("/schedule/run", async () =>
+        {
+            try
+            {
+                var result = await aiService.RunScheduleNowAsync();
+                return Results.Json(new
+                {
+                    success = result.Success,
+                    error = result.Error,
+                    imageBase64 = result.ImageBase64,
+                    record = result.Record,
+                    scheduleLastRunUtc = aiService.ScheduleLastRunUtc,
+                    scheduleLastPrompt = aiService.ScheduleLastPrompt,
+                    scheduleLastError = aiService.ScheduleLastError,
+                    scheduleNextRunUtc = aiService.ScheduleNextRunUtc
                 });
             }
             catch (Exception ex)
@@ -254,6 +287,31 @@ public static class AiEndpoints
         {
             aiService.ClearHistory();
             return Results.Json(new { success = true, message = "History cleared" });
+        });
+
+        // One history image as base64 (apply / stylize)
+        group.MapGet("/history/{id}", (string id) =>
+        {
+            var bytes = aiService.GetHistoryImageBytes(id);
+            if (bytes == null)
+                return Results.Json(new { success = false, error = "Image not found" }, statusCode: 404);
+
+            var record = aiService.History.FirstOrDefault(h => h.Id == Path.GetFileNameWithoutExtension(Path.GetFileName(id)));
+            return Results.Json(new
+            {
+                success = true,
+                imageBase64 = Convert.ToBase64String(bytes),
+                record
+            });
+        });
+
+        // History PNG for <img src>
+        group.MapGet("/history/{id}/thumb", (string id) =>
+        {
+            var bytes = aiService.GetHistoryImageBytes(id);
+            if (bytes == null)
+                return Results.NotFound();
+            return Results.File(bytes, "image/png");
         });
 
         // ── Gallery endpoints ──────────────────────────────────────────
@@ -294,6 +352,44 @@ public static class AiEndpoints
         {
             var deleted = aiService.DeleteGalleryImage(filename);
             return Results.Json(new { success = deleted, message = deleted ? "Deleted" : "Not found" });
+        });
+
+        // Save an image (generate / stylize result) into the gallery folder
+        group.MapPost("/gallery", async (HttpContext context) =>
+        {
+            try
+            {
+                using var reader = new StreamReader(context.Request.Body);
+                var body = await reader.ReadToEndAsync();
+                var json = JsonDocument.Parse(body).RootElement;
+
+                var imageBase64 = json.TryGetProperty("imageBase64", out var img) ? img.GetString() ?? "" : "";
+                var prompt = json.TryGetProperty("prompt", out var p) ? p.GetString() ?? "" : "";
+                var style = json.TryGetProperty("style", out var s) ? s.GetString() ?? "" : "";
+                var force = json.TryGetProperty("force", out var f) && f.GetBoolean();
+
+                if (string.IsNullOrEmpty(imageBase64))
+                    return Results.Json(new { success = false, error = "No image provided" });
+
+                if (imageBase64.Contains(','))
+                    imageBase64 = imageBase64.Split(',')[1];
+
+                var saved = aiService.SaveToGallery(imageBase64, prompt, style, force);
+                if (saved.Filename == null)
+                    return Results.Json(new { success = false, error = "Failed to save image" }, statusCode: 500);
+
+                return Results.Json(new
+                {
+                    success = true,
+                    filename = saved.Filename,
+                    alreadyExists = saved.AlreadyExists,
+                    message = saved.AlreadyExists ? "Already in gallery" : "Saved to gallery"
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
+            }
         });
     }
 }

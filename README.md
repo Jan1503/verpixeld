@@ -113,6 +113,16 @@ CanvasManagement is the shared framework ([Jan1503/canvasmanagement](https://git
 
 Dated from the public GitHub history so you can follow what landed when. Newest first.
 
+### 2026-08-29 — Voice settings live with the other AI settings
+
+**Apply to Display** now has **Dismiss from Display** next to it (Generate, Stylize, Gallery, History). Save to Gallery hashes the PNG: the same image is not written again under a new timestamp; a second click asks whether to keep another copy. Voice settings are grouped (Speech, mic, listening, spoken answers, commands) with a short note under each field. Azure AI Foundry uses one key for OpenAI and Speech — leave Speech key empty to reuse the Azure OpenAI key.
+
+Speech key, microphone, TTS, ducking and wake-word upload moved from the Voice subtab into **AI → Settings**, together with voice image defaults. **Save All Settings** writes Azure/image/chat and voice in one go. The Voice tab is listen / push-to-talk only.
+
+### 2026-08-28 — AI Art for the LED wall
+
+Generated images are **center-cropped** to the wall aspect and **nearest-neighbour** scaled (pixel-art / 8-bit also posterize). Previews use the live display size. **Save to Gallery** writes a PNG. Gallery and history can send an image to **Stylize**. Apply draws an overlay on the **selected canvas**, not always full-screen. Auto-generate shows last/next run and **Run now**. History stores files under `Data/AiHistory/` instead of base64 in JSON. Content-filter and rate-limit errors show as plain toasts.
+
 ### 2026-08-27 — Studio layout tools, container restart
 
 Studio can **duplicate** a canvas (geometry, brightness, opacity, extension + params, rotation playlist). Inspector has **per-canvas brightness**, **lock position & size**, and **lock aspect**. Arrow keys nudge 1 px (Shift = snap grid); Alt+Arrow always nudges so games keep their own arrows. Ctrl+Z / Ctrl+Y undo move, resize, z-order, opacity and brightness. The selected box hatches pixels covered by a higher z-order layer.
@@ -391,14 +401,14 @@ Generate unique artwork for your LED matrix using AI image generation:
 
 - **Azure OpenAI (Default)** — Supports DALL-E 3 and GPT Image models via Azure credits
 - **OpenAI (Alternative)** — Direct OpenAI API support for DALL-E 3, GPT Image 1, GPT Image 1 Mini
-- **Text-to-Image** — Describe what you want and the AI generates it, optimized for LED matrix display
-- **Image-to-Image** — Upload a photo and have the AI stylize it (pixel art, watercolor, cyberpunk, etc.)
+- **Text-to-Image** — Describe what you want and the AI generates it; results are cropped to the wall aspect and nearest-neighbour scaled (pixel-art / 8-bit posterize)
+- **Image-to-Image** — Upload a photo, or send a gallery/history image, and have the AI stylize it
 - **Style Presets** — Pixel Art, Retro 8-bit, Neon Synthwave, Abstract, Photograph, Watercolor, Oil Painting, Comic, Minimalist, Cyberpunk
 - **Quality Control** — Low/Medium/High quality settings to balance speed and detail
-- **Generation History** — Browse and re-apply past generations with one click
-- **Scheduled Auto-Generation** — Configure prompts and intervals to auto-generate fresh artwork periodically
-- **Live Preview** — See generated images before applying them to the display
-- **Gallery with Overlay Display** — Save generated images to a gallery, browse thumbnails, and apply images to the display via an overlay canvas (z=250) that stays visible above running extensions until dismissed
+- **Generation History** — Browse and re-apply past generations; PNG files on disk, not base64 in JSON
+- **Scheduled Auto-Generation** — Prompts and intervals, last/next run in the UI, **Run now** to fire one immediately
+- **Live Preview** — Pixelated preview at the live display resolution before applying
+- **Gallery with Overlay Display** — Save generated images to a gallery, browse thumbnails, stylize again, and apply to a **selected canvas** via an overlay (z=250) that stays above running extensions until dismissed
 - **Gallery Slideshow** — Auto-cycle through gallery images with configurable interval and shuffle/sequential order
 - **Persistent Configuration** — API keys and schedule settings saved to disk
 
@@ -894,11 +904,8 @@ The microphone source name (e.g. `alsa_input.usb-Lenovo_Lenovo_510_Camera-...`) 
    - Azure API Key: your key
    - Image Deployment: `gpt-image-1` (from Step 2)
    - Chat Deployment: `gpt-5-mini` (from Step 2)
-   - Click **Save**
-
-2. **AI Art tab > Voice subtab:**
-   - Azure Speech Key: your Speech key (from Step 3)
-   - Azure Region: your Speech region (e.g. `westeurope`)
+   - Speech key: leave empty on Azure AI Foundry (same key as Azure OpenAI). Only fill this for a standalone Speech resource.
+   - Region: Foundry / Speech region (e.g. `westeurope`)
    - Speech Language: `de-DE` (German) or `en-US` (English)
    - Microphone: Select your USB mic from the dropdown
    - Voice Responses: Enabled
@@ -906,7 +913,9 @@ The microphone source name (e.g. `alsa_input.usb-Lenovo_Lenovo_510_Camera-...`) 
    - Audio Ducking: Enabled (lowers music volume during speech)
    - Duck Volume: 15% (how quiet music gets during speech)
    - Upload wake word `.table` file (optional, from Step 4)
-   - Click **Save Voice Settings**
+   - Click **Save All Settings**
+
+2. **AI Art tab > Voice subtab:**
    - Click **Start Listening**
 
 ### Voice Assistant Architecture

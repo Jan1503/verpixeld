@@ -30,7 +30,7 @@
     <link rel="stylesheet" href="/css/features/favorites.css?v=20260208a">
     <link rel="stylesheet" href="/css/features/console-log.css?v=20260208a">
     <link rel="stylesheet" href="/css/features/image-upload.css?v=20260208c">
-    <link rel="stylesheet" href="/css/features/ai-art.css?v=20260208c">
+    <link rel="stylesheet" href="/css/features/ai-art.css?v=20260829c">
     <link rel="stylesheet" href="/css/features/voice-commands.css?v=20260208c">
     <link rel="stylesheet" href="/css/features/settings.css?v=20260827a">
     <link rel="stylesheet" href="/css/responsive.css?v=20260208a">
@@ -754,8 +754,8 @@
                   </select>
                 </div>
                 <div class="ai-control-group">
-                  <label for="ai-target-canvas">Canvas:</label>
-                  <select id="ai-target-canvas" class="ai-select">
+                  <label for="ai-target-canvas" title="Drawn as an overlay on this canvas, above running extensions">Canvas:</label>
+                  <select id="ai-target-canvas" class="ai-select" title="Drawn as an overlay on this canvas, above running extensions">
                     <option value="Main">Main</option>
                   </select>
                 </div>
@@ -765,9 +765,11 @@
                 <span class="ai-status-text" id="ai-status-text">Generating...</span>
               </div>
               <div class="ai-preview-container" id="ai-preview-container" style="display:none">
-                <canvas id="ai-preview-canvas" width="384" height="192"></canvas>
+                <canvas id="ai-preview-canvas" width="256" height="128"></canvas>
+                <div class="ai-preview-size" id="ai-preview-size"></div>
                 <div class="ai-preview-actions">
                   <button class="btn btn-small btn-primary" onclick="applyAiImageToDisplay()">Apply to Display</button>
+                  <button class="btn btn-small btn-warning ai-dismiss-overlay-btn" style="display:none" onclick="dismissImageOverlay()">Dismiss from Display</button>
                   <button class="btn btn-small btn-secondary" onclick="saveAiImageToGallery()">Save to Gallery</button>
                 </div>
               </div>
@@ -834,15 +836,16 @@
                 <div class="ai-edit-comparison">
                   <div class="ai-edit-before">
                     <span class="ai-edit-label">Original</span>
-                    <canvas id="ai-edit-before-canvas" width="192" height="96"></canvas>
+                    <canvas id="ai-edit-before-canvas" width="256" height="128"></canvas>
                   </div>
                   <div class="ai-edit-after">
                     <span class="ai-edit-label">Stylized</span>
-                    <canvas id="ai-edit-after-canvas" width="192" height="96"></canvas>
+                    <canvas id="ai-edit-after-canvas" width="256" height="128"></canvas>
                   </div>
                 </div>
                 <div class="ai-preview-actions">
                   <button class="btn btn-small btn-primary" onclick="applyAiEditToDisplay()">Apply to Display</button>
+                  <button class="btn btn-small btn-warning ai-dismiss-overlay-btn" style="display:none" onclick="dismissImageOverlay()">Dismiss from Display</button>
                   <button class="btn btn-small btn-secondary" onclick="saveAiEditToGallery()">Save to Gallery</button>
                 </div>
               </div>
@@ -908,18 +911,19 @@
             <div class="tab-section-body">
               <!-- Large preview -->
               <div class="gallery-preview-large" id="gallery-preview-large" style="display:none">
-                <canvas id="gallery-preview-canvas" width="384" height="192"></canvas>
+                <canvas id="gallery-preview-canvas" width="256" height="128"></canvas>
                 <div class="gallery-preview-info" id="gallery-preview-info"></div>
                 <div class="ai-preview-actions">
                   <button class="btn btn-small btn-primary" onclick="applyGalleryPreviewToDisplay()">Apply to Display</button>
-                  <button class="btn btn-small btn-warning" id="gallery-dismiss-overlay-btn" style="display:none" onclick="dismissImageOverlay()">Dismiss from Display</button>
+                  <button class="btn btn-small btn-secondary" onclick="stylizeGalleryPreview()">Stylize</button>
+                  <button class="btn btn-small btn-warning ai-dismiss-overlay-btn" id="gallery-dismiss-overlay-btn" style="display:none" onclick="dismissImageOverlay()">Dismiss from Display</button>
                   <button class="btn btn-small btn-danger" onclick="deleteGalleryPreviewImage()">Delete</button>
                   <button class="btn btn-small btn-secondary" onclick="closeGalleryPreview()">Close</button>
                 </div>
               </div>
               <!-- Image Grid -->
               <div class="gallery-grid" id="gallery-grid">
-                <div class="ai-history-empty">No saved images. Enable "Save to disk" in AI → Auto-generate to build your gallery.</div>
+                <div class="ai-history-empty">No saved images. Use Save to Gallery after generating, or enable Save to disk in Auto-generate.</div>
               </div>
             </div>
           </div>
@@ -960,154 +964,7 @@
                 </button>
                 <span class="voice-trigger-hint">Click and speak your image prompt</span>
               </div>
-            </div>
-          </div>
-
-          <!-- Voice Settings -->
-          <div class="tab-section">
-            <div class="tab-section-header">
-              <h3 class="tab-section-title"><span class="tab-section-title-icon">⚙️</span> Voice Settings</h3>
-            </div>
-            <div class="tab-section-body">
-              <div class="ai-controls">
-                <div class="ai-control-group ai-control-wide">
-                  <label for="voice-speech-key">Azure Speech Key:</label>
-                  <input type="password" id="voice-speech-key" class="ai-input" placeholder="Enter your Azure Speech API key">
-                </div>
-              </div>
-              <div class="ai-controls">
-                <div class="ai-control-group">
-                  <label for="voice-speech-region">Region:</label>
-                  <input type="text" id="voice-speech-region" class="ai-input" placeholder="e.g. westeurope">
-                </div>
-                <div class="ai-control-group">
-                  <label for="voice-speech-language">Language:</label>
-                  <select id="voice-speech-language" class="ai-select">
-                    <option value="de-DE" selected>Deutsch (DE)</option>
-                    <option value="de-AT">Deutsch (AT)</option>
-                    <option value="de-CH">Deutsch (CH)</option>
-                    <option value="en-US">English (US)</option>
-                    <option value="en-GB">English (UK)</option>
-                    <option value="fr-FR">Français</option>
-                    <option value="es-ES">Español</option>
-                    <option value="it-IT">Italiano</option>
-                    <option value="nl-NL">Nederlands</option>
-                    <option value="pl-PL">Polski</option>
-                    <option value="pt-BR">Português (BR)</option>
-                    <option value="ja-JP">日本語</option>
-                    <option value="zh-CN">中文</option>
-                  </select>
-                </div>
-              </div>
-              <div class="ai-controls">
-              <div class="ai-control-group">
-                <label for="voice-audio-device">Microphone:</label>
-                <select id="voice-audio-device" class="ai-select" onchange="onAudioDeviceChange()">
-                  <option value="">System Default</option>
-                  <option value="__custom__">Custom device path...</option>
-                </select>
-                <button class="btn btn-small btn-secondary" onclick="refreshLocalCamDevices()" title="Refresh">↻</button>
-              </div>
-              <div class="ai-control-group ai-control-wide" id="voice-audio-custom-group" style="display:none">
-                <label for="voice-audio-custom">Device path:</label>
-                <input type="text" id="voice-audio-custom" class="ai-input" placeholder="e.g. plughw:3,0">
-              </div>
-                <div class="ai-control-group">
-                  <label for="voice-silence-timeout">Pause Tolerance:</label>
-                  <select id="voice-silence-timeout" class="ai-select" title="How long to wait during a pause before ending recognition">
-                    <option value="1500">1.5s (fast)</option>
-                    <option value="2500">2.5s</option>
-                    <option value="3500" selected>3.5s (default)</option>
-                    <option value="5000">5s (patient)</option>
-                    <option value="7000">7s (very patient)</option>
-                    <option value="10000">10s (max)</option>
-                  </select>
-                </div>
-                <div class="ai-control-group">
-                  <label for="voice-segmentation">End Detection:</label>
-                  <select id="voice-segmentation" class="ai-select" title="How to detect when you've finished speaking">
-                    <option value="Semantic" selected>Semantic (AI-based)</option>
-                    <option value="Default">Silence only</option>
-                    <option value="Time">Time-based</option>
-                  </select>
-                </div>
-                <div class="ai-control-group">
-                  <label for="voice-profanity">Profanity:</label>
-                  <select id="voice-profanity" class="ai-select" title="How to handle profanity in speech">
-                    <option value="raw" selected>Allow all (raw)</option>
-                    <option value="masked">Mask (***)</option>
-                    <option value="removed">Remove</option>
-                  </select>
-                </div>
-              </div>
-              <!-- TTS (Text-to-Speech) Settings -->
-              <div class="ai-controls">
-                <div class="ai-control-group">
-                  <label for="voice-tts-enabled">Voice Responses:</label>
-                  <select id="voice-tts-enabled" class="ai-select" title="Enable spoken responses via Azure TTS">
-                    <option value="true" selected>Enabled</option>
-                    <option value="false">Disabled</option>
-                  </select>
-                </div>
-                <div class="ai-control-group">
-                  <label for="voice-tts-voice">TTS Voice:</label>
-                  <select id="voice-tts-voice" class="ai-select" title="Azure TTS voice for spoken responses">
-                    <option value="de-DE-ConradNeural" selected>Conrad (DE, Male)</option>
-                    <option value="de-DE-KatjaNeural">Katja (DE, Female)</option>
-                    <option value="de-DE-AmalaNeural">Amala (DE, Female)</option>
-                    <option value="de-DE-FlorianMultilingualNeural">Florian (DE, Male, Multilingual)</option>
-                    <option value="de-DE-SeraphinaMultilingualNeural">Seraphina (DE, Female, Multilingual)</option>
-                    <option value="en-US-GuyNeural">Guy (EN, Male)</option>
-                    <option value="en-US-JennyNeural">Jenny (EN, Female)</option>
-                    <option value="en-US-AriaNeural">Aria (EN, Female)</option>
-                  </select>
-                </div>
-              </div>
-              <!-- Audio Ducking -->
-              <div class="ai-controls">
-                <div class="ai-control-group">
-                  <label for="voice-tts-ducking">Audio Ducking:</label>
-                  <select id="voice-tts-ducking" class="ai-select" title="Lower music volume while the assistant is speaking">
-                    <option value="true" selected>Enabled</option>
-                    <option value="false">Disabled</option>
-                  </select>
-                </div>
-                <div class="ai-control-group">
-                  <label for="voice-duck-volume">Duck Volume:</label>
-                  <select id="voice-duck-volume" class="ai-select" title="Music volume level during speech (lower = quieter music)">
-                    <option value="5">5%</option>
-                    <option value="10">10%</option>
-                    <option value="15" selected>15%</option>
-                    <option value="20">20%</option>
-                    <option value="25">25%</option>
-                    <option value="30">30%</option>
-                    <option value="50">50%</option>
-                  </select>
-                </div>
-              </div>
-              <!-- Music Playback Mode -->
-              <div class="ai-controls">
-                <div class="ai-control-group">
-                  <label for="voice-music-mode">Music Playback:</label>
-                  <select id="voice-music-mode" class="ai-select" title="Audio-only keeps the current display; Music Video overlays video on the matrix">
-                    <option value="audio" selected>Audio Only (preserve display)</option>
-                    <option value="video">Music Video (show on matrix)</option>
-                  </select>
-                </div>
-              </div>
-              <!-- Keyword Model Upload -->
-              <div class="ai-controls">
-                <div class="ai-control-group ai-control-wide">
-                  <label>Wake Word Model (.table):</label>
-                  <div class="voice-keyword-upload">
-                    <input type="file" id="voice-keyword-file" accept=".table" style="display:none" onchange="uploadKeywordModel(this)">
-                    <button class="btn btn-small btn-secondary" onclick="document.getElementById('voice-keyword-file').click()">Upload .table file</button>
-                    <span class="voice-keyword-status" id="voice-keyword-status">No model loaded</span>
-                  </div>
-                </div>
-              </div>
-              <button class="btn btn-small btn-primary" onclick="saveVoiceConfig()" style="margin-top:8px">Save Voice Settings</button>
-              <span class="voice-config-status" id="voice-config-status"></span>
+              <p class="voice-settings-hint">Speech key, microphone and TTS live in <a href="#" onclick="event.preventDefault(); switchAiSubtab('settings')">Settings</a>.</p>
             </div>
           </div>
         </div>
@@ -1166,8 +1023,16 @@
                     </select>
                   </div>
                 </div>
-                <button class="btn btn-small btn-primary" onclick="saveAiSchedule()">Save</button>
-                <span class="ai-schedule-status" id="ai-schedule-status"></span>
+                <div class="ai-schedule-actions">
+                  <button class="btn btn-small btn-primary" onclick="saveAiSchedule()">Save</button>
+                  <button class="btn btn-small btn-secondary" onclick="runAiScheduleNow()" id="ai-schedule-run-btn">Run now</button>
+                  <span class="ai-schedule-status" id="ai-schedule-status"></span>
+                </div>
+                <div class="ai-schedule-meta" id="ai-schedule-meta">
+                  <div id="ai-schedule-last-run">Last run: —</div>
+                  <div id="ai-schedule-next-run">Next run: —</div>
+                  <div id="ai-schedule-last-error" class="ai-schedule-error"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -1268,18 +1133,165 @@
               </div>
             </div>
 
-            <button class="btn btn-small btn-primary" onclick="saveAiConfig()">Save All Settings</button>
-            <span class="ai-config-status" id="ai-config-status"></span>
-
-            <!-- Voice Image Generation Settings -->
-            <div class="tab-section" style="margin-top: 1rem;">
+            <!-- Voice -->
+            <div class="tab-section">
               <div class="tab-section-header">
-                <h3 class="tab-section-title"><span class="tab-section-title-icon">🎙️</span> Voice Image Generation</h3>
+                <h3 class="tab-section-title"><span class="tab-section-title-icon">🎤</span> Voice</h3>
               </div>
               <div class="tab-section-body">
-                <div class="ai-controls">
-                  <div class="ai-control-group">
-                    <label for="voice-default-style">Default Style:</label>
+                <p class="ai-voice-note">Start / stop listening on the Voice tab. Save writes these together with Azure and image settings.</p>
+
+                <div class="ai-voice-block">
+                  <h4 class="ai-voice-block-title">Azure Speech</h4>
+                  <p class="ai-voice-note">Turns the microphone into text. In <strong>Azure AI Foundry</strong> this is the same key as Azure OpenAI above — leave Speech key empty to reuse it.</p>
+                  <div class="settings-row">
+                    <label for="voice-speech-key">Speech key</label>
+                    <input type="password" id="voice-speech-key" class="ai-input" placeholder="Same as Azure OpenAI key (Foundry)">
+                    <span class="settings-hint">optional — only for a separate Speech resource</span>
+                  </div>
+                  <div class="settings-row">
+                    <label for="voice-speech-region">Region</label>
+                    <input type="text" id="voice-speech-region" class="ai-input" placeholder="e.g. westeurope">
+                    <span class="settings-hint">Foundry / Speech region (e.g. westeurope)</span>
+                  </div>
+                  <div class="settings-row">
+                    <label for="voice-speech-language">Spoken language</label>
+                    <select id="voice-speech-language" class="ai-select">
+                      <option value="de-DE" selected>Deutsch (DE)</option>
+                      <option value="de-AT">Deutsch (AT)</option>
+                      <option value="de-CH">Deutsch (CH)</option>
+                      <option value="en-US">English (US)</option>
+                      <option value="en-GB">English (UK)</option>
+                      <option value="fr-FR">Français</option>
+                      <option value="es-ES">Español</option>
+                      <option value="it-IT">Italiano</option>
+                      <option value="nl-NL">Nederlands</option>
+                      <option value="pl-PL">Polski</option>
+                      <option value="pt-BR">Português (BR)</option>
+                      <option value="ja-JP">日本語</option>
+                      <option value="zh-CN">中文</option>
+                    </select>
+                    <span class="settings-hint">language you speak to the wall</span>
+                  </div>
+                </div>
+
+                <div class="ai-voice-block">
+                  <h4 class="ai-voice-block-title">Microphone</h4>
+                  <p class="ai-voice-note">Which input the host listens on. Refresh after plugging in a USB mic.</p>
+                  <div class="settings-row">
+                    <label for="voice-audio-device">Device</label>
+                    <div class="ai-voice-control-with-btn">
+                      <select id="voice-audio-device" class="ai-select" onchange="onAudioDeviceChange()">
+                        <option value="">System Default</option>
+                        <option value="__custom__">Custom device path...</option>
+                      </select>
+                      <button class="btn btn-small btn-secondary" onclick="refreshLocalCamDevices()" title="Refresh device list">↻</button>
+                    </div>
+                    <span class="settings-hint">USB mic on the Pi, or a custom ALSA path</span>
+                  </div>
+                  <div class="settings-row" id="voice-audio-custom-group" style="display:none">
+                    <label for="voice-audio-custom">Custom path</label>
+                    <input type="text" id="voice-audio-custom" class="ai-input" placeholder="e.g. plughw:3,0">
+                    <span class="settings-hint">from <code>arecord -l</code> / Pulse source name</span>
+                  </div>
+                </div>
+
+                <div class="ai-voice-block">
+                  <h4 class="ai-voice-block-title">Listening</h4>
+                  <p class="ai-voice-note">How the recognizer decides you paused or finished a sentence.</p>
+                  <div class="settings-row">
+                    <label for="voice-silence-timeout">Pause before cut-off</label>
+                    <select id="voice-silence-timeout" class="ai-select">
+                      <option value="1500">1.5s (fast)</option>
+                      <option value="2500">2.5s</option>
+                      <option value="3500" selected>3.5s (default)</option>
+                      <option value="5000">5s (patient)</option>
+                      <option value="7000">7s (very patient)</option>
+                      <option value="10000">10s (max)</option>
+                    </select>
+                    <span class="settings-hint">raise this if it cuts you off mid-sentence</span>
+                  </div>
+                  <div class="settings-row">
+                    <label for="voice-segmentation">When to stop</label>
+                    <select id="voice-segmentation" class="ai-select">
+                      <option value="Semantic" selected>Semantic (AI hears you finished)</option>
+                      <option value="Default">Silence only</option>
+                      <option value="Time">Time-based</option>
+                    </select>
+                    <span class="settings-hint">Semantic is best for normal speech</span>
+                  </div>
+                  <div class="settings-row">
+                    <label for="voice-profanity">Swear words</label>
+                    <select id="voice-profanity" class="ai-select">
+                      <option value="raw" selected>Keep as spoken</option>
+                      <option value="masked">Mask as ***</option>
+                      <option value="removed">Remove</option>
+                    </select>
+                    <span class="settings-hint">only affects the transcript, not the wall</span>
+                  </div>
+                </div>
+
+                <div class="ai-voice-block">
+                  <h4 class="ai-voice-block-title">Spoken answers</h4>
+                  <p class="ai-voice-note">The wall talks back. Ducking turns music down so you can hear the reply.</p>
+                  <div class="settings-row">
+                    <label for="voice-tts-enabled">Speak replies</label>
+                    <select id="voice-tts-enabled" class="ai-select">
+                      <option value="true" selected>Enabled</option>
+                      <option value="false">Disabled (text only)</option>
+                    </select>
+                    <span class="settings-hint">uses the Foundry / Speech key</span>
+                  </div>
+                  <div class="settings-row">
+                    <label for="voice-tts-voice">Voice</label>
+                    <select id="voice-tts-voice" class="ai-select">
+                      <option value="de-DE-ConradNeural" selected>Conrad (DE, Male)</option>
+                      <option value="de-DE-KatjaNeural">Katja (DE, Female)</option>
+                      <option value="de-DE-AmalaNeural">Amala (DE, Female)</option>
+                      <option value="de-DE-FlorianMultilingualNeural">Florian (DE, Male, Multilingual)</option>
+                      <option value="de-DE-SeraphinaMultilingualNeural">Seraphina (DE, Female, Multilingual)</option>
+                      <option value="en-US-GuyNeural">Guy (EN, Male)</option>
+                      <option value="en-US-JennyNeural">Jenny (EN, Female)</option>
+                      <option value="en-US-AriaNeural">Aria (EN, Female)</option>
+                    </select>
+                    <span class="settings-hint">pick a voice that matches the spoken language</span>
+                  </div>
+                  <div class="settings-row">
+                    <label for="voice-tts-ducking">Lower music while talking</label>
+                    <select id="voice-tts-ducking" class="ai-select">
+                      <option value="true" selected>Enabled</option>
+                      <option value="false">Disabled</option>
+                    </select>
+                    <span class="settings-hint">music volume comes back after the reply</span>
+                  </div>
+                  <div class="settings-row">
+                    <label for="voice-duck-volume">Music level while talking</label>
+                    <select id="voice-duck-volume" class="ai-select">
+                      <option value="5">5%</option>
+                      <option value="10">10%</option>
+                      <option value="15" selected>15%</option>
+                      <option value="20">20%</option>
+                      <option value="25">25%</option>
+                      <option value="30">30%</option>
+                      <option value="50">50%</option>
+                    </select>
+                    <span class="settings-hint">lower = quieter music during the reply</span>
+                  </div>
+                </div>
+
+                <div class="ai-voice-block">
+                  <h4 class="ai-voice-block-title">Voice commands</h4>
+                  <p class="ai-voice-note">What happens after it understood you — music, “male / draw …” images, and the wake word.</p>
+                  <div class="settings-row">
+                    <label for="voice-music-mode">Play music as</label>
+                    <select id="voice-music-mode" class="ai-select">
+                      <option value="audio" selected>Audio only (keep current picture)</option>
+                      <option value="video">Music video (show on the wall)</option>
+                    </select>
+                    <span class="settings-hint">audio-only leaves the current canvas alone</span>
+                  </div>
+                  <div class="settings-row">
+                    <label for="voice-default-style">Image style</label>
                     <select id="voice-default-style" class="ai-select">
                       <option value="" selected>None (freeform)</option>
                       <option value="pixel-art">Pixel Art</option>
@@ -1290,30 +1302,43 @@
                       <option value="watercolor">Watercolor</option>
                       <option value="cyberpunk">Cyberpunk</option>
                     </select>
+                    <span class="settings-hint">added to “Hey Pixel, draw …” prompts</span>
                   </div>
-                  <div class="ai-control-group">
-                    <label for="voice-save-images">Save to Gallery:</label>
-                    <select id="voice-save-images" class="ai-select" title="Automatically save voice-generated images to the AI Art gallery">
-                      <option value="true" selected>Yes (auto-save)</option>
+                  <div class="settings-row">
+                    <label for="voice-save-images">Save voice images</label>
+                    <select id="voice-save-images" class="ai-select">
+                      <option value="true" selected>Yes, to the gallery</option>
                       <option value="false">No</option>
                     </select>
+                    <span class="settings-hint">same gallery as Generate → Save to Gallery</span>
                   </div>
-                  <div class="ai-control-group">
-                    <label for="voice-display-duration">Display Duration:</label>
-                    <select id="voice-display-duration" class="ai-select" title="How long a voice-generated image stays on the display">
+                  <div class="settings-row">
+                    <label for="voice-display-duration">Image stays for</label>
+                    <select id="voice-display-duration" class="ai-select">
                       <option value="30">30 seconds</option>
                       <option value="60" selected>1 minute</option>
                       <option value="120">2 minutes</option>
                       <option value="300">5 minutes</option>
                       <option value="600">10 minutes</option>
                     </select>
+                    <span class="settings-hint">then the overlay is dismissed</span>
+                  </div>
+                  <div class="settings-row">
+                    <label>Wake word</label>
+                    <div class="voice-keyword-upload">
+                      <input type="file" id="voice-keyword-file" accept=".table" style="display:none" onchange="uploadKeywordModel(this)">
+                      <button class="btn btn-small btn-secondary" onclick="document.getElementById('voice-keyword-file').click()">Upload .table file</button>
+                      <span class="voice-keyword-status" id="voice-keyword-status">No model loaded</span>
+                    </div>
+                    <span class="settings-hint">optional Azure Custom Keyword model so “Hey Pixel” works without Push to Talk</span>
                   </div>
                 </div>
-                <button class="btn btn-small btn-primary" onclick="saveVoiceImageSettings()">Save</button>
-                <span class="ai-voice-img-status" id="ai-voice-img-status"></span>
-                <p style="color: var(--text-muted); font-size: 0.8em; margin: 0.5em 0 0;">Controls how voice-generated images ("Hey Pixel, male...") are displayed and saved.</p>
               </div>
             </div>
+
+            <button class="btn btn-small btn-primary" onclick="saveAllAiSettings()">Save All Settings</button>
+            <span class="ai-config-status" id="ai-config-status"></span>
+            <span class="voice-config-status" id="voice-config-status"></span>
           </div>
         </div>
 
@@ -2883,7 +2908,7 @@
   <!-- Modular JS - Core modules -->
   <script src="/js/constants.js?v=20260208a"></script>
   <script src="/js/core/api.js?v=20260208a"></script>
-  <script src="/js/utils/helpers.js?v=20260823a"></script>
+  <script src="/js/utils/helpers.js?v=20260828a"></script>
   <script src="/js/ui/toast.js?v=20260208a"></script>
   <script src="/js/ui/modal.js?v=20260208a"></script>
   <script src="/js/ui/theme.js?v=20260817a"></script>
@@ -2928,8 +2953,8 @@
   <script src="/js/features/visualizer.js?v=20260822g"></script>
   <script src="/js/features/console-log.js?v=20260208a"></script>
   <script src="/js/features/image-upload.js?v=20260208c"></script>
-  <script src="/js/features/ai-art.js?v=20260822h"></script>
-  <script src="/js/features/voice-commands.js?v=20260208c"></script>
+  <script src="/js/features/ai-art.js?v=20260829b"></script>
+  <script src="/js/features/voice-commands.js?v=20260829d"></script>
   <script src="/js/features/live-preview.js?v=20260208a"></script>
   <script src="/js/features/settings.js?v=20260827b"></script>
   <script src="/js/core/init.js?v=20260827a"></script>

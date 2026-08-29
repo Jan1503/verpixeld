@@ -19,6 +19,7 @@ public class AiImageService
     private readonly HttpClient _httpClient;
     private readonly string _configPath;
     private readonly string _historyPath;
+    private readonly string _historyDir;
     private readonly string _galleryDir;
     private readonly object _lock = new();
 
@@ -49,6 +50,11 @@ public class AiImageService
     public string ScheduleCanvasName { get; set; } = "Main";
     public bool ScheduleSaveToDisk { get; set; }
     public List<string> SchedulePrompts { get; set; } = new();
+    public DateTime? ScheduleLastRunUtc { get; private set; }
+    public string? ScheduleLastPrompt { get; private set; }
+    public string? ScheduleLastError { get; private set; }
+    public DateTime? ScheduleNextRunUtc { get; private set; }
+    public string? ScheduleLastSkip { get; private set; }
 
     // State
     public bool IsConfigured => Provider == "azure"
@@ -56,6 +62,7 @@ public class AiImageService
         : !string.IsNullOrEmpty(OpenAiApiKey);
 
     public bool IsGenerating { get; private set; }
+    public bool HasImageOverlay => _imageOverlay != null;
 
     // History (in-memory + persisted)
     public List<AiGenerationRecord> History { get; private set; } = new();
@@ -63,6 +70,8 @@ public class AiImageService
     // Display dimensions
     private int _displayWidth = 384;
     private int _displayHeight = 192;
+    public int DisplayWidth => _displayWidth;
+    public int DisplayHeight => _displayHeight;
 
     // Style presets
     private static readonly Dictionary<string, string> StylePresets = new()
@@ -89,7 +98,9 @@ public class AiImageService
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
         _configPath = AppPaths.AiConfig;
         _historyPath = AppPaths.AiHistory;
+        _historyDir = AppPaths.AiHistoryDir;
         _galleryDir = AppPaths.GalleryDir;
+        Directory.CreateDirectory(_historyDir);
         LoadConfig();
         LoadHistory();
         Console.WriteLine($"[AI] Initialized with display size {_displayWidth}x{_displayHeight}");
@@ -121,10 +132,10 @@ public class AiImageService
                 ? await GenerateWithAzureAsync(fullPrompt, quality)
                 : await GenerateWithOpenAiAsync(fullPrompt, quality);
 
-            // Decode and scale to display resolution
-            var scaledBase64 = ScaleImageToDisplay(base64Image);
+            var pngBytes = AiImageProcessing.ScaleToDisplayPng(
+                Convert.FromBase64String(base64Image), _displayWidth, _displayHeight, style);
+            var scaledBase64 = Convert.ToBase64String(pngBytes);
 
-            // Add to history
             var record = new AiGenerationRecord
             {
                 Id = Guid.NewGuid().ToString(),
@@ -132,10 +143,9 @@ public class AiImageService
                 Style = style,
                 Quality = quality,
                 Provider = Provider,
-                CreatedAt = DateTime.UtcNow.ToString("o"),
-                ThumbnailBase64 = scaledBase64
+                CreatedAt = DateTime.UtcNow.ToString("o")
             };
-            AddToHistory(record);
+            AddToHistory(record, pngBytes);
 
             Console.WriteLine($"[AI] Image generated successfully: {record.Id}");
             return new AiGenerationResult { Success = true, ImageBase64 = scaledBase64, Record = record };
@@ -188,7 +198,9 @@ public class AiImageService
                 resultBase64 = await EditWithOpenAiAsync(imageBase64, fullPrompt);
             }
 
-            var scaledBase64 = ScaleImageToDisplay(resultBase64);
+            var pngBytes = AiImageProcessing.ScaleToDisplayPng(
+                Convert.FromBase64String(resultBase64), _displayWidth, _displayHeight, style);
+            var scaledBase64 = Convert.ToBase64String(pngBytes);
 
             var record = new AiGenerationRecord
             {
@@ -197,10 +209,9 @@ public class AiImageService
                 Style = style,
                 IsEdit = true,
                 Provider = Provider,
-                CreatedAt = DateTime.UtcNow.ToString("o"),
-                ThumbnailBase64 = scaledBase64
+                CreatedAt = DateTime.UtcNow.ToString("o")
             };
-            AddToHistory(record);
+            AddToHistory(record, pngBytes);
 
             Console.WriteLine($"[AI] Image edit completed: {record.Id}");
             return new AiGenerationResult { Success = true, ImageBase64 = scaledBase64, Record = record };
@@ -229,21 +240,36 @@ public class AiImageService
             using var bitmap = SKBitmap.Decode(imageBytes);
             if (bitmap == null) return false;
 
-            // If we have a canvas manager, use an overlay canvas so the image
-            // stays visible above the running extension
+            var x = 0;
+            var y = 0;
+            var w = _displayWidth;
+            var h = _displayHeight;
+            if (_canvasManager != null && !string.IsNullOrWhiteSpace(canvasName))
+            {
+                var target = _canvasManager.GetCanvasByName(canvasName);
+                if (target != null)
+                {
+                    x = target.XPos;
+                    y = target.YPos;
+                    w = Math.Max(1, target.Width);
+                    h = Math.Max(1, target.Height);
+                }
+                else
+                    Console.WriteLine($"[AI] Canvas '{canvasName}' not found — using full display overlay");
+            }
+
+            using var fitted = AiImageProcessing.ScaleToSize(bitmap, w, h);
+
             if (_canvasManager != null)
             {
-                // Dismiss any existing overlay first (reuses same canvas name)
                 DismissImageOverlay();
-
-                _imageOverlay = _canvasManager.GetCanvas(0, 0, _displayWidth, _displayHeight, 250, "AiImageOverlay");
+                _imageOverlay = _canvasManager.GetCanvas(x, y, w, h, 250, "AiImageOverlay");
                 _imageOverlay.Show();
-                _imageOverlay.DrawBitmap(bitmap, 0, 0, bitmap.Width, bitmap.Height);
-                Console.WriteLine("[AI] Image applied to overlay canvas 'AiImageOverlay' at z=250");
+                _imageOverlay.DrawBitmap(fitted, 0, 0, fitted.Width, fitted.Height);
+                Console.WriteLine($"[AI] Image applied to overlay on '{canvasName}' at {x},{y} {w}x{h} z=250");
                 return true;
             }
 
-            // Fallback: draw directly on target canvas (no overlay support)
             var canvas = _layoutManager.GetCanvas(canvasName);
             if (canvas == null)
             {
@@ -251,7 +277,7 @@ public class AiImageService
                 return false;
             }
 
-            canvas.DrawBitmap(bitmap, 0, 0, bitmap.Width, bitmap.Height);
+            canvas.DrawBitmap(fitted, 0, 0, fitted.Width, fitted.Height);
             return true;
         }
         catch (Exception ex)
@@ -301,7 +327,7 @@ public class AiImageService
         if (!response.IsSuccessStatusCode)
         {
             Console.WriteLine($"[AI/Azure] Error {response.StatusCode}: {responseBody}");
-            throw new Exception($"Azure OpenAI error ({response.StatusCode}): {ExtractErrorMessage(responseBody)}");
+            throw new Exception(AiImageProcessing.FriendlyHttpError((int)response.StatusCode, responseBody, "Azure OpenAI"));
         }
 
         return ExtractImageFromResponse(responseBody);
@@ -332,7 +358,7 @@ public class AiImageService
         if (!response.IsSuccessStatusCode)
         {
             Console.WriteLine($"[AI/Azure] Edit error {response.StatusCode}: {responseBody}");
-            throw new Exception($"Azure OpenAI edit error ({response.StatusCode}): {ExtractErrorMessage(responseBody)}");
+            throw new Exception(AiImageProcessing.FriendlyHttpError((int)response.StatusCode, responseBody, "Azure OpenAI"));
         }
 
         return ExtractImageFromResponse(responseBody);
@@ -369,7 +395,7 @@ public class AiImageService
         if (!response.IsSuccessStatusCode)
         {
             Console.WriteLine($"[AI/OpenAI] Error {response.StatusCode}: {responseBody}");
-            throw new Exception($"OpenAI error ({response.StatusCode}): {ExtractErrorMessage(responseBody)}");
+            throw new Exception(AiImageProcessing.FriendlyHttpError((int)response.StatusCode, responseBody, "OpenAI"));
         }
 
         return ExtractImageFromResponse(responseBody);
@@ -399,30 +425,10 @@ public class AiImageService
         if (!response.IsSuccessStatusCode)
         {
             Console.WriteLine($"[AI/OpenAI] Edit error {response.StatusCode}: {responseBody}");
-            throw new Exception($"OpenAI edit error ({response.StatusCode}): {ExtractErrorMessage(responseBody)}");
+            throw new Exception(AiImageProcessing.FriendlyHttpError((int)response.StatusCode, responseBody, "OpenAI"));
         }
 
         return ExtractImageFromResponse(responseBody);
-    }
-
-    #endregion
-
-    #region Image Processing
-
-    private string ScaleImageToDisplay(string base64Image)
-    {
-        var imageBytes = Convert.FromBase64String(base64Image);
-        using var original = SKBitmap.Decode(imageBytes);
-        if (original == null)
-            throw new Exception("Failed to decode generated image");
-
-        using var scaled = original.Resize(new SKImageInfo(_displayWidth, _displayHeight), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
-        if (scaled == null)
-            throw new Exception("Failed to scale image");
-
-        using var image = SKImage.FromBitmap(scaled);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        return Convert.ToBase64String(data.ToArray());
     }
 
     #endregion
@@ -450,21 +456,6 @@ public class AiImageService
         }
 
         throw new Exception("No image data found in API response");
-    }
-
-    private static string ExtractErrorMessage(string json)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("error", out var errorEl))
-            {
-                if (errorEl.TryGetProperty("message", out var msgEl))
-                    return msgEl.GetString() ?? "Unknown error";
-            }
-        }
-        catch { }
-        return json.Length > 200 ? json[..200] + "..." : json;
     }
 
     private static string MapQuality(string quality) => quality switch
@@ -495,14 +486,23 @@ public class AiImageService
 
     #region History
 
-    private void AddToHistory(AiGenerationRecord record)
+    private void AddToHistory(AiGenerationRecord record, byte[] pngBytes)
     {
         lock (_lock)
         {
+            Directory.CreateDirectory(_historyDir);
+            var filename = record.Id + ".png";
+            FileHelper.AtomicWriteAllBytes(Path.Combine(_historyDir, filename), pngBytes);
+            record.Filename = filename;
+            record.ThumbnailBase64 = null;
             History.Insert(0, record);
-            // Keep only last 50 entries
             if (History.Count > 50)
+            {
+                var removed = History.Skip(50).ToList();
                 History.RemoveRange(50, History.Count - 50);
+                foreach (var old in removed)
+                    TryDeleteHistoryFile(old);
+            }
             SaveHistory();
         }
     }
@@ -511,9 +511,37 @@ public class AiImageService
     {
         lock (_lock)
         {
+            foreach (var record in History)
+                TryDeleteHistoryFile(record);
             History.Clear();
             SaveHistory();
         }
+    }
+
+    public byte[]? GetHistoryImageBytes(string id)
+    {
+        var safeId = Path.GetFileNameWithoutExtension(Path.GetFileName(id));
+        AiGenerationRecord? record;
+        lock (_lock)
+            record = History.FirstOrDefault(h => h.Id == safeId);
+        if (record == null) return null;
+
+        var filename = Path.GetFileName(record.Filename ?? safeId + ".png");
+        var filePath = Path.Combine(_historyDir, filename);
+        if (!File.Exists(filePath)) return null;
+        return File.ReadAllBytes(filePath);
+    }
+
+    private void TryDeleteHistoryFile(AiGenerationRecord record)
+    {
+        try
+        {
+            var filename = Path.GetFileName(record.Filename ?? record.Id + ".png");
+            var filePath = Path.Combine(_historyDir, filename);
+            if (File.Exists(filePath))
+                File.Delete(filePath);
+        }
+        catch { }
     }
 
     private void LoadHistory()
@@ -525,7 +553,10 @@ public class AiImageService
                 var json = File.ReadAllText(_historyPath);
                 History = JsonSerializer.Deserialize<List<AiGenerationRecord>>(json,
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+                var migrated = MigrateHistoryThumbnails();
                 Console.WriteLine($"[AI] Loaded {History.Count} history entries");
+                if (migrated)
+                    SaveHistory();
             }
         }
         catch (Exception ex)
@@ -533,6 +564,48 @@ public class AiImageService
             Console.WriteLine($"[AI] Failed to load history: {ex.Message}");
             History = new();
         }
+    }
+
+    /// <summary>
+    ///     Older builds stored full PNG base64 in ai_history.json. Write those
+    ///     out as files and drop the payload so the JSON stays small.
+    /// </summary>
+    private bool MigrateHistoryThumbnails()
+    {
+        Directory.CreateDirectory(_historyDir);
+        var dirty = false;
+        foreach (var record in History)
+        {
+            if (string.IsNullOrEmpty(record.Id))
+            {
+                record.Id = Guid.NewGuid().ToString();
+                dirty = true;
+            }
+
+            if (!string.IsNullOrEmpty(record.ThumbnailBase64) && string.IsNullOrEmpty(record.Filename))
+            {
+                try
+                {
+                    var filename = record.Id + ".png";
+                    FileHelper.AtomicWriteAllBytes(Path.Combine(_historyDir, filename),
+                        Convert.FromBase64String(record.ThumbnailBase64));
+                    record.Filename = filename;
+                    dirty = true;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[AI] Failed to migrate history {record.Id}: {ex.Message}");
+                }
+            }
+
+            if (record.ThumbnailBase64 != null)
+            {
+                record.ThumbnailBase64 = null;
+                dirty = true;
+            }
+        }
+
+        return dirty;
     }
 
     private void SaveHistory()
@@ -575,6 +648,8 @@ public class AiImageService
     {
         StopScheduleTimer();
         var interval = TimeSpan.FromMinutes(ScheduleIntervalMinutes);
+        ScheduleNextRunUtc = DateTime.UtcNow.Add(interval);
+        ScheduleLastSkip = null;
         _scheduleTimer = new Timer(OnScheduleTick, null, interval, interval);
         Console.WriteLine($"[AI] Schedule timer started: every {ScheduleIntervalMinutes} minutes");
     }
@@ -583,19 +658,43 @@ public class AiImageService
     {
         _scheduleTimer?.Dispose();
         _scheduleTimer = null;
+        ScheduleNextRunUtc = null;
     }
 
     private async void OnScheduleTick(object? state)
     {
-        if (!ScheduleEnabled || SchedulePrompts.Count == 0 || IsGenerating)
+        if (!ScheduleEnabled || SchedulePrompts.Count == 0)
             return;
 
+        if (IsGenerating)
+        {
+            ScheduleLastSkip = "Skipped: a generation is already in progress.";
+            ScheduleNextRunUtc = DateTime.UtcNow.AddMinutes(ScheduleIntervalMinutes);
+            Console.WriteLine($"[AI/Schedule] {ScheduleLastSkip}");
+            return;
+        }
+
+        await RunScheduledGenerationAsync();
+    }
+
+    /// <summary>
+    ///     Fire one scheduled generation immediately (does not require the timer to be enabled).
+    /// </summary>
+    public Task<AiGenerationResult> RunScheduleNowAsync()
+    {
+        if (SchedulePrompts.Count == 0)
+            return Task.FromResult(new AiGenerationResult { Success = false, Error = "Add at least one prompt for auto-generate." });
+        if (IsGenerating)
+            return Task.FromResult(new AiGenerationResult { Success = false, Error = "A generation is already in progress." });
+        return RunScheduledGenerationAsync();
+    }
+
+    private async Task<AiGenerationResult> RunScheduledGenerationAsync()
+    {
+        ScheduleLastSkip = null;
         try
         {
-            // Pick a random prompt
             var prompt = SchedulePrompts[_random.Next(SchedulePrompts.Count)];
-
-            // Pick style (random if configured)
             var style = ScheduleStyle == "random"
                 ? StylePresets.Keys.ElementAt(_random.Next(StylePresets.Count))
                 : ScheduleStyle;
@@ -603,45 +702,103 @@ public class AiImageService
             Console.WriteLine($"[AI/Schedule] Auto-generating: \"{prompt}\" (style={style})");
 
             var result = await GenerateImageAsync(prompt, style);
+            ScheduleLastRunUtc = DateTime.UtcNow;
+            ScheduleLastPrompt = prompt;
+            ScheduleNextRunUtc = ScheduleEnabled
+                ? DateTime.UtcNow.AddMinutes(ScheduleIntervalMinutes)
+                : null;
+
             if (result.Success && result.ImageBase64 != null)
             {
                 ApplyToCanvas(result.ImageBase64, ScheduleCanvasName);
+                ScheduleLastError = null;
                 Console.WriteLine("[AI/Schedule] Image applied to display");
 
                 if (ScheduleSaveToDisk)
-                {
                     SaveImageToDisk(result.ImageBase64, prompt, style);
-                }
             }
             else
             {
+                ScheduleLastError = result.Error ?? "Generation failed";
                 Console.WriteLine($"[AI/Schedule] Failed: {result.Error}");
             }
+
+            SaveConfig();
+            return result;
         }
         catch (Exception ex)
         {
+            ScheduleLastRunUtc = DateTime.UtcNow;
+            ScheduleLastError = ex.Message;
+            ScheduleNextRunUtc = ScheduleEnabled
+                ? DateTime.UtcNow.AddMinutes(ScheduleIntervalMinutes)
+                : null;
+            SaveConfig();
             Console.WriteLine($"[AI/Schedule] Error: {ex.Message}");
+            return new AiGenerationResult { Success = false, Error = ex.Message };
         }
     }
 
-    public void SaveImageToDisk(string base64Image, string prompt, string style)
+    public string? SaveImageToDisk(string base64Image, string prompt, string style) =>
+        SaveToGallery(base64Image, prompt, style).Filename;
+
+    public GallerySaveResult SaveToGallery(string base64Image, string prompt, string style, bool force = false)
     {
         try
         {
+            Directory.CreateDirectory(_galleryDir);
+            var imageBytes = Convert.FromBase64String(base64Image);
+            var hash = AiImageProcessing.ContentHashHex(imageBytes);
+            EnsureGalleryHashes();
+
+            if (!force && _galleryHashes!.TryGetValue(hash, out var existing))
+            {
+                Console.WriteLine($"[AI] Gallery already has this image: {existing}");
+                return new GallerySaveResult { Filename = existing, AlreadyExists = true };
+            }
+
             var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             var safePrompt = new string(prompt.Take(40).Where(c => !Path.GetInvalidFileNameChars().Contains(c)).ToArray()).Trim();
             if (string.IsNullOrEmpty(safePrompt)) safePrompt = "generated";
             var filename = $"{timestamp}_{style}_{safePrompt}.png";
             var filePath = Path.Combine(_galleryDir, filename);
 
-            var imageBytes = Convert.FromBase64String(base64Image);
             File.WriteAllBytes(filePath, imageBytes);
-            Console.WriteLine($"[AI/Schedule] Image saved to: {filePath}");
+            _galleryHashes![hash] = filename;
+            Console.WriteLine($"[AI] Image saved to: {filePath}");
+            return new GallerySaveResult { Filename = filename };
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI/Schedule] Failed to save image: {ex.Message}");
+            Console.WriteLine($"[AI] Failed to save image: {ex.Message}");
+            return new GallerySaveResult();
         }
+    }
+
+    private Dictionary<string, string>? _galleryHashes; // sha256 -> filename
+
+    private void EnsureGalleryHashes()
+    {
+        if (_galleryHashes != null) return;
+        _galleryHashes = new(StringComparer.OrdinalIgnoreCase);
+        if (!Directory.Exists(_galleryDir)) return;
+        foreach (var file in Directory.GetFiles(_galleryDir, "*.png"))
+        {
+            try
+            {
+                var hash = AiImageProcessing.ContentHashHex(File.ReadAllBytes(file));
+                _galleryHashes[hash] = Path.GetFileName(file);
+            }
+            catch { /* skip unreadable files */ }
+        }
+    }
+
+    private void ForgetGalleryHash(string filename)
+    {
+        if (_galleryHashes == null) return;
+        var keys = _galleryHashes.Where(kv => kv.Value == filename).Select(kv => kv.Key).ToList();
+        foreach (var key in keys)
+            _galleryHashes.Remove(key);
     }
 
     /// <summary>
@@ -691,6 +848,7 @@ public class AiImageService
             var filePath = Path.Combine(_galleryDir, safeName);
             if (!File.Exists(filePath)) return false;
             File.Delete(filePath);
+            ForgetGalleryHash(safeName);
             Console.WriteLine($"[AI] Gallery image deleted: {safeName}");
             return true;
         }
@@ -758,6 +916,9 @@ public class AiImageService
                     ScheduleCanvasName = config.ScheduleCanvasName ?? "Main";
                     ScheduleSaveToDisk = config.ScheduleSaveToDisk;
                     SchedulePrompts = config.SchedulePrompts ?? new();
+                    ScheduleLastRunUtc = config.ScheduleLastRunUtc;
+                    ScheduleLastPrompt = config.ScheduleLastPrompt;
+                    ScheduleLastError = config.ScheduleLastError;
                     Console.WriteLine($"[AI] Config loaded: provider={Provider}");
                 }
             }
@@ -786,7 +947,10 @@ public class AiImageService
                 ScheduleStyle = ScheduleStyle,
                 ScheduleCanvasName = ScheduleCanvasName,
                 ScheduleSaveToDisk = ScheduleSaveToDisk,
-                SchedulePrompts = SchedulePrompts
+                SchedulePrompts = SchedulePrompts,
+                ScheduleLastRunUtc = ScheduleLastRunUtc,
+                ScheduleLastPrompt = ScheduleLastPrompt,
+                ScheduleLastError = ScheduleLastError
             };
             var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
             FileHelper.AtomicWriteAllText(_configPath, json);
@@ -816,6 +980,9 @@ public class AiImageService
         public string? ScheduleCanvasName { get; set; }
         public bool ScheduleSaveToDisk { get; set; }
         public List<string>? SchedulePrompts { get; set; }
+        public DateTime? ScheduleLastRunUtc { get; set; }
+        public string? ScheduleLastPrompt { get; set; }
+        public string? ScheduleLastError { get; set; }
     }
 
     #endregion
@@ -844,7 +1011,11 @@ public class AiGenerationRecord
     [JsonPropertyName("createdAt")]
     public string CreatedAt { get; set; } = "";
 
+    [JsonPropertyName("filename")]
+    public string? Filename { get; set; }
+
     [JsonPropertyName("thumbnailBase64")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ThumbnailBase64 { get; set; }
 }
 
@@ -854,4 +1025,10 @@ public class AiGenerationResult
     public string? Error { get; set; }
     public string? ImageBase64 { get; set; }
     public AiGenerationRecord? Record { get; set; }
+}
+
+public class GallerySaveResult
+{
+    public string? Filename { get; set; }
+    public bool AlreadyExists { get; set; }
 }

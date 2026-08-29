@@ -229,6 +229,14 @@ async function loadVoiceConfig() {
       if (el) el.checked = !!val;
     };
 
+    const speechKeyEl = document.getElementById('voice-speech-key');
+    if (speechKeyEl) {
+      if (data.speechKeyShared)
+        speechKeyEl.placeholder = 'Same as Azure OpenAI key (Foundry)';
+      else if (data.speechKeySet)
+        speechKeyEl.placeholder = '••••••• (saved)';
+    }
+
     setVal('voice-speech-region', data.speechRegion);
     setVal('voice-speech-language', data.speechLanguage || 'de-DE');
     setVal('voice-default-style', data.defaultStyle);
@@ -281,7 +289,7 @@ function getSelectedAudioDevice() {
   return select.value;
 }
 
-async function saveVoiceConfig() {
+async function saveVoiceConfig(opts = {}) {
   const payload = {
     speechKey: document.getElementById('voice-speech-key')?.value || undefined,
     speechRegion: document.getElementById('voice-speech-region')?.value || undefined,
@@ -305,13 +313,14 @@ async function saveVoiceConfig() {
 
   try {
     await api.post('/api/voice/configure', payload);
-    window.toast?.success('Voice', 'Settings saved');
     const statusEl = document.getElementById('voice-config-status');
     if (statusEl) statusEl.textContent = 'Saved';
     setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
     pollVoiceStatus();
+    if (!opts.silent) window.toast?.success('Voice', 'Settings saved');
   } catch (err) {
-    window.toast?.error('Voice', err.message);
+    if (!opts.silent) window.toast?.error('Voice', err.message);
+    throw err;
   }
 }
 
@@ -483,22 +492,7 @@ function updateLocalCamButtons(streaming) {
 // ═══════════════════════════════════════════════════════════════
 
 async function saveVoiceImageSettings() {
-  const payload = {
-    defaultStyle: document.getElementById('voice-default-style')?.value ?? '',
-    displayDurationSeconds: parseInt(document.getElementById('voice-display-duration')?.value || '60', 10),
-    saveGeneratedImages: document.getElementById('voice-save-images')?.value === 'true',
-  };
-
-  try {
-    const data = await api.post('/api/voice/configure', payload);
-    const status = document.getElementById('ai-voice-img-status');
-    if (status) {
-      status.textContent = 'Saved!';
-      setTimeout(() => status.textContent = '', 2000);
-    }
-  } catch (e) {
-    console.error('Failed to save voice image settings:', e);
-  }
+  return saveVoiceConfig();
 }
 
 // ═══════════════════════════════════════════════════════════════

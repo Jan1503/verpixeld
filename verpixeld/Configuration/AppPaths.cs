@@ -7,7 +7,8 @@ namespace verpixeld.Configuration;
 ///     Directory layout:
 ///       {Base}/Config/       — service configuration files
 ///       {Base}/Data/         — user-generated content and state
-///       {Base}/Data/Gallery/ — saved AI-generated images
+    ///       {Base}/Data/Gallery/ — saved AI-generated images
+    ///       {Base}/Data/AiHistory/ — generation history PNGs (metadata in ai_history.json)
 ///       {Base}/Data/Layouts/ — saved layout profiles
 ///       {Base}/Data/Schedules/ — layout schedules
 ///       {Base}/Media/Videos/ — uploaded/local video files
@@ -47,6 +48,7 @@ public static class AppPaths
 
     // ── Data directories ──
     public static readonly string GalleryDir = Path.Combine(DataDir, "Gallery");
+    public static readonly string AiHistoryDir = Path.Combine(DataDir, "AiHistory");
     public static readonly string LayoutsDir = Path.Combine(DataDir, "Layouts");
     public static readonly string SchedulesDir = Path.Combine(DataDir, "Schedules");
 
@@ -72,6 +74,7 @@ public static class AppPaths
         Directory.CreateDirectory(ConfigDir);
         Directory.CreateDirectory(DataDir);
         Directory.CreateDirectory(GalleryDir);
+        Directory.CreateDirectory(AiHistoryDir);
         Directory.CreateDirectory(LayoutsDir);
         Directory.CreateDirectory(SchedulesDir);
         if (RunningInContainer())

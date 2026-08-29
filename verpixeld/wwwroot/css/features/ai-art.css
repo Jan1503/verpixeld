@@ -117,10 +117,11 @@
 
 .gallery-preview-large canvas {
   width: 100%;
-  max-width: 384px;
+  max-width: 512px;
   display: block;
   margin: 0 auto;
   image-rendering: pixelated;
+  image-rendering: crisp-edges;
   border-radius: var(--radius-sm);
 }
 
@@ -154,6 +155,61 @@
 /* Prompt area */
 .ai-prompt-area {
   margin-bottom: var(--spacing-md);
+}
+
+.voice-settings-hint {
+  margin: var(--spacing-md) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.voice-settings-hint a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.voice-settings-hint a:hover {
+  text-decoration: underline;
+}
+
+.ai-voice-block {
+  padding: var(--spacing-md) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.ai-voice-block:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.ai-voice-block-title {
+  margin: 0 0 4px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.ai-voice-note {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.ai-voice-block .settings-row {
+  margin-bottom: var(--spacing-sm);
+}
+
+.ai-voice-control-with-btn {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.ai-voice-control-with-btn .ai-select {
+  flex: 1;
+  min-width: 0;
 }
 
 .ai-prompt-input {
@@ -278,11 +334,20 @@
 
 .ai-preview-container canvas {
   width: 100%;
-  max-width: 384px;
+  max-width: 512px;
   display: block;
   margin: 0 auto;
   image-rendering: pixelated;
+  image-rendering: crisp-edges;
   border-radius: var(--radius-sm);
+}
+
+.ai-preview-size {
+  text-align: center;
+  padding-top: 4px;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
 }
 
 .ai-preview-actions {
@@ -407,6 +472,27 @@
   font-size: var(--font-size-xs);
   color: var(--color-success);
   margin-left: var(--spacing-sm);
+}
+
+.ai-schedule-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.ai-schedule-meta {
+  margin-top: var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ai-schedule-error {
+  color: var(--color-danger);
 }
 
 /* Provider fields */

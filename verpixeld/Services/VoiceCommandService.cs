@@ -208,8 +208,18 @@ public class VoiceCommandService : IDisposable
         }
     }
 
+    /// <summary>
+    ///     Foundry uses one key for OpenAI and Speech. A dedicated Speech key
+    ///     still wins when set; otherwise we reuse the Azure OpenAI key.
+    /// </summary>
+    public string? EffectiveSpeechKey =>
+        !string.IsNullOrEmpty(SpeechKey) ? SpeechKey : _aiImageService.AzureApiKey;
+
+    public bool UsesSharedAzureKey =>
+        string.IsNullOrEmpty(SpeechKey) && !string.IsNullOrEmpty(_aiImageService.AzureApiKey);
+
     public bool IsConfigured =>
-        !string.IsNullOrEmpty(SpeechKey) &&
+        !string.IsNullOrEmpty(EffectiveSpeechKey) &&
         !string.IsNullOrEmpty(SpeechRegion);
 
     public bool HasKeywordModel =>
@@ -252,6 +262,8 @@ public class VoiceCommandService : IDisposable
                 LastError = "Speech key/region not configured";
                 return;
             }
+
+            SyncTtsConfig();
 
             if (!MicrophoneAvailable())
             {
@@ -586,7 +598,9 @@ public class VoiceCommandService : IDisposable
 
     private SpeechConfig CreateSpeechConfig()
     {
-        var speechConfig = SpeechConfig.FromSubscription(SpeechKey!, SpeechRegion!);
+        var key = EffectiveSpeechKey
+            ?? throw new InvalidOperationException("No speech key — save the Azure OpenAI key (Foundry) or a Speech key.");
+        var speechConfig = SpeechConfig.FromSubscription(key, SpeechRegion!);
         speechConfig.SpeechRecognitionLanguage = SpeechLanguage ?? "de-DE";
         speechConfig.SetProperty(PropertyId.SpeechServiceResponse_ProfanityOption, ProfanityFilter ?? "raw");
         return speechConfig;
@@ -1408,7 +1422,7 @@ public class VoiceCommandService : IDisposable
     /// <summary>Keep TTS service config in sync with our properties.</summary>
     private void SyncTtsConfig()
     {
-        _tts.SpeechKey = SpeechKey;
+        _tts.SpeechKey = EffectiveSpeechKey;
         _tts.SpeechRegion = SpeechRegion;
     }
 

@@ -35,6 +35,8 @@ public static class VoiceEndpoints
                 lastCommandTime = voiceService.LastCommandTime?.ToString("o"),
                 commandCount = voiceService.CommandCount,
                 // Config
+                speechKeySet = !string.IsNullOrEmpty(voiceService.EffectiveSpeechKey),
+                speechKeyShared = voiceService.UsesSharedAzureKey,
                 speechRegion = voiceService.SpeechRegion,
                 keywordModelPath = voiceService.KeywordModelPath,
                 audioDevice = voiceService.AudioDevice,

@@ -233,7 +233,7 @@ function throttle(func, limit) {
 }
 
 /** Host overlays (HA toast, voice, camera alert) — Studio may move them; content pickers must not. */
-const SYSTEM_OVERLAY_CANVASES = new Set(['HaToast', 'VoiceFeedback', 'CameraAlert']);
+const SYSTEM_OVERLAY_CANVASES = new Set(['HaToast', 'VoiceFeedback', 'CameraAlert', 'AiImageOverlay']);
 
 function isSystemOverlayCanvas(c) {
   if (!c) return false;
@@ -267,33 +267,27 @@ async function refreshAllCanvasSelectors() {
     
     const canvases = contentTargetCanvases(result.data);
     
-    // Build options HTML
     const optionsHtml = canvases.map(c => 
       `<option value="${c.name}">${c.name} (${c.width}\u00D7${c.height})</option>`
     ).join('');
+
+    const fillSelect = (id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const currentValue = el.value;
+      el.innerHTML = optionsHtml;
+      if (canvases.some(c => c.name === currentValue))
+        el.value = currentValue;
+    };
+
+    fillSelect('draw-target-canvas');
+    fillSelect('camera-target-canvas');
+    fillSelect('ai-target-canvas');
+    fillSelect('ai-schedule-canvas');
+    fillSelect('gallery-slideshow-canvas');
+    fillSelect('upload-target-canvas');
     
-    // Update draw target canvas selector
-    const drawSelect = document.getElementById('draw-target-canvas');
-    if (drawSelect) {
-      const currentValue = drawSelect.value;
-      drawSelect.innerHTML = optionsHtml;
-      // Restore selection if still exists
-      if (canvases.some(c => c.name === currentValue)) {
-        drawSelect.value = currentValue;
-      }
-    }
-    
-    // Update camera target canvas selector
-    const cameraSelect = document.getElementById('camera-target-canvas');
-    if (cameraSelect) {
-      const currentValue = cameraSelect.value;
-      cameraSelect.innerHTML = optionsHtml;
-      if (canvases.some(c => c.name === currentValue)) {
-        cameraSelect.value = currentValue;
-      }
-    }
-    
-    // Update media/video target canvas selector
+    // Media selector keeps a Default suffix on Main
     const mediaSelect = document.getElementById('media-target-canvas');
     if (mediaSelect) {
       const currentValue = mediaSelect.value;
@@ -302,25 +296,6 @@ async function refreshAllCanvasSelectors() {
       ).join('');
       if (canvases.some(c => c.name === currentValue)) {
         mediaSelect.value = currentValue;
-      }
-    }
-    
-    // Update AI target canvas selector
-    const aiSelect = document.getElementById('ai-target-canvas');
-    if (aiSelect) {
-      const currentValue = aiSelect.value;
-      aiSelect.innerHTML = optionsHtml;
-      if (canvases.some(c => c.name === currentValue)) {
-        aiSelect.value = currentValue;
-      }
-    }
-
-    const uploadSelect = document.getElementById('upload-target-canvas');
-    if (uploadSelect) {
-      const currentValue = uploadSelect.value;
-      uploadSelect.innerHTML = optionsHtml;
-      if (canvases.some(c => c.name === currentValue)) {
-        uploadSelect.value = currentValue;
       }
     }
 
