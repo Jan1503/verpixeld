@@ -148,7 +148,7 @@ The host can run as a **linux-x64 Docker image** (`verpixeld:nas`) on TrueNAS / 
 
 Build on a machine with Docker: `docker/build.ps1 -Tar`, then Portainer **Images → Import**. Compose example: `docker/docker-compose.yml` (set `Network__Host` to the panel IP). Volumes: **Data** (layouts, plugins, fonts), **Config** (settings overlay, certs, seam JSON), **Media** (NAS library, typically read-only). The image bakes Fonts / Extensions / Filters and seeds them into Data. Config saves go to `/app/Config` so a recreate does not keep GPIO or a Pi resolution from the bundled JSON.
 
-The image compiles **FFmpeg 7.1 with libsmbclient** (Ubuntu’s ffmpeg has no `smb` protocol), plus **smbclient** and **yt-dlp**. YouTube and Network Shares work without compiling FFmpeg on the NAS. There is no sound card in the container: video still plays; ALSA is skipped so FFmpeg does not die before the first frame. `homeassistant.local` is mDNS — Docker bridge DNS will not resolve it; use the LAN IP or `extra_hosts`.
+The image compiles **FFmpeg 7.1 with libsmbclient** (Ubuntu’s ffmpeg has no `smb` protocol), plus **smbclient**, **yt-dlp**, and **LibVLC** so the VLC Media Player extension can load. LibVLC adds a lot of size (codecs + plugins). Skip it if you only use FFmpeg/yt-dlp: `docker/build.ps1 -SkipVlc -Tar` (or `docker build --build-arg VLC=0`). YouTube and Network Shares work without compiling FFmpeg on the NAS. There is no sound card in the container: video still plays; ALSA is skipped so FFmpeg does not die before the first frame. Mute VLC (or leave audio off) — there is nothing to play into. `homeassistant.local` is mDNS — Docker bridge DNS will not resolve it; use the LAN IP or `extra_hosts`.
 
 **Local Media** is the same folder browser as Network Shares (`GET /api/media/browse`). Docker lists `/app/Media`; the Pi still uses `Media/Videos` and `Media/Audio` next to the DLL. MKV/HEVC duration comes from `format.duration` (stream duration is often `N/A`), so the seek bar works. Nested paths play without `%2F` 404s.
 
@@ -716,7 +716,7 @@ Network output only. The Pi host must be **stopped** while the container sends t
    ```powershell
    powershell -NoProfile -File docker/build.ps1 -Tar
    ```
-   Produces `docker/verpixeld-nas.tar` (`verpixeld:nas`). Fonts, extensions and filters are baked in.
+   Produces `docker/verpixeld-nas.tar` (`verpixeld:nas`). Fonts, extensions and filters are baked in. LibVLC is on by default (VLC player). Omit it for a smaller image: `docker/build.ps1 -SkipVlc -Tar`.
 
 2. Portainer: **Images → Import** that tar (not “Build from upload”). Tag `verpixeld:nas`. `pull_policy: never`.
 

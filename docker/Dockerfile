@@ -31,6 +31,10 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble
 
 COPY --from=ffmpeg-smb /usr/local /usr/local
 
+# LibVLC is large (codecs + plugins). Default on for the VLC Media Player extension.
+# Skip: docker build --build-arg VLC=0   or   docker/build.ps1 -SkipVlc
+ARG VLC=1
+
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates curl \
@@ -38,6 +42,10 @@ RUN apt-get update \
       libsmbclient libgnutls30t64 \
       smbclient \
       python3 python3-pip \
+ && if [ "$VLC" = "1" ]; then \
+      apt-get install -y --no-install-recommends \
+        libvlc-dev vlc-plugin-base vlc-plugin-video-output; \
+    fi \
  && echo /usr/local/lib > /etc/ld.so.conf.d/local-ffmpeg.conf \
  && ldconfig \
  && pip3 install --no-cache-dir --break-system-packages yt-dlp \
@@ -45,13 +53,15 @@ RUN apt-get update \
  && ffmpeg -hide_banner -version \
  && ffmpeg -hide_banner -protocols 2>&1 | grep -E '^[[:space:]]*smb[[:space:]]*$' \
  && yt-dlp --version \
- && smbclient -V
+ && smbclient -V \
+ && if [ "$VLC" = "1" ]; then test -e /usr/lib/x86_64-linux-gnu/libvlc.so; fi
 
 WORKDIR /app
 COPY publish/ ./
 
 ENV PATH="/usr/local/bin:${PATH}" \
-    LD_LIBRARY_PATH="/usr/local/lib" \
+    LD_LIBRARY_PATH="/usr/local/lib:/usr/lib/x86_64-linux-gnu" \
+    VLC_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/vlc/plugins" \
     ASPNETCORE_ENVIRONMENT=Docker \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
     # Survive Portainer/TrueNAS overwriting the environment name (they often set Production).

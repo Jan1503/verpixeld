@@ -1,4 +1,5 @@
 # Portainer: Images → Import the tar from build.ps1, then Stacks → Add stack → paste this.
+# Default image includes LibVLC. Smaller build without the VLC player: build.ps1 -SkipVlc -Tar
 # Set Network__Host to the panel IP. Unicast UDP works on the bridge; discovery (VPXD)
 # needs host networking — uncomment network_mode and drop ports if the NAS allows it.
 #

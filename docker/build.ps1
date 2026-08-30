@@ -1,6 +1,8 @@
 # Publish linux-x64, bake Fonts/Extensions/Filters, build the NAS image, optional tar.
+# LibVLC is included by default. Smaller image without the VLC player: -SkipVlc
 param(
     [switch]$Tar,
+    [switch]$SkipVlc,
     [string]$Image = "verpixeld:nas"
 )
 
@@ -80,8 +82,9 @@ if (Test-Path $filterDir) {
     }
 }
 
-Write-Host "Building $Image ..."
-docker build --pull -t $Image -f (Join-Path $PSScriptRoot "Dockerfile") $PSScriptRoot
+$vlc = if ($SkipVlc) { "0" } else { "1" }
+Write-Host "Building $Image (VLC=$vlc)..."
+docker build --pull --build-arg "VLC=$vlc" -t $Image -f (Join-Path $PSScriptRoot "Dockerfile") $PSScriptRoot
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 if ($Tar) {
