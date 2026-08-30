@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="docs/webgui.jpg" alt="verpixeld Studio: 256×128 wall, layers, Home Assistant tiles" width="960">
+</p>
+
+---
 <details>
 <summary>2026-02-15: Major overhaul of web-gui to optimize UX</summary>
 <div align="center">
