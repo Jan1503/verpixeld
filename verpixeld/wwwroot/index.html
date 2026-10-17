@@ -32,7 +32,7 @@
     <link rel="stylesheet" href="/css/features/image-upload.css?v=20260208c">
     <link rel="stylesheet" href="/css/features/ai-art.css?v=20260829c">
     <link rel="stylesheet" href="/css/features/voice-commands.css?v=20260208c">
-    <link rel="stylesheet" href="/css/features/settings.css?v=20260827a">
+    <link rel="stylesheet" href="/css/features/settings.css?v=20261017b">
     <link rel="stylesheet" href="/css/responsive.css?v=20260208a">
     <link rel="stylesheet" href="/css/animations.css?v=20260208a">
     <link rel="stylesheet" href="/css/splash.css?v=20260208a">
@@ -1956,7 +1956,7 @@
                 <h4 class="settings-group-title">Canvas</h4>
                 <div class="settings-row">
                   <label for="app-display-width">Width</label>
-                  <input type="number" id="app-display-width" class="settings-input" min="8" max="1024" value="256">
+                  <input type="number" id="app-display-width" class="settings-input" min="8" max="2048" value="256">
                   <span class="settings-hint">pixels (restart if changed)</span>
                 </div>
                 <div class="settings-row">
@@ -1998,7 +1998,7 @@
           </div>
           <div class="tab-section-body">
             <p class="settings-hint" style="margin-bottom: 0.75rem;" id="netcfg-status">
-              UDP target for the RP2350 panel. IP/port/pacing apply immediately.
+              Each panel is 256×128. Drag them on the board to place the wall. The same spot clones the picture.
             </p>
             <div class="settings-grid">
               <div class="settings-group">
@@ -2017,6 +2017,11 @@
                 <div class="net-bound" id="net-bound" hidden>
                   <span id="net-bound-label"></span>
                   <button type="button" class="btn btn-small" onclick="unbindPanel()">Unbind</button>
+                </div>
+                <div class="net-clone-block">
+                  <div class="settings-hint" style="margin: 0.75rem 0 0.4rem;">More panels</div>
+                  <div id="net-clone-list" class="net-clone-list"></div>
+                  <button type="button" class="btn btn-small" onclick="addCloneRow()">Add panel</button>
                 </div>
               </div>
               <div class="settings-group">
@@ -2047,11 +2052,24 @@
               </div>
             </div>
 
+            <div class="net-layout-block">
+              <div class="net-layout-head">
+                <h4 class="settings-group-title">Arrangement</h4>
+                <div class="net-layout-actions">
+                  <button type="button" class="btn btn-small" onclick="arrangePanels('row')">Side by side</button>
+                  <button type="button" class="btn btn-small" onclick="arrangePanels('stack')">Stack</button>
+                </div>
+              </div>
+              <div id="net-layout-board" class="net-layout-board"></div>
+              <p class="settings-hint" id="net-layout-hint">Drag a panel. It snaps to the others. Stretch canvases in Studio after the wall grows.</p>
+            </div>
+
             <div class="settings-group" style="margin-top: 1rem;">
               <h4 class="settings-group-title">Find panel</h4>
               <p class="settings-hint" style="margin-bottom: 0.75rem;">
-                UDP 7778 + <code>panel-xxxxxx.local</code>. Binding remembers the chip, not the IP —
-                DHCP can change without editing this page. Does not switch the active output.
+                UDP 7778 + <code>panel-xxxxxx.local</code>. <strong>Use</strong> sets the first panel.
+                <strong>Clone</strong> adds another. Place it on the board above. Binding remembers the chip, not the IP.
+                From Docker, type the IP under More panels — the container cannot scan the LAN.
               </p>
               <div class="settings-row settings-row-actions">
                 <button type="button" class="btn btn-small btn-primary" id="net-scan-btn" onclick="scanPanels()">Scan LAN</button>
@@ -2939,7 +2957,7 @@
   <script src="/js/features/saved-layouts.js?v=20260822h"></script>
   <script src="/js/features/playlist.js?v=20260623a"></script>
   <script src="/js/features/canvas-editor.js?v=20260208a"></script>
-  <script src="/js/features/layer-editor.js?v=20260827d"></script>
+  <script src="/js/features/layer-editor.js?v=20261017c"></script>
   <script src="/js/features/system-control.js?v=20260827a"></script>
   <script src="/js/features/filter-management.js?v=20260208a"></script>
   <script src="/js/features/extension-management.js?v=20260825a"></script>
@@ -2956,7 +2974,7 @@
   <script src="/js/features/ai-art.js?v=20260829b"></script>
   <script src="/js/features/voice-commands.js?v=20260829d"></script>
   <script src="/js/features/live-preview.js?v=20260208a"></script>
-  <script src="/js/features/settings.js?v=20260827b"></script>
+  <script src="/js/features/settings.js?v=20261017b"></script>
   <script src="/js/core/init.js?v=20260827a"></script>
 </body>
 </html>

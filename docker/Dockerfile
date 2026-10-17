@@ -54,7 +54,8 @@ RUN apt-get update \
  && ffmpeg -hide_banner -protocols 2>&1 | grep -E '^[[:space:]]*smb[[:space:]]*$' \
  && yt-dlp --version \
  && smbclient -V \
- && if [ "$VLC" = "1" ]; then test -e /usr/lib/x86_64-linux-gnu/libvlc.so; fi
+ && if [ "$VLC" = "1" ]; then test -e /usr/lib/x86_64-linux-gnu/libvlc.so; \
+      find /usr/lib -name 'libalsa_plugin.so' -delete; fi
 
 WORKDIR /app
 COPY publish/ ./

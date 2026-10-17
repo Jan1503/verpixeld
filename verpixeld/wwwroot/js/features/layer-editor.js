@@ -312,14 +312,7 @@ async function mountStudio() {
   leHistorySync();
 
   // Fit the stage between the Layers (left) and Inspector (right) panes.
-  const avail = Math.max(160, (panel.clientWidth || 900) - 580);
-  const maxH = Math.min(window.innerHeight - 260, 640);
-  layerEditor.scale = Math.max(1, Math.floor(Math.min(avail / layerEditor.dispW, maxH / layerEditor.dispH)));
-  const stage = document.getElementById('le-stage');
-  if (stage) {
-    stage.style.width = (layerEditor.dispW * layerEditor.scale) + 'px';
-    stage.style.height = (layerEditor.dispH * layerEditor.scale) + 'px';
-  }
+  leFitStage();
 
   const img = document.getElementById('le-stream');
   if (img) img.src = `${typeof API_BASE !== 'undefined' ? API_BASE : ''}/api/preview/stream?t=${Date.now()}`;
@@ -343,14 +336,32 @@ async function mountStudio() {
   window.addEventListener('resize', leFitStage);
 }
 
+function refreshStudioDisplay(w, h) {
+  if (!(w > 0) || !(h > 0)) return;
+  layerEditor.dispW = w;
+  layerEditor.dispH = h;
+  const stage = document.getElementById('le-stage');
+  if (stage) {
+    stage.style.width = '';
+    stage.style.height = '';
+  }
+  leFitStage();
+  if (typeof renderLayerBoxes === 'function') renderLayerBoxes();
+}
+
 function leFitStage() {
   const panel = document.getElementById('tab-studio');
   const stage = document.getElementById('le-stage');
+  const center = panel?.querySelector('.le-center');
   if (!panel || !stage || !layerEditor.open) return;
-  const avail = Math.max(160, (panel.clientWidth || 900) - 580);
+  let raw = center?.clientWidth || 0;
+  if (raw < 40) raw = Math.max(80, (panel.clientWidth || 900) - 560);
+  const avail = Math.max(80, raw - 8);
   const maxH = Math.min(window.innerHeight - 260, 720);
-  const next = Math.max(1, Math.floor(Math.min(avail / layerEditor.dispW, maxH / layerEditor.dispH)));
-  if (next === layerEditor.scale && stage.style.width) return;
+  let next = Math.min(avail / layerEditor.dispW, maxH / layerEditor.dispH);
+  if (!Number.isFinite(next) || next <= 0) next = 1;
+  next = Math.max(0.25, Math.round(next * 100) / 100);
+  if (Math.abs(next - layerEditor.scale) < 0.001 && stage.style.width) return;
   layerEditor.scale = next;
   stage.style.width = (layerEditor.dispW * layerEditor.scale) + 'px';
   stage.style.height = (layerEditor.dispH * layerEditor.scale) + 'px';
@@ -1923,7 +1934,7 @@ function ensureLayerEditorStyles() {
   .le-ico{width:24px;height:22px;border:1px solid #3a3a3a;border-radius:5px;background:#1d1d1f;color:#ddd;cursor:pointer;line-height:1;}
   .le-ico:hover{border-color:#5ab4ff;}
   .le-sel-actions{display:flex;gap:6px;margin-left:auto;}
-  .le-stage-wrap{display:flex;justify-content:center;}
+  .le-stage-wrap{display:flex;justify-content:center;width:100%;max-width:100%;overflow:hidden;}
   .le-stage{position:relative;background:#111;background-image:linear-gradient(45deg,#1a1a1a 25%,transparent 25%),linear-gradient(-45deg,#1a1a1a 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#1a1a1a 75%),linear-gradient(-45deg,transparent 75%,#1a1a1a 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;border:1px solid #333;overflow:hidden;touch-action:none;user-select:none;}
   .le-stream{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;pointer-events:none;}
   .le-box{position:absolute;box-sizing:border-box;border:1px solid rgba(80,180,255,.9);background:rgba(80,180,255,.10);cursor:move;}
@@ -1963,7 +1974,7 @@ function ensureLayerEditorStyles() {
   .le-pane{flex:0 0 auto;background:#161618;border:1px solid #2e2e30;border-radius:8px;padding:8px;overflow:auto;max-height:72vh;}
   .le-layers{width:200px;}
   .le-inspector{width:330px;}
-  .le-center{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;}
+  .le-center{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;overflow:hidden;}
   .le-pane-title{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:#888;margin-bottom:6px;}
   .le-box.hidden{border-style:dashed;opacity:.45;}
   .le-layer{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;border:1px solid #2a2a2a;border-radius:6px;margin-bottom:4px;cursor:pointer;}
@@ -2072,6 +2083,7 @@ window.contentToggleParams = contentToggleParams;
 window.contentSaveParams = contentSaveParams;
 window.contentFullParams = contentFullParams;
 window.captureStepFromLiveCanvas = captureStepFromLiveCanvas;
+window.refreshStudioDisplay = refreshStudioDisplay;
 
 
 

@@ -595,6 +595,99 @@
   gap: 0.35rem;
 }
 
+.net-clone-block {
+  margin-top: 0.25rem;
+}
+
+.net-clone-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.45rem;
+}
+
+.net-clone-row {
+  display: grid;
+  grid-template-columns: 1fr 6.5rem auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.net-clone-row .settings-input {
+  width: 100%;
+}
+
+.net-panel-card.is-clone {
+  border-color: var(--color-accent);
+}
+
+.net-layout-block {
+  margin-top: 1rem;
+}
+
+.net-layout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+}
+
+.net-layout-head .settings-group-title {
+  margin: 0;
+}
+
+.net-layout-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.net-layout-board {
+  position: relative;
+  min-width: 8rem;
+  min-height: 4rem;
+  background:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px) 0 0 / 16px 16px,
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px) 0 0 / 16px 16px,
+    var(--color-bg-tertiary);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.net-tile {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 2px;
+  background: rgba(59, 130, 246, 0.22);
+  border: 1px solid var(--color-accent, #3b82f6);
+  border-radius: 4px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  font-size: 0.72rem;
+  line-height: 1.15;
+  color: var(--color-text-primary);
+  text-align: center;
+  overflow: hidden;
+}
+
+.net-tile small {
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+}
+
+.net-tile.is-dragging {
+  cursor: grabbing;
+  z-index: 2;
+  opacity: 0.92;
+}
+
 @media (max-width: 768px) {
   .settings-grid {
     grid-template-columns: 1fr;

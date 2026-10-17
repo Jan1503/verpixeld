@@ -123,8 +123,9 @@ public static class AppPaths
     }
 
     /// <summary>
-    ///     Copy image Extensions/Filters/Fonts onto the Data volume when a file or plugin
-    ///     folder is missing. Never overwrites user files. No-op on the Pi.
+    ///     Copy image Extensions/Filters/Fonts onto the Data volume. Missing files are added.
+    ///     Shipped binaries are replaced when the image copy differs, so a plugin update is not
+    ///     stuck behind the first seed. Extra files the user dropped in stay put. No-op on the Pi.
     /// </summary>
     private static void SeedSharePlugins()
     {
@@ -138,34 +139,44 @@ public static class AppPaths
     {
         if (!Directory.Exists(src)) return;
         Directory.CreateDirectory(dest);
-        var n = 0;
-        foreach (var dir in Directory.GetDirectories(src))
-        {
-            var target = Path.Combine(dest, Path.GetFileName(dir));
-            if (Directory.Exists(target)) continue;
-            CopyDirectory(dir, target);
-            n++;
-        }
+        var n = SyncDirectory(src, dest);
+        if (n > 0)
+            Console.WriteLine($"[DATA] updated {n} file(s) in {dest}");
+    }
 
+    private static int SyncDirectory(string src, string dest)
+    {
+        Directory.CreateDirectory(dest);
+        var n = 0;
         foreach (var file in Directory.GetFiles(src))
         {
             var target = Path.Combine(dest, Path.GetFileName(file));
-            if (File.Exists(target)) continue;
-            File.Copy(file, target);
+            if (File.Exists(target) && !ShouldReplace(file, target)) continue;
+            File.Copy(file, target, overwrite: true);
             n++;
         }
 
-        if (n > 0)
-            Console.WriteLine($"[DATA] seeded {n} item(s) into {dest}");
+        foreach (var dir in Directory.GetDirectories(src))
+            n += SyncDirectory(dir, Path.Combine(dest, Path.GetFileName(dir)));
+        return n;
     }
 
-    private static void CopyDirectory(string src, string dest)
+    /// <summary>Shipped plugin binaries follow the image. Other files are only filled in when missing.</summary>
+    private static bool ShouldReplace(string src, string dest)
     {
-        Directory.CreateDirectory(dest);
-        foreach (var file in Directory.GetFiles(src))
-            File.Copy(file, Path.Combine(dest, Path.GetFileName(file)));
-        foreach (var dir in Directory.GetDirectories(src))
-            CopyDirectory(dir, Path.Combine(dest, Path.GetFileName(dir)));
+        var ext = Path.GetExtension(src);
+        if (!ext.Equals(".dll", StringComparison.OrdinalIgnoreCase)
+            && !ext.Equals(".pdb", StringComparison.OrdinalIgnoreCase)
+            && !ext.Equals(".so", StringComparison.OrdinalIgnoreCase)
+            && !ext.Equals(".json", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var srcInfo = new FileInfo(src);
+        var destInfo = new FileInfo(dest);
+        if (srcInfo.Length != destInfo.Length) return true;
+        var a = File.ReadAllBytes(src);
+        var b = File.ReadAllBytes(dest);
+        return !a.AsSpan().SequenceEqual(b);
     }
 
     /// <summary>

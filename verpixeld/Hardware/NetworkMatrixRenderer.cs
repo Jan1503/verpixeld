@@ -22,7 +22,9 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     private DateTime _seamStamp = DateTime.MinValue;
     private long _frameCounter;
 
-    private PanelStreamer? _streamer;
+    private readonly List<PanelStreamer> _streamers = [];
+    private readonly List<NetworkPanelTarget> _openTargets = [];
+    private byte[][] _crops = [];
     private PanelColorSettings _color;
     private byte[] _srcBuf = [];             // latest BGRA from the compositor (overwritten = drop)
     private byte[] _workBuf = [];            // stable copy the sender thread packs
@@ -41,8 +43,8 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     private List<SeamColumn> _seam14 = [];
     private volatile int _previewGrey = -1;  // -1 = off; 0..255 = solid grey on the wall (curve matching)
 
-    public int Width { get; }
-    public int Height { get; }
+    public int Width { get; private set; }
+    public int Height { get; private set; }
 
     /// <summary>
     ///     The network path bakes the global image correction into its own 8-bit -> ColorBits (13-bit) LUT,
@@ -103,36 +105,73 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
             WaitSenderIdleUnlocked();
             _color = ColorFrom(_options, c);
             _color.SwapRedBlue = _options.SwapRedBlue; // preserve the live swap
-            _streamer?.UpdateColor(_color);
+            foreach (var s in _streamers) s.UpdateColor(_color);
         }
     }
 
     public void Initialize()
     {
-        if (Width != 256 || Height != 128)
-            throw new InvalidOperationException($"Network bridge expects a 256x128 wall (got {Width}x{Height}).");
+        var wall = NetworkWall.Measure(_options.StreamTargets());
+        Width = wall.Width;
+        Height = wall.Height;
 
         lock (_lock)
         {
-            if (_streamer != null) return;
+            if (_streamers.Count != 0) return;
             LoadSeamUnlocked();
-            _streamer = NewStreamer();
+            OpenStreamersUnlocked();
             _seamStamp = SafeStamp();
             StartSenderUnlocked();
         }
 
-        Console.WriteLine($"[NET] UDP -> {_options.Host}:{_options.Port}, {Width}x{Height} {_options.ColorBits}-bit, " +
-                          $"paced to {_options.TargetMbps:0.#} Mbit/s (pack/send off render thread).");
+        Console.WriteLine($"[NET] UDP -> {DescribeTargets()}, {Width}x{Height} {_options.ColorBits}-bit, " +
+                          $"paced to {_options.TargetMbps:0.#} Mbit/s each (pack/send off render thread).");
     }
 
-    private PanelStreamer NewStreamer() => new(new PanelStreamOptions
+    private string DescribeTargets()
     {
-        Host = _options.Host,
-        Port = _options.Port,
+        var targets = _options.StreamTargets();
+        return targets.Count == 0
+            ? "(no panel)"
+            : string.Join(", ", targets.Select(p => p.Host + ":" + p.Port));
+    }
+
+    private void OpenStreamersUnlocked()
+    {
+        CloseStreamersUnlocked();
+        var wall = NetworkWall.Measure(_options.StreamTargets());
+        Width = wall.Width;
+        Height = wall.Height;
+        foreach (var target in _options.StreamTargets())
+        {
+            try
+            {
+                _streamers.Add(NewStreamer(target));
+                _openTargets.Add(target);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[NET] skip {target.Host}:{target.Port}: {ex.Message}");
+            }
+        }
+    }
+
+    private void CloseStreamersUnlocked()
+    {
+        foreach (var s in _streamers) s.Dispose();
+        _streamers.Clear();
+        _openTargets.Clear();
+    }
+
+    private PanelStreamer NewStreamer(NetworkPanelTarget target) => new(new PanelStreamOptions
+    {
+        Host = target.Host,
+        Port = target.Port,
         TargetMbps = _options.TargetMbps,
         ColorBits = _options.ColorBits,
-        WallWidth = Width,
-        WallHeight = Height,
+        // Each stream is one physical panel. The virtual wall is cropped before this call.
+        WallWidth = NetworkWall.PanelWidth,
+        WallHeight = NetworkWall.PanelHeight,
         Color = _color,
         Seam = ActiveSeam()
     });
@@ -147,25 +186,54 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     ///     restart. The old UDP streamer is torn down and a fresh one opened on the new host, keeping the
     ///     current colour + seam correction. ColorBits must still match the panel firmware's mode (8/14).
     /// </summary>
-    public void Reconfigure(string host, int port, double targetMbps, int colorBits)
+    /// <summary>
+    ///     Replace the clone list. Every enabled host gets the same frame. The first target is mirrored
+    ///     into Host / Port / PanelId.
+    /// </summary>
+    public void Reconfigure(IReadOnlyList<NetworkPanelTarget> panels, double targetMbps, int colorBits)
     {
         lock (_lock)
         {
-            _options.Host = string.IsNullOrWhiteSpace(host) ? _options.Host : host.Trim();
-            _options.Port = port is > 0 and < 65536 ? port : _options.Port;
+            var placed = panels.Select(p => new NetworkPanelTarget
+            {
+                Host = p.Host?.Trim() ?? "",
+                Port = p.Port,
+                PanelId = p.PanelId?.Trim() ?? "",
+                Enabled = p.Enabled,
+                X = p.X,
+                Y = p.Y
+            }).ToList();
+            NetworkWall.Normalize(placed);
+            _options.Panels = placed;
+            _options.SyncPrimary();
+            var wall = NetworkWall.Measure(_options.StreamTargets());
+            _options.WallWidth = wall.Width;
+            _options.WallHeight = wall.Height;
             _options.TargetMbps = targetMbps is > 0 and <= 1000 ? targetMbps : _options.TargetMbps;
             _options.ColorBits = colorBits is 8 or 10 or 13 or 14 ? colorBits : _options.ColorBits;
 
-            if (_streamer != null)   // already streaming -> reopen on the new target
+            if (_streamers.Count != 0)
             {
                 WaitSenderIdleUnlocked();
-                _streamer.Dispose();
-                _streamer = NewStreamer();
+                OpenStreamersUnlocked();
                 _seamStamp = SafeStamp();
             }
         }
-        Console.WriteLine($"[NET] reconfigured -> {_options.Host}:{_options.Port}, {_options.ColorBits}-bit, " +
-                          $"paced to {_options.TargetMbps:0.#} Mbit/s.");
+        Console.WriteLine($"[NET] reconfigured -> {DescribeTargets()}, {_options.ColorBits}-bit, " +
+                          $"paced to {_options.TargetMbps:0.#} Mbit/s each.");
+    }
+
+    public void Reconfigure(string host, int port, double targetMbps, int colorBits)
+    {
+        var panels = _options.StreamTargets();
+        if (panels.Count == 0)
+            panels.Add(new NetworkPanelTarget { Host = host, Port = port, Enabled = true });
+        else
+        {
+            panels[0].Host = string.IsNullOrWhiteSpace(host) ? panels[0].Host : host.Trim();
+            panels[0].Port = port is > 0 and < 65536 ? port : panels[0].Port;
+        }
+        Reconfigure(panels, targetMbps, colorBits);
     }
 
     /// <summary>
@@ -184,25 +252,28 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
 
     public void RenderFrame(SKBitmap bitmap)
     {
-        if (bitmap.Width != Width || bitmap.Height != Height)
-            throw new ArgumentException($"Bitmap size ({bitmap.Width}x{bitmap.Height}) != wall ({Width}x{Height})");
-
         if (Volatile.Read(ref _switching) != 0) return; // don't send across an 8/14 live switch
 
         var src = bitmap.GetPixels();
         if (src == IntPtr.Zero) return;
+        var width = bitmap.Width;
+        var height = bitmap.Height;
+        if (width <= 0 || height <= 0) return;
         var rowBytes = bitmap.RowBytes;
-        var needed = rowBytes * Height;
+        var needed = rowBytes * height;
 
         lock (_lock)
         {
-            if (_streamer == null) return;
+            if (_streamers.Count == 0) return;
+            // The bitmap is the compositor output. Follow it so a wall resize cannot drop every frame.
+            Width = width;
+            Height = height;
             if ((_frameCounter++ & 31) == 0) _checkSeam = 1;
 
             if (_srcBuf.Length != needed) _srcBuf = new byte[needed];
             var preview = _previewGrey;
             if (preview >= 0)
-                FillGrey(_srcBuf, Width, Height, rowBytes, (byte)preview);
+                FillGrey(_srcBuf, width, height, rowBytes, (byte)preview);
             else
                 Marshal.Copy(src, _srcBuf, 0, needed);
 
@@ -240,9 +311,12 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
 
             if (_stopSender) return;
 
-            PanelStreamer? streamer = null;
+            PanelStreamer[] batch = [];
+            NetworkPanelTarget[] targets = [];
             byte[]? work = null;
             var stride = 0;
+            var frameW = 0;
+            var frameH = 0;
 
             lock (_lock)
             {
@@ -252,17 +326,21 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
                     MaybeReloadSeam();
                 }
 
-                if (_hasPending && _streamer != null)
+                if (_hasPending && _streamers.Count != 0)
                 {
                     if (_workBuf.Length != _srcBuf.Length) _workBuf = new byte[_srcBuf.Length];
                     Buffer.BlockCopy(_srcBuf, 0, _workBuf, 0, _srcBuf.Length);
                     work = _workBuf;
                     stride = _pendingStride;
-                    streamer = _streamer;
+                    frameW = Width;
+                    frameH = Height;
+                    batch = _streamers.ToArray();
+                    targets = _openTargets.ToArray();
+                    EnsureCrops(batch.Length);
                     _hasPending = false;
                     _sending = true;
                 }
-                else if (_streamer == null)
+                else if (_streamers.Count == 0)
                 {
                     _hasPending = false; // drop queued frames across livemode / dispose
                 }
@@ -271,11 +349,33 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
                     _frameReady.Reset();
             }
 
-            if (streamer != null && work != null)
+            if (batch.Length != 0 && work != null)
             {
                 try
                 {
-                    streamer.SendFrameBgra(work, stride);
+                    var crops = _crops;
+                    if (targets.Length == batch.Length && crops.Length >= batch.Length)
+                    {
+                        if (batch.Length == 1)
+                        {
+                            try { SendCrop(batch[0], targets[0], work, stride, frameW, frameH, crops[0]); }
+                            catch (ObjectDisposedException) { }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[NET] send to panel 1 failed: {ex.Message}");
+                            }
+                        }
+                        else
+                            Parallel.For(0, batch.Length, i =>
+                            {
+                                try { SendCrop(batch[i], targets[i], work, stride, frameW, frameH, crops[i]); }
+                                catch (ObjectDisposedException) { }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[NET] send to panel {i + 1} failed: {ex.Message}");
+                                }
+                            });
+                    }
                 }
                 catch (ObjectDisposedException)
                 {
@@ -290,6 +390,43 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
                     }
                 }
             }
+        }
+    }
+
+    private void EnsureCrops(int count)
+    {
+        if (_crops.Length == count) return;
+        _crops = new byte[count][];
+        var bytes = NetworkWall.PanelWidth * NetworkWall.PanelHeight * 4;
+        for (var i = 0; i < count; i++)
+            _crops[i] = new byte[bytes];
+    }
+
+    private static void SendCrop(PanelStreamer streamer, NetworkPanelTarget target, byte[] frame,
+        int stride, int frameW, int frameH, byte[] crop)
+    {
+        CropBgra(frame, stride, frameW, frameH, target.X, target.Y, crop);
+        streamer.SendFrameBgra(crop, NetworkWall.PanelWidth * 4);
+    }
+
+    private static void CropBgra(byte[] src, int srcStride, int srcW, int srcH, int originX, int originY, byte[] dst)
+    {
+        var pw = NetworkWall.PanelWidth;
+        var ph = NetworkWall.PanelHeight;
+        Array.Clear(dst, 0, dst.Length);
+        for (var row = 0; row < ph; row++)
+        {
+            var sy = originY + row;
+            if (sy < 0 || sy >= srcH) continue;
+            var sx0 = Math.Max(0, originX);
+            var sx1 = Math.Min(srcW, originX + pw);
+            if (sx1 <= sx0) continue;
+            var bytes = (sx1 - sx0) * 4;
+            var dstOff = row * pw * 4 + (sx0 - originX) * 4;
+            var srcOff = sy * srcStride + sx0 * 4;
+            if (dstOff < 0 || srcOff < 0 || dstOff + bytes > dst.Length || srcOff + bytes > src.Length)
+                continue;
+            Buffer.BlockCopy(src, srcOff, dst, dstOff, bytes);
         }
     }
 
@@ -319,21 +456,47 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         var previous = _options.ColorBits;
         try
         {
+            List<string> hosts;
             lock (_lock)
             {
                 WaitSenderIdleUnlocked();
-                _streamer?.Dispose();
-                _streamer = null;
+                hosts = _options.StreamTargets().Select(p => p.Host).ToList();
+                CloseStreamersUnlocked();
             }
 
-            Console.WriteLine($"[NET] live colour depth {previous}-bit -> {bits}-bit (panel livemode)...");
-            await PanelControl.SetColorModeLiveAsync(_options.Host, bits).ConfigureAwait(false);
+            Console.WriteLine($"[NET] live colour depth {previous}-bit -> {bits}-bit on {hosts.Count} panel(s)...");
+            var switched = new List<string>();
+            var failed = new List<string>();
+            foreach (var host in hosts)
+            {
+                try
+                {
+                    await PanelControl.SetColorModeLiveAsync(host, bits).ConfigureAwait(false);
+                    switched.Add(host);
+                }
+                catch (Exception ex)
+                {
+                    failed.Add(host);
+                    Console.WriteLine($"[NET] livemode on {host} failed: {ex.Message}");
+                }
+            }
+
+            if (failed.Count > 0)
+            {
+                foreach (var host in switched)
+                {
+                    try { await PanelControl.SetColorModeLiveAsync(host, previous).ConfigureAwait(false); }
+                    catch (Exception ex) { Console.WriteLine($"[NET] could not revert {host} to {previous}-bit: {ex.Message}"); }
+                }
+                throw new InvalidOperationException(
+                    "livemode failed on " + string.Join(", ", failed));
+            }
 
             lock (_lock)
             {
                 WaitSenderIdleUnlocked();
                 _options.ColorBits = bits;
-                _streamer = NewStreamer();
+                OpenStreamersUnlocked();
                 _seamStamp = SafeStamp();
             }
             Console.WriteLine($"[NET] live colour depth now {bits}-bit");
@@ -343,11 +506,11 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
             Console.WriteLine($"[NET] live colour switch failed: {ex.Message}");
             lock (_lock)
             {
-                if (_streamer == null)
+                if (_streamers.Count == 0)
                 {
                     WaitSenderIdleUnlocked();
                     _options.ColorBits = previous;
-                    _streamer = NewStreamer();
+                    OpenStreamersUnlocked();
                     _seamStamp = SafeStamp();
                 }
             }
@@ -368,7 +531,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
             WaitSenderIdleUnlocked();
             _color.SwapRedBlue = swapRedBlue;
             _options.SwapRedBlue = swapRedBlue;
-            _streamer?.UpdateColor(_color);
+            foreach (var s in _streamers) s.UpdateColor(_color);
         }
     }
 
@@ -443,7 +606,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
             else
                 _seam8 = columns.ToList();
             if (SeamCorrectionStore.NormalizeBits(_options.ColorBits) == SeamCorrectionStore.NormalizeBits(b))
-                _streamer?.UpdateSeam(columns);
+                foreach (var s in _streamers) s.UpdateSeam(columns);
         }
         if (persist)
         {
@@ -489,7 +652,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         if (stamp == _seamStamp) return;
         _seamStamp = stamp;
         LoadSeamUnlocked();
-        _streamer?.UpdateSeam(ActiveSeam());
+        foreach (var s in _streamers) s.UpdateSeam(ActiveSeam());
         Console.WriteLine($"[NET] seam correction reloaded from {_seamFile}");
     }
 
@@ -517,8 +680,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         _sender = null;
         lock (_lock)
         {
-            _streamer?.Dispose();
-            _streamer = null;
+            CloseStreamersUnlocked();
         }
         _frameReady.Dispose();
     }

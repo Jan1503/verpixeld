@@ -7,9 +7,9 @@ namespace verpixeld.Hardware;
 /// <summary>
 ///     Holds the currently active output backend and the live option objects for every backend.
 ///     Only one renderer is ever running. Option changes apply to the live instance when possible;
-///     switching backends (or changing geometry) is done under a lock so the render loop never
-///     talks to a disposed device. Geometry changes still require a process restart because the
-///     rest of the app (CanvasManager, media, AI) is sized once at startup.
+    ///     switching backends (or changing geometry) is done under a lock so the render loop never
+    ///     talks to a disposed device. A network wall resize updates the compositor live. Other
+    ///     geometry changes still require a process restart.
 /// </summary>
 public sealed class OutputRuntime : IMatrixRenderer, IDisposable
 {
@@ -250,12 +250,15 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
                 Spi.WallWidth > 0 ? Spi.WallWidth : 256,
                 Spi.WallHeight > 0 ? Spi.WallHeight : 128,
                 Spi),
-            "network" => new NetworkMatrixRenderer(
-                Network.WallWidth > 0 ? Network.WallWidth : 256,
-                Network.WallHeight > 0 ? Network.WallHeight : 128,
-                Network, ImageCorrection),
+            "network" => CreateNetworkRenderer(),
             _ => new RgbMatrixRenderer(Matrix)
         };
+    }
+
+    private NetworkMatrixRenderer CreateNetworkRenderer()
+    {
+        var size = NetworkWall.Measure(Network.StreamTargets());
+        return new NetworkMatrixRenderer(size.Width, size.Height, Network, ImageCorrection);
     }
 
     private void PersistMode(string mode)

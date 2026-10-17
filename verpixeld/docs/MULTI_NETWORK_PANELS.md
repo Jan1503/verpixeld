@@ -1,7 +1,10 @@
-# Multi-network-panel notes (future)
+# Multi-network-panel notes
 
 Saved 2026-08-22 so we do not re-derive this when a second panel exists.
-**Not implemented.** One 256×128 panel is the current product.
+
+**Placement is implemented** (2026-10-17). Settings → Network lists every panel and shows a board. Drag a tile, or use Side by side / Stack. Each panel keeps a pixel origin (`X`, `Y`). The host composes the bounding box (gaps stay black, overlap is allowed) and sends that panel a 256×128 crop. All origins at (0,0) is still a clone. Saving the layout resizes the compositor live and writes `WallWidth` / `WallHeight` plus `App.DisplayWidth` / `DisplayHeight`. `Network.Host` / `PanelId` stay the first panel.
+
+**Not implemented:** shared COMMIT, genlock. Each panel still swaps when its own stream finishes.
 
 PixPlane today is 1:1 unicast UDP 7777 (`frameId` / `fragIdx` / `nThis` / flags), discovery UDP 7778 (`VPXD`) already returns a **list**, HTTP `/cmd` + `/status` per panel. No timestamps, ACK, or network vsync. Geometry and packer are hardcoded 256×128. Seam correction is host-side, per wall, not in the protocol.
 
@@ -35,8 +38,8 @@ Each panel free-runs `acquireFront` / `swapBuffers`. The ICND `send_vsync()` is 
 
 ## Suggested build order
 
-1. Two streamers, identical full frames (clone) — proves discovery and network.
-2. Virtual canvas + crop (real tiles); swap still “when complete”.
+1. Two streamers, identical full frames (clone) — done.
+2. Virtual canvas + crop (real tiles); swap still “when complete” — done. Drag the board in Settings.
 3. COMMIT + coarse clock if motion shows the joint.
 4. Genlock only for a seamless video wall.
 

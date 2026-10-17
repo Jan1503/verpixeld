@@ -99,6 +99,7 @@ async function loadCurrentSettings() {
     if (network.colorBits != null) setValue('net-bits', String(network.colorBits));
     setChecked('net-swap', network.swapRedBlue);
     setValue('net-panel-id', network.panelId || '');
+    applyPanelLayout(network.panels, network.host);
     updateBoundBadge();
 
     setChecked('ha-enabled', ha.enabled);
@@ -715,6 +716,7 @@ async function loadNetworkConfig() {
     if (v.colorBits != null) setValue('net-bits', String(v.colorBits));
     setChecked('net-swap', v.swapRedBlue);
     setValue('net-panel-id', v.panelId || '');
+    applyPanelLayout(v.panels, v.host);
     updateBoundBadge();
   } catch (error) {
     console.error('[SETTINGS] Failed to load network config:', error);
@@ -730,15 +732,27 @@ async function applyNetworkConfig(save, opts) {
     colorBits: num('net-bits', 14),
     swapRedBlue: checked('net-swap'),
     panelId: val('net-panel-id'),
+    panels: readAllPanels(),
     save: !!save
   };
   if (!body.host) { window.toast?.error('Network', 'Enter the panel IP address.'); return false; }
+  const layout = !!(opts && opts.layout);
+  const ticket = layout ? layoutTicket : 0;
   try {
-    await api.post('/api/settings/network', body);
+    const result = await api.post('/api/settings/network', body);
+    const data = result.data || result;
     updateBoundBadge();
+    if (data && data.wallWidth > 0 && (!layout || ticket === layoutTicket))
+      syncDisplaySize(data.wallWidth, data.wallHeight);
+    if (layout) {
+      if (!layoutDrag && ticket === layoutTicket && Array.isArray(data.panels))
+        applyPanelLayout(data.panels, data.host || body.host);
+      return true;
+    }
     if (bindOnly) return true;
+    const extra = body.panels.length > 1 ? ' +' + (body.panels.length - 1) : '';
     window.toast?.success('Network',
-      (save ? 'Saved & applied \u2192 ' : 'Applied \u2192 ') + body.host + ':' + body.port);
+      (save ? 'Saved & applied \u2192 ' : 'Applied \u2192 ') + body.host + ':' + body.port + extra);
     if (save) await maybeOfferSwitch('network');
     return true;
   } catch (error) {
@@ -809,7 +823,10 @@ function renderPanelList(panels) {
       p.mdnsHost ? p.mdnsHost + '.local' : '',
       oldFw ? 'OTA 1.1 not applied' : ''
     ].filter(Boolean).map(escapeHtml).join(' \u00b7 ');
-    const boundCls = id && id === bound ? ' is-bound' : '';
+    const cloned = readClonePanels().some(c =>
+      (c.panelId && c.panelId.toLowerCase() === id) ||
+      (c.host && p.host && c.host.toLowerCase() === String(p.host).toLowerCase()));
+    const boundCls = id && id === bound ? ' is-bound' : (cloned ? ' is-clone' : '');
     return `<div class="net-panel-card${boundCls}">
       <div class="net-panel-info">
         <div class="net-panel-name">${name}</div>
@@ -817,7 +834,8 @@ function renderPanelList(panels) {
       </div>
       <div class="net-panel-actions">
         <button type="button" class="btn btn-small" onclick="identifyScannedPanel(${i})">Identify</button>
-        <button type="button" class="btn btn-small btn-primary" onclick="useScannedPanel(${i})">Use this panel</button>
+        <button type="button" class="btn btn-small" onclick="cloneScannedPanel(${i})">Clone</button>
+        <button type="button" class="btn btn-small btn-primary" onclick="useScannedPanel(${i})">Use</button>
       </div>
     </div>`;
   }).join('');
@@ -847,6 +865,309 @@ async function useScannedPanel(i) {
   window.toast?.success('Network',
     'Bound to ' + (p.displayName || p.host) + ' — output not switched');
   renderPanelList(lastPanelScan);
+}
+
+function clonesFrom(panels, primaryHost) {
+  if (!Array.isArray(panels) || panels.length === 0) return [];
+  const primary = (primaryHost || '').trim().toLowerCase();
+  const rest = panels.filter((p, i) => {
+    if (!p || !p.host) return false;
+    if (i === 0 && p.host.trim().toLowerCase() === primary) return false;
+    if (p.host.trim().toLowerCase() === primary && panels[0] && panels[0].host === p.host) return false;
+    return true;
+  });
+  if (panels[0] && String(panels[0].host || '').trim().toLowerCase() === primary)
+    return panels.slice(1).filter(p => p && p.host);
+  return rest;
+}
+
+const NET_PW = 256;
+const NET_PH = 128;
+const NET_SCALE = 0.5;
+const NET_SNAP = 20;
+const NET_MAX_W = 2048;
+const NET_MAX_H = 1024;
+let netPrimary = { x: 0, y: 0 };
+let layoutDrag = null;
+let layoutTicket = 0;
+let layoutChain = Promise.resolve();
+
+function readClonePanels() {
+  return [...document.querySelectorAll('#net-clone-list .net-clone-row')].map(row => ({
+    host: (row.querySelector('[data-clone-host]')?.value || '').trim(),
+    port: parseInt(row.querySelector('[data-clone-port]')?.value, 10) || 7777,
+    panelId: row.dataset.panelId || '',
+    x: parseInt(row.dataset.x, 10) || 0,
+    y: parseInt(row.dataset.y, 10) || 0,
+    enabled: true
+  })).filter(p => p.host);
+}
+
+function readAllPanels() {
+  const primary = {
+    host: val('net-host'),
+    port: num('net-port', 7777),
+    panelId: val('net-panel-id'),
+    x: netPrimary.x || 0,
+    y: netPrimary.y || 0,
+    enabled: true
+  };
+  const clones = readClonePanels().filter(p =>
+    p.host.toLowerCase() !== String(primary.host || '').trim().toLowerCase() || p.port !== primary.port);
+  return [primary, ...clones];
+}
+
+function renderCloneRows(clones) {
+  const hostEl = document.getElementById('net-clone-list');
+  if (!hostEl) return;
+  const rows = Array.isArray(clones) ? clones : [];
+  hostEl.innerHTML = rows.map((p, i) => `
+    <div class="net-clone-row" data-panel-id="${escapeHtml(p.panelId || '')}" data-x="${Number(p.x) || 0}" data-y="${Number(p.y) || 0}">
+      <input type="text" class="settings-input" data-clone-host value="${escapeHtml(p.host || '')}" placeholder="192.168.1.51" autocomplete="off">
+      <input type="number" class="settings-input" data-clone-port min="1" max="65535" value="${p.port || 7777}">
+      <button type="button" class="btn btn-small" onclick="removeCloneRow(${i})">Remove</button>
+    </div>`).join('');
+  hostEl.querySelectorAll('[data-clone-host], [data-clone-port]').forEach(input => {
+    input.addEventListener('change', () => renderLayoutBoard());
+  });
+}
+
+function applyPanelLayout(panels, host) {
+  const list = Array.isArray(panels) ? panels.filter(p => p && p.host) : [];
+  const primaryHost = String(host || '').trim().toLowerCase();
+  const first = list.find(p => String(p.host).trim().toLowerCase() === primaryHost) || list[0];
+  netPrimary = { x: Number(first?.x) || 0, y: Number(first?.y) || 0 };
+  renderCloneRows(clonesFrom(list, host));
+  renderLayoutBoard();
+}
+
+function localWall(panels) {
+  if (!panels.length) return { w: NET_PW, h: NET_PH, minX: 0, minY: 0 };
+  const minX = Math.min(...panels.map(p => p.x || 0));
+  const minY = Math.min(...panels.map(p => p.y || 0));
+  return {
+    minX, minY,
+    w: Math.max(...panels.map(p => (p.x || 0) - minX + NET_PW)),
+    h: Math.max(...panels.map(p => (p.y || 0) - minY + NET_PH))
+  };
+}
+
+function panelsOverlap(panels) {
+  for (let i = 0; i < panels.length; i++) {
+    for (let j = i + 1; j < panels.length; j++) {
+      const a = panels[i], b = panels[j];
+      if ((a.x || 0) < (b.x || 0) + NET_PW && (a.x || 0) + NET_PW > (b.x || 0) &&
+          (a.y || 0) < (b.y || 0) + NET_PH && (a.y || 0) + NET_PH > (b.y || 0))
+        return true;
+    }
+  }
+  return false;
+}
+
+function updateNetStatus(panels) {
+  const status = document.getElementById('netcfg-status');
+  const hint = document.getElementById('net-layout-hint');
+  const wall = localWall(panels);
+  const same = panels.length > 1 && panels.every(p => (p.x || 0) === (panels[0].x || 0) && (p.y || 0) === (panels[0].y || 0));
+  if (status) {
+    status.textContent = panels.length <= 1
+      ? 'One 256\u00d7128 panel. Add another IP, then drag the tiles to place the wall.'
+      : (same
+        ? 'Same picture on ' + panels.length + ' panels \u2014 they sit on the same spot.'
+        : 'Wall ' + wall.w + '\u00d7' + wall.h + '. Each panel shows its own 256\u00d7128 crop.');
+  }
+  if (hint) {
+    hint.textContent = panelsOverlap(panels)
+      ? 'Panels overlap \u2014 both show the same pixels there.'
+      : 'Drag a panel. It snaps to the others. Stretch canvases in Studio after the wall grows.';
+  }
+}
+
+function syncDisplaySize(w, h) {
+  if (!(w > 0) || !(h > 0)) return;
+  setValue('app-display-width', w);
+  setValue('app-display-height', h);
+  if (typeof refreshStudioDisplay === 'function') refreshStudioDisplay(w, h);
+}
+
+function renderLayoutBoard() {
+  const board = document.getElementById('net-layout-board');
+  if (!board || layoutDrag) return;
+  const panels = readAllPanels().filter(p => p.host);
+  updateNetStatus(panels);
+  if (!panels.length) {
+    board.innerHTML = '';
+    board.style.width = '';
+    board.style.height = '';
+    return;
+  }
+  const wall = localWall(panels);
+  board.style.width = (wall.w * NET_SCALE) + 'px';
+  board.style.height = (wall.h * NET_SCALE) + 'px';
+  board.innerHTML = panels.map((p, i) => `
+    <div class="net-tile" data-layout-index="${i}" style="left:${((p.x || 0) - wall.minX) * NET_SCALE}px;top:${((p.y || 0) - wall.minY) * NET_SCALE}px;width:${NET_PW * NET_SCALE}px;height:${NET_PH * NET_SCALE}px">
+      <span>${escapeHtml(p.host)}</span>
+      <small>${p.x || 0}, ${p.y || 0}</small>
+    </div>`).join('');
+  board.querySelectorAll('.net-tile').forEach(tile => {
+    tile.addEventListener('pointerdown', onLayoutPointerDown);
+  });
+}
+
+function writePositions(panels) {
+  netPrimary = { x: panels[0]?.x || 0, y: panels[0]?.y || 0 };
+  const rows = [...document.querySelectorAll('#net-clone-list .net-clone-row')];
+  let ci = 1;
+  for (const row of rows) {
+    const host = (row.querySelector('[data-clone-host]')?.value || '').trim();
+    if (!host) continue;
+    const p = panels[ci++];
+    if (!p) break;
+    row.dataset.x = String(p.x || 0);
+    row.dataset.y = String(p.y || 0);
+  }
+}
+
+function nextSlot(panels) {
+  const right = panels.reduce((m, p) => Math.max(m, (p.x || 0) + NET_PW), 0);
+  if (right + NET_PW <= NET_MAX_W) return { x: right, y: 0 };
+  const below = panels.reduce((m, p) => Math.max(m, (p.y || 0) + NET_PH), 0);
+  return { x: 0, y: Math.min(below, NET_MAX_H - NET_PH) };
+}
+
+function snapAxis(value, edges) {
+  let best = null;
+  let bestDist = NET_SNAP + 1;
+  for (const t of [0, ...edges]) {
+    const d = Math.abs(value - t);
+    if (d < bestDist) { best = t; bestDist = d; }
+  }
+  if (best != null) return best;
+  const grid = Math.round(value / 32) * 32;
+  return Math.abs(value - grid) <= NET_SNAP ? grid : value;
+}
+
+function onLayoutPointerDown(e) {
+  if (e.button != null && e.button !== 0) return;
+  const tile = e.currentTarget;
+  const index = parseInt(tile.dataset.layoutIndex, 10);
+  const panels = readAllPanels().filter(p => p.host);
+  const p = panels[index];
+  if (!p) return;
+  e.preventDefault();
+  tile.setPointerCapture(e.pointerId);
+  const wall = localWall(panels);
+  layoutDrag = {
+    index, tile, pointerId: e.pointerId,
+    startX: e.clientX, startY: e.clientY,
+    origX: p.x || 0, origY: p.y || 0,
+    minX: wall.minX, minY: wall.minY,
+    x: p.x || 0, y: p.y || 0
+  };
+  tile.classList.add('is-dragging');
+  tile.addEventListener('pointermove', onLayoutPointerMove);
+  tile.addEventListener('pointerup', onLayoutPointerUp);
+  tile.addEventListener('pointercancel', onLayoutPointerUp);
+}
+
+function onLayoutPointerMove(e) {
+  if (!layoutDrag || e.pointerId !== layoutDrag.pointerId) return;
+  const others = readAllPanels().filter(p => p.host).filter((_, i) => i !== layoutDrag.index);
+  let x = layoutDrag.origX + Math.round((e.clientX - layoutDrag.startX) / NET_SCALE);
+  let y = layoutDrag.origY + Math.round((e.clientY - layoutDrag.startY) / NET_SCALE);
+  x = snapAxis(x, others.flatMap(o => [o.x || 0, (o.x || 0) + NET_PW, (o.x || 0) - NET_PW]));
+  y = snapAxis(y, others.flatMap(o => [o.y || 0, (o.y || 0) + NET_PH, (o.y || 0) - NET_PH]));
+  x = Math.max(0, Math.min(NET_MAX_W - NET_PW, x));
+  y = Math.max(0, Math.min(NET_MAX_H - NET_PH, y));
+  layoutDrag.x = x;
+  layoutDrag.y = y;
+  layoutDrag.tile.style.left = ((x - layoutDrag.minX) * NET_SCALE) + 'px';
+  layoutDrag.tile.style.top = ((y - layoutDrag.minY) * NET_SCALE) + 'px';
+  const board = document.getElementById('net-layout-board');
+  if (board) {
+    const right = ((x - layoutDrag.minX) + NET_PW) * NET_SCALE;
+    const bottom = ((y - layoutDrag.minY) + NET_PH) * NET_SCALE;
+    if (parseFloat(board.style.width) < right) board.style.width = right + 'px';
+    if (parseFloat(board.style.height) < bottom) board.style.height = bottom + 'px';
+  }
+  const label = layoutDrag.tile.querySelector('small');
+  if (label) label.textContent = x + ', ' + y;
+}
+
+function onLayoutPointerUp(e) {
+  if (!layoutDrag || (e && e.pointerId != null && e.pointerId !== layoutDrag.pointerId)) return;
+  const tile = layoutDrag.tile;
+  tile.removeEventListener('pointermove', onLayoutPointerMove);
+  tile.removeEventListener('pointerup', onLayoutPointerUp);
+  tile.removeEventListener('pointercancel', onLayoutPointerUp);
+  const panels = readAllPanels().filter(p => p.host);
+  if (panels[layoutDrag.index]) {
+    panels[layoutDrag.index].x = layoutDrag.x;
+    panels[layoutDrag.index].y = layoutDrag.y;
+    writePositions(panels);
+  }
+  layoutDrag = null;
+  renderLayoutBoard();
+  queueLayoutSave();
+}
+
+function queueLayoutSave() {
+  const ticket = ++layoutTicket;
+  layoutChain = layoutChain.catch(() => {}).then(async () => {
+    if (ticket !== layoutTicket) return;
+    await applyNetworkConfig(true, { layout: true });
+  });
+}
+
+function arrangePanels(mode) {
+  const panels = readAllPanels().filter(p => p.host);
+  panels.forEach((p, i) => {
+    if (mode === 'stack') { p.x = 0; p.y = i * NET_PH; }
+    else { p.x = i * NET_PW; p.y = 0; }
+  });
+  writePositions(panels);
+  renderLayoutBoard();
+  queueLayoutSave();
+}
+
+function addCloneRow() {
+  const rows = readClonePanels();
+  const slot = nextSlot(readAllPanels());
+  rows.push({ host: '', port: 7777, panelId: '', enabled: true, x: slot.x, y: slot.y });
+  renderCloneRows(rows);
+  renderLayoutBoard();
+  const inputs = document.querySelectorAll('#net-clone-list [data-clone-host]');
+  inputs[inputs.length - 1]?.focus();
+}
+
+function removeCloneRow(i) {
+  const rows = readClonePanels();
+  const hadHost = !!(rows[i] && rows[i].host);
+  rows.splice(i, 1);
+  renderCloneRows(rows);
+  renderLayoutBoard();
+  if (hadHost) queueLayoutSave();
+}
+
+async function cloneScannedPanel(i) {
+  const p = lastPanelScan[i];
+  if (!p?.host) return;
+  const primaryHost = (val('net-host') || '').trim().toLowerCase();
+  const primaryPort = num('net-port', 7777);
+  const port = p.udpPort || 7777;
+  if (p.host.trim().toLowerCase() === primaryHost && port === primaryPort) {
+    window.toast?.info('Network', 'That panel is already the first target.');
+    return;
+  }
+  const rows = readClonePanels().filter(c => c.host.toLowerCase() !== p.host.trim().toLowerCase() || c.port !== port);
+  const slot = nextSlot(readAllPanels());
+  rows.push({ host: p.host, port, panelId: p.id || '', enabled: true, x: slot.x, y: slot.y });
+  renderCloneRows(rows);
+  const ok = await applyNetworkConfig(true, { bindOnly: true });
+  if (!ok) return;
+  window.toast?.success('Network', 'Added ' + p.host + ' \u2014 drag it on the board to place it.');
+  renderPanelList(lastPanelScan);
+  renderLayoutBoard();
 }
 
 async function unbindPanel() {

@@ -323,7 +323,8 @@ public static class OutputSettingsEndpoints
                 wallHeight = output.Network.WallHeight,
                 swapRedBlue = net?.SwapRedBlue ?? output.Network.SwapRedBlue,
                 seamCorrectionFile = output.Network.SeamCorrectionFile,
-                panelId = output.Network.PanelId
+                panelId = output.Network.PanelId,
+                panels = NetworkConfigEndpoints.PanelDtos(output.Network.StreamTargets())
             },
             homeAssistant = new
             {

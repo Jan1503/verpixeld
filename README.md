@@ -82,7 +82,7 @@ Whether you want to show the time, display weather information, run animations, 
 - 📺 **Live Matrix Preview** — Real-time MJPEG stream of the LED matrix output viewable from the web UI, with scalable pixelated rendering
 - 🖥️ **Simulation Mode** — Run the full application without physical LED hardware for development and testing
 - 🔒 **Certificate Management** — Upload custom HTTPS certificates or regenerate self-signed ones through the web interface
-- 📡 **Network panels** — Discover (`VPXD` UDP 7778), bind by chip-id (DHCP-safe), identify-flash, live 8/14-bit depth from visible canvases, and a 9-point seam curve for the ICND scan-home columns
+- 📡 **Network panels** — Discover (`VPXD` UDP 7778), bind by chip-id (DHCP-safe), place several 256×128 panels on a wall (drag, side by side, or stacked; same spot clones), identify-flash, live 8/14-bit depth from visible canvases, and a 9-point seam curve for the ICND scan-home columns
 - 🖥️ **HDMI / SPI outputs** — Drive a sender card via framebuffer, or an RP2040 SPI bridge
 - 🪟 **DeskCast** — Windows region/window capture straight to the panel (PixPlane) or into verpixeld via the Network Stream Player (TPM2.NET)
 
@@ -118,6 +118,16 @@ CanvasManagement is the shared framework ([Jan1503/canvasmanagement](https://git
 
 Dated from the public GitHub history so you can follow what landed when. Newest first.
 
+### 2026-10-17 — Several network panels on one wall
+
+Settings → Network lists every RP2350. Type the IP — a Docker bridge cannot scan the LAN — or scan when the host can. Each panel is a tile on a board. Drag it, or use **Side by side** / **Stack**. The same spot clones the picture onto every panel. Any other arrangement builds a virtual wall from the bounding box and sends each panel only its 256×128 crop. Gaps stay black. Overlap shows the same pixels on both. Saving the layout grows the compositor without a restart. Chip-id binding still resolves every entry at boot.
+
+Video and YouTube started from **Media** follow that live size, so playback covers the whole wall instead of staying on the first panel. Studio scales its stage into the space between the side panes. Canvases that were made for one panel stay where they are until you stretch them.
+
+The NAS image plays VLC with audio off. There is no sound card, and retrying ALSA was filling the log and stalling the picture. Plugin DLLs on the Data volume are replaced when the image copy changes, so an update is not stuck on the first seed.
+
+Shared present-time / genlock is still the note in [MULTI_NETWORK_PANELS.md](verpixeld/docs/MULTI_NETWORK_PANELS.md).
+
 ### 2026-08-29 — Voice settings live with the other AI settings
 
 **Apply to Display** now has **Dismiss from Display** next to it (Generate, Stylize, Gallery, History). Save to Gallery hashes the PNG: the same image is not written again under a new timestamp; a second click asks whether to keep another copy. Voice settings are grouped (Speech, mic, listening, spoken answers, commands) with a short note under each field. Azure AI Foundry uses one key for OpenAI and Speech — leave Speech key empty to reuse the Azure OpenAI key.
@@ -148,7 +158,7 @@ The host can run as a **linux-x64 Docker image** (`verpixeld:nas`) on TrueNAS / 
 
 Build on a machine with Docker: `docker/build.ps1 -Tar`, then Portainer **Images → Import**. Compose example: `docker/docker-compose.yml` (set `Network__Host` to the panel IP). Volumes: **Data** (layouts, plugins, fonts), **Config** (settings overlay, certs, seam JSON), **Media** (NAS library, typically read-only). The image bakes Fonts / Extensions / Filters and seeds them into Data. Config saves go to `/app/Config` so a recreate does not keep GPIO or a Pi resolution from the bundled JSON.
 
-The image compiles **FFmpeg 7.1 with libsmbclient** (Ubuntu’s ffmpeg has no `smb` protocol), plus **smbclient**, **yt-dlp**, and **LibVLC** so the VLC Media Player extension can load. LibVLC adds a lot of size (codecs + plugins). Skip it if you only use FFmpeg/yt-dlp: `docker/build.ps1 -SkipVlc -Tar` (or `docker build --build-arg VLC=0`). YouTube and Network Shares work without compiling FFmpeg on the NAS. There is no sound card in the container: video still plays; ALSA is skipped so FFmpeg does not die before the first frame. Mute VLC (or leave audio off) — there is nothing to play into. `homeassistant.local` is mDNS — Docker bridge DNS will not resolve it; use the LAN IP or `extra_hosts`.
+The image compiles **FFmpeg 7.1 with libsmbclient** (Ubuntu’s ffmpeg has no `smb` protocol), plus **smbclient**, **yt-dlp**, and **LibVLC** so the VLC Media Player extension can load. LibVLC adds a lot of size (codecs + plugins). Skip it if you only use FFmpeg/yt-dlp: `docker/build.ps1 -SkipVlc -Tar` (or `docker build --build-arg VLC=0`). YouTube and Network Shares work without compiling FFmpeg on the NAS. There is no sound card in the container: video still plays; ALSA is skipped so FFmpeg does not die before the first frame. VLC always starts with `--no-audio` in this image, even if `/proc/asound` lists a card that cannot be opened. `homeassistant.local` is mDNS — Docker bridge DNS will not resolve it; use the LAN IP or `extra_hosts`.
 
 **Local Media** is the same folder browser as Network Shares (`GET /api/media/browse`). Docker lists `/app/Media`; the Pi still uses `Media/Videos` and `Media/Audio` next to the DLL. MKV/HEVC duration comes from `format.duration` (stream duration is often `N/A`), so the seek bar works. Nested paths play without `%2F` 404s.
 

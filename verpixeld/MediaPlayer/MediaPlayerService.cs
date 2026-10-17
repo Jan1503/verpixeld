@@ -502,20 +502,8 @@ public class MediaPlayerService : IDisposable
         if (_forcedCanvas != null) return _forcedCanvas;
 
         if (MediaPlaybackTarget.UsesOwnedOverlay(TargetCanvasName))
-        {
-            var existing = _canvasManager.GetCanvasByName(MediaPlaybackTarget.OverlayName);
-            if (existing != null)
-            {
-                Console.WriteLine("[MEDIA] Reusing existing MediaPlayer canvas");
-                existing.Hide();
-                return existing;
-            }
-            var created = _canvasManager.GetCanvas(0, 0, _width, _height, 200, MediaPlaybackTarget.OverlayName);
-            created.Hide();
-            return created;
-        }
+            return FullWallOverlay();
 
-        // Try to get existing canvas by name
         var existingCanvas = _canvasManager.GetCanvasesByZOrder()
             .FirstOrDefault(c => c.Name == TargetCanvasName);
 
@@ -525,17 +513,35 @@ public class MediaPlayerService : IDisposable
             return existingCanvas;
         }
 
-        // Canvas not found, fall back to full-screen (reuse existing MediaPlayer canvas)
         Console.WriteLine($"[MEDIA] Canvas '{TargetCanvasName}' not found, using full-screen");
-        var fallback = _canvasManager.GetCanvasByName("MediaPlayer");
-        if (fallback != null)
+        return FullWallOverlay();
+    }
+
+    /// <summary>
+    ///     The Media tab overlay follows the live wall. A canvas created at the old 256×128 size
+    ///     would otherwise stay on the first panel after the wall grows.
+    /// </summary>
+    private Canvas FullWallOverlay()
+    {
+        var w = _canvasManager.Width;
+        var h = _canvasManager.Height;
+        var name = MediaPlaybackTarget.OverlayName;
+        var existing = _canvasManager.GetCanvasByName(name);
+        if (existing != null && existing.Width == w && existing.Height == h && existing.XPos == 0 && existing.YPos == 0)
         {
-            fallback.Hide();
-            return fallback;
+            existing.Hide();
+            return existing;
         }
-        var overlay = _canvasManager.GetCanvas(0, 0, _width, _height, 200, "MediaPlayer");
-        overlay.Hide();
-        return overlay;
+
+        if (existing != null)
+        {
+            Console.WriteLine($"[MEDIA] Replacing {existing.Width}x{existing.Height} overlay with {w}x{h}");
+            _canvasManager.RemoveCanvas(existing);
+        }
+
+        var created = _canvasManager.GetCanvas(0, 0, w, h, 200, name);
+        created.Hide();
+        return created;
     }
 
     /// <summary>
@@ -1313,13 +1319,11 @@ public class MediaPlayerService : IDisposable
         try
         {
             // Reuse existing media canvas if available, otherwise find or create one
-            var canvas = _mediaCanvas
-                ?? _canvasManager.GetCanvasByName("MediaPlayer")
-                ?? _canvasManager.GetCanvas(0, 0, _width, _height, 200, "MediaPlayer");
+            var canvas = _mediaCanvas ?? FullWallOverlay();
             canvas.Clear();
 
             // Dark background
-            canvas.DrawRect(0, 0, _width, _height, new SKColor(10, 10, 30), SKPaintStyle.Fill);
+            canvas.DrawRect(0, 0, canvas.Width, canvas.Height, new SKColor(10, 10, 30), SKPaintStyle.Fill);
 
             // "Up Next" label
             var labelColor = new SKColor(100, 200, 255);
@@ -1332,11 +1336,11 @@ public class MediaPlayerService : IDisposable
 
             // Progress counter
             var counterColor = new SKColor(150, 150, 150);
-            canvas.DrawBdfText($"{currentNum} / {total}", 2, _height - 12, counterColor);
+            canvas.DrawBdfText($"{currentNum} / {total}", 2, canvas.Height - 12, counterColor);
 
             // Small loading indicator bar
-            var barWidth = (int)((float)currentNum / total * (_width - 4));
-            canvas.DrawRect(2, _height - 3, barWidth, 2, new SKColor(0, 180, 255), SKPaintStyle.Fill);
+            var barWidth = (int)((float)currentNum / total * (canvas.Width - 4));
+            canvas.DrawRect(2, canvas.Height - 3, barWidth, 2, new SKColor(0, 180, 255), SKPaintStyle.Fill);
             
             canvas.Show();
             _mediaCanvas = canvas;

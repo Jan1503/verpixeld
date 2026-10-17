@@ -163,9 +163,65 @@ public class NetworkOptions
     /// <summary>
     ///     RP2350 unique-board-id (16 hex chars) of the bound panel. When set, verpixeld re-resolves
     ///     the current DHCP IP at startup via UDP 7778 / HTTP /status so a lease change does not
-    ///     require editing Host by hand.
+    ///     require editing Host by hand. Mirrors <see cref="Panels"/>[0] when a clone list is saved.
     /// </summary>
     public string PanelId { get; set; } = "";
+
+    /// <summary>
+    ///     Every panel on the wall. <see cref="NetworkPanelTarget.X"/> / <see cref="NetworkPanelTarget.Y"/>
+    ///     place its 256×128 crop. All zeros is a clone. Empty means "just <see cref="Host"/>".
+    ///     The first enabled entry is mirrored into Host / Port / PanelId so older config and
+    ///     <c>Network__Host</c> keep working.
+    /// </summary>
+    public List<NetworkPanelTarget> Panels { get; set; } = [];
+
+    /// <summary>Enabled targets with a host, de-duplicated by IP and port. Falls back to <see cref="Host"/>.</summary>
+    public List<NetworkPanelTarget> StreamTargets()
+    {
+        var list = new List<NetworkPanelTarget>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in Panels)
+        {
+            if (p == null || !p.Enabled || string.IsNullOrWhiteSpace(p.Host)) continue;
+            var host = p.Host.Trim();
+            var port = p.Port is > 0 and < 65536 ? p.Port : 7777;
+            if (!seen.Add(host + ":" + port)) continue;
+            list.Add(new NetworkPanelTarget
+            {
+                Host = host,
+                Port = port,
+                PanelId = p.PanelId?.Trim() ?? "",
+                Enabled = true,
+                X = p.X,
+                Y = p.Y
+            });
+        }
+
+        if (list.Count == 0 && !string.IsNullOrWhiteSpace(Host))
+        {
+            list.Add(new NetworkPanelTarget
+            {
+                Host = Host.Trim(),
+                Port = Port is > 0 and < 65536 ? Port : 7777,
+                PanelId = PanelId?.Trim() ?? "",
+                Enabled = true,
+                X = 0,
+                Y = 0
+            });
+        }
+
+        return list;
+    }
+
+    /// <summary>Copy the first stream target into Host / Port / PanelId.</summary>
+    public void SyncPrimary()
+    {
+        var first = StreamTargets().FirstOrDefault();
+        if (first == null) return;
+        Host = first.Host;
+        Port = first.Port;
+        PanelId = first.PanelId;
+    }
 
     // NOTE: gamma / contrast / brightness / white-balance are now GLOBAL (see ImageCorrectionOptions),
     // applied once in the render loop for every output mode. Only the panel-wiring swap and the per-column
@@ -177,6 +233,21 @@ public class NetworkOptions
     ///     Relative paths resolve next to the executable. A neutral template is created on first run.
     /// </summary>
     public string SeamCorrectionFile { get; set; } = "seam_correction.json";
+}
+
+/// <summary>One RP2350 panel that receives the composed frame.</summary>
+public class NetworkPanelTarget
+{
+    public string Host { get; set; } = "";
+    public int Port { get; set; } = 7777;
+    public string PanelId { get; set; } = "";
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Left edge of this panel on the virtual wall, in pixels.</summary>
+    public int X { get; set; }
+
+    /// <summary>Top edge of this panel on the virtual wall, in pixels.</summary>
+    public int Y { get; set; }
 }
 
 /// <summary>

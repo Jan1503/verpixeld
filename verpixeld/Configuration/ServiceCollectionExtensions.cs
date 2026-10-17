@@ -265,48 +265,77 @@ public static class ServiceCollectionExtensions
 
     internal static void ResolveBoundPanel(NetworkOptions network)
     {
-        var id = PanelDiscovery.NormalizeId(network.PanelId);
-        if (string.IsNullOrEmpty(id)) return;
-        try
+        var listed = network.Panels is { Count: > 0 };
+        var targets = listed ? network.Panels : [new NetworkPanelTarget
         {
-            Console.WriteLine($"[NET] resolving bound panel {id} (last Host={network.Host})...");
-            var found = PanelDiscovery.ResolveAsync(id, network.Host, TimeSpan.FromSeconds(2))
-                .GetAwaiter().GetResult();
-            if (found == null)
-            {
-                Console.WriteLine($"[NET] panel {id} not found on LAN; keeping Host={network.Host}");
-                return;
-            }
+            Host = network.Host,
+            Port = network.Port,
+            PanelId = network.PanelId,
+            Enabled = true
+        }];
 
-            var moved = !string.Equals(found.Host, network.Host, StringComparison.OrdinalIgnoreCase);
-            if (moved)
-                Console.WriteLine($"[NET] panel {id} is now at {found.Host} (was {network.Host})");
-            else
-                Console.WriteLine($"[NET] panel {id} still at {found.Host}");
-
-            network.Host = found.Host;
-            if (found.UdpPort > 0) network.Port = found.UdpPort;
-            if (found.ColorBits is 8 or 10 or 13 or 14) network.ColorBits = found.ColorBits;
-
-            if (!moved) return;
+        var moved = false;
+        foreach (var panel in targets)
+        {
+            var id = PanelDiscovery.NormalizeId(panel.PanelId);
+            if (string.IsNullOrEmpty(id)) continue;
             try
             {
-                OutputSettingsEndpoints.PersistSection("Network", new Dictionary<string, System.Text.Json.Nodes.JsonNode?>
+                Console.WriteLine($"[NET] resolving bound panel {id} (last Host={panel.Host})...");
+                var found = PanelDiscovery.ResolveAsync(id, panel.Host, TimeSpan.FromSeconds(2))
+                    .GetAwaiter().GetResult();
+                if (found == null)
                 {
-                    ["Host"] = network.Host,
-                    ["Port"] = network.Port,
-                    ["ColorBits"] = network.ColorBits,
-                    ["PanelId"] = network.PanelId
-                });
+                    Console.WriteLine($"[NET] panel {id} not found on LAN; keeping Host={panel.Host}");
+                    continue;
+                }
+
+                var ipMoved = !string.Equals(found.Host, panel.Host, StringComparison.OrdinalIgnoreCase);
+                if (ipMoved)
+                    Console.WriteLine($"[NET] panel {id} is now at {found.Host} (was {panel.Host})");
+                else
+                    Console.WriteLine($"[NET] panel {id} still at {found.Host}");
+
+                panel.Host = found.Host;
+                if (found.UdpPort > 0) panel.Port = found.UdpPort;
+                if (!listed && found.ColorBits is 8 or 10 or 13 or 14)
+                    network.ColorBits = found.ColorBits;
+                if (ipMoved) moved = true;
             }
-            catch (Exception persistEx)
+            catch (Exception ex)
             {
-                Console.WriteLine($"[NET] could not persist resolved Host: {persistEx.Message}");
+                Console.WriteLine($"[NET] panel resolve failed for {id}: {ex.Message}");
             }
         }
-        catch (Exception ex)
+
+        if (listed)
         {
-            Console.WriteLine($"[NET] panel resolve failed: {ex.Message}");
+            network.SyncPrimary();
+        }
+        else if (targets.Count > 0)
+        {
+            network.Host = targets[0].Host;
+            network.Port = targets[0].Port;
+            network.PanelId = targets[0].PanelId;
+        }
+
+        if (!moved) return;
+        try
+        {
+            var patch = new Dictionary<string, System.Text.Json.Nodes.JsonNode?>
+            {
+                ["Host"] = network.Host,
+                ["Port"] = network.Port,
+                ["ColorBits"] = network.ColorBits,
+                ["PanelId"] = network.PanelId
+            };
+            if (listed)
+                patch["Panels"] = NetworkConfigEndpoints.PanelsNode(network.Panels);
+            OutputSettingsEndpoints.PersistSection("Network", patch);
+        }
+        catch (Exception persistEx)
+        {
+            Console.WriteLine($"[NET] could not persist resolved Host: {persistEx.Message}");
         }
     }
 }
