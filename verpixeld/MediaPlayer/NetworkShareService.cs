@@ -210,6 +210,13 @@ public class NetworkShareService
         return _shares.FirstOrDefault(s => s.Id == id);
     }
 
+    public string? FindShareId(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        return _shares.FirstOrDefault(s =>
+            string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase))?.Id;
+    }
+
     /// <summary>
     ///     Get the default share
     /// </summary>

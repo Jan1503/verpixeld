@@ -525,18 +525,19 @@ public static class MediaPlayerEndpoints
                     message = $"Invalid file type. Supported: {string.Join(", ", validExtensions)}"
                 });
 
-            var filePath = Path.Combine(AppPaths.VideosDir, file.FileName);
+            var safeName = MediaPath.SanitizeFileName(file.FileName);
+            var filePath = MediaPath.SafeUploadPath(AppPaths.VideosDir, safeName);
 
             await using var stream = new FileStream(filePath, FileMode.Create);
             await file.CopyToAsync(stream);
 
-            Console.WriteLine($"[MEDIA] Video uploaded: {file.FileName} ({file.Length / 1024 / 1024}MB)");
+            Console.WriteLine($"[MEDIA] Video uploaded: {safeName} ({file.Length / 1024 / 1024}MB)");
 
             return Results.Json(new
             {
                 success = true,
-                message = $"Video uploaded: {file.FileName}",
-                filename = file.FileName
+                message = $"Video uploaded: {safeName}",
+                filename = safeName
             });
         }).DisableAntiforgery();
 
@@ -564,18 +565,19 @@ public static class MediaPlayerEndpoints
                     message = $"Invalid file type. Supported: {string.Join(", ", validExtensions)}"
                 });
 
-            var filePath = Path.Combine(AppPaths.MusicDir, file.FileName);
+            var safeName = MediaPath.SanitizeFileName(file.FileName);
+            var filePath = MediaPath.SafeUploadPath(AppPaths.MusicDir, safeName);
 
             await using var stream = new FileStream(filePath, FileMode.Create);
             await file.CopyToAsync(stream);
 
-            Console.WriteLine($"[MEDIA] MOD file uploaded: {file.FileName}");
+            Console.WriteLine($"[MEDIA] MOD file uploaded: {safeName}");
 
             return Results.Json(new
             {
                 success = true,
-                message = $"Music uploaded: {file.FileName}",
-                filename = file.FileName
+                message = $"Music uploaded: {safeName}",
+                filename = safeName
             });
         }).DisableAntiforgery();
 
@@ -646,18 +648,19 @@ public static class MediaPlayerEndpoints
                     message = $"Invalid file type. Supported: {string.Join(", ", validExtensions)}"
                 });
 
-            var filePath = Path.Combine(AppPaths.AudioDir, file.FileName);
+            var safeName = MediaPath.SanitizeFileName(file.FileName);
+            var filePath = MediaPath.SafeUploadPath(AppPaths.AudioDir, safeName);
 
             await using var stream = new FileStream(filePath, FileMode.Create);
             await file.CopyToAsync(stream);
 
-            Console.WriteLine($"[MEDIA] Audio uploaded: {file.FileName} ({file.Length / 1024}KB)");
+            Console.WriteLine($"[MEDIA] Audio uploaded: {safeName} ({file.Length / 1024}KB)");
 
             return Results.Json(new
             {
                 success = true,
-                message = $"Audio uploaded: {file.FileName}",
-                filename = file.FileName
+                message = $"Audio uploaded: {safeName}",
+                filename = safeName
             });
         }).DisableAntiforgery();
 

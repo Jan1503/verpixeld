@@ -65,7 +65,14 @@ public class AlertService : IDisposable
 
         _configPath = AppPaths.AlertConfig;
         LoadConfig();
+        _canvasManager.DisplayResized += OnDisplayResized;
         Console.WriteLine($"[ALERT] Initialized for {width}x{height} display");
+    }
+
+    private void OnDisplayResized(object? sender, DisplayResizedEventArgs e)
+    {
+        _width = e.Width;
+        _height = e.Height;
     }
 
     /// <summary>Trigger the camera alert. If already active, just resets the timeout timer.</summary>

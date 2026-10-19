@@ -29,7 +29,7 @@ function initTabs() {
   initCollapsibleSections();
   
   // Update UI periodically
-  setInterval(updateStatusPlayer, 1000);
+  setInterval(() => { if (!document.hidden) updateStatusPlayer(); }, 1000);
   updateStatusPlayer();
   
   console.log('[TABS] Tab navigation initialized');

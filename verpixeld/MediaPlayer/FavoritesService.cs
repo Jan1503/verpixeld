@@ -66,6 +66,7 @@ public class FavoritesService
             if (string.IsNullOrEmpty(item.Id))
                 item.Id = Guid.NewGuid().ToString("N")[..8];
             
+            SanitizeNetwork(item);
             item.AddedAt = DateTime.UtcNow;
             
             // Check for duplicate source
@@ -167,6 +168,7 @@ public class FavoritesService
                 h.Type == item.Type && 
                 h.GetSourceIdentifier() == item.GetSourceIdentifier());
             
+            SanitizeNetwork(item);
             item.PlayedAt = DateTime.UtcNow;
             
             // Add to beginning
@@ -233,6 +235,10 @@ public class FavoritesService
             {
                 var json = File.ReadAllText(_favoritesFilePath);
                 _favorites = JsonSerializer.Deserialize<List<FavoriteItem>>(json) ?? new();
+                var dirty = false;
+                foreach (var fav in _favorites)
+                    dirty |= SanitizeNetwork(fav);
+                if (dirty) SaveFavorites();
                 Console.WriteLine($"[FAVORITES] Loaded {_favorites.Count} favorites");
             }
         }
@@ -267,6 +273,10 @@ public class FavoritesService
             {
                 var json = File.ReadAllText(_historyFilePath);
                 _history = JsonSerializer.Deserialize<List<PlayHistoryItem>>(json) ?? new();
+                var dirty = false;
+                foreach (var item in _history)
+                    dirty |= SanitizeNetwork(item);
+                if (dirty) SaveHistory();
                 Console.WriteLine($"[HISTORY] Loaded {_history.Count} history items");
             }
         }
@@ -291,6 +301,22 @@ public class FavoritesService
         {
             Console.WriteLine($"[HISTORY] Error saving history: {ex.Message}");
         }
+    }
+
+    internal static bool SanitizeNetwork(FavoriteItem item)
+    {
+        var redacted = MediaPath.Redact(item.NetworkUrl);
+        if (redacted == item.NetworkUrl) return false;
+        item.NetworkUrl = redacted;
+        return true;
+    }
+
+    internal static bool SanitizeNetwork(PlayHistoryItem item)
+    {
+        var redacted = MediaPath.Redact(item.NetworkUrl);
+        if (redacted == item.NetworkUrl) return false;
+        item.NetworkUrl = redacted;
+        return true;
     }
 }
 
@@ -318,7 +344,8 @@ public class FavoriteItem
     // Source information (only one is set based on Type)
     public string? LocalPath { get; set; }          // For local files
     public string? YouTubeUrl { get; set; }         // For YouTube (original URL)
-    public string? NetworkUrl { get; set; }         // For SMB/HTTP shares
+    public string? NetworkUrl { get; set; }         // Display-safe URL only (no password)
+    public string? NetworkShareId { get; set; }     // Rebuild SMB URL from the saved share
     public string? NetworkShareName { get; set; }   // Display name for network shares
     public string? NetworkFilePath { get; set; }    // Path within share
     public string? NetworkProtocol { get; set; }    // smb, http, ftp
@@ -343,7 +370,10 @@ public class FavoriteItem
         {
             MediaItemType.LocalVideo or MediaItemType.LocalAudio => LocalPath ?? "",
             MediaItemType.YouTube => YouTubeUrl ?? "",
-            MediaItemType.NetworkVideo or MediaItemType.NetworkAudio => NetworkUrl ?? "",
+            MediaItemType.NetworkVideo or MediaItemType.NetworkAudio =>
+                !string.IsNullOrEmpty(NetworkShareId)
+                    ? $"{NetworkShareId}:{NetworkFilePath}"
+                    : MediaPath.Redact(NetworkUrl) ?? "",
             _ => ""
         };
     }
@@ -377,6 +407,7 @@ public class PlayHistoryItem
     public string? LocalPath { get; set; }
     public string? YouTubeUrl { get; set; }
     public string? NetworkUrl { get; set; }
+    public string? NetworkShareId { get; set; }
     public string? NetworkShareName { get; set; }
     public string? NetworkFilePath { get; set; }
     public string? NetworkProtocol { get; set; }
@@ -396,7 +427,10 @@ public class PlayHistoryItem
         {
             MediaItemType.LocalVideo or MediaItemType.LocalAudio => LocalPath ?? "",
             MediaItemType.YouTube => YouTubeUrl ?? "",
-            MediaItemType.NetworkVideo or MediaItemType.NetworkAudio => NetworkUrl ?? "",
+            MediaItemType.NetworkVideo or MediaItemType.NetworkAudio =>
+                !string.IsNullOrEmpty(NetworkShareId)
+                    ? $"{NetworkShareId}:{NetworkFilePath}"
+                    : MediaPath.Redact(NetworkUrl) ?? "",
             _ => ""
         };
     }
@@ -428,7 +462,8 @@ public class PlayHistoryItem
             Type = Type,
             LocalPath = LocalPath,
             YouTubeUrl = YouTubeUrl,
-            NetworkUrl = NetworkUrl,
+            NetworkUrl = MediaPath.Redact(NetworkUrl),
+            NetworkShareId = NetworkShareId,
             NetworkShareName = NetworkShareName,
             NetworkFilePath = NetworkFilePath,
             NetworkProtocol = NetworkProtocol,

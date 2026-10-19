@@ -136,6 +136,32 @@ async function checkSimulationMode() {
   }
 }
 
+document.addEventListener('visibilitychange', () => {
+  const studio = document.getElementById('le-stream');
+  if (document.hidden) {
+    if (studio && studio.src) {
+      studio.dataset.src = studio.src;
+      studio.removeAttribute('src');
+    }
+    if (_previewActive) {
+      const img = document.getElementById('preview-stream');
+      if (img && img.src) {
+        img.dataset.src = img.src;
+        img.removeAttribute('src');
+      }
+    }
+    return;
+  }
+  if (studio && studio.dataset.src) {
+    studio.src = studio.dataset.src.replace(/([?&])t=\d+/, '$1t=' + Date.now());
+    if (!/[?&]t=/.test(studio.src)) studio.src += (studio.src.includes('?') ? '&' : '?') + 't=' + Date.now();
+  }
+  if (_previewActive) {
+    const img = document.getElementById('preview-stream');
+    if (img) img.src = `${API_BASE}/api/preview/stream?t=${Date.now()}`;
+  }
+});
+
 // Auto-stop when leaving the settings tab to free the connection
 window.addEventListener('tabChanged', (e) => {
   if (e.detail?.tab !== 'settings' && _previewActive) {

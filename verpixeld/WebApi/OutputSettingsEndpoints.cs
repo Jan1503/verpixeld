@@ -55,6 +55,25 @@ public static class OutputSettingsEndpoints
             }
         });
 
+        // Body: { enabled: true|false }. Stops frames to the panel until resumed or the process restarts.
+        group.MapPut("/output/enabled", async (HttpContext ctx) =>
+        {
+            try
+            {
+                var body = await ReadObject(ctx);
+                var enabled = GetBool(body, "enabled", true);
+                output.SetOutputEnabled(enabled);
+                var message = enabled
+                    ? "Output resumed."
+                    : "Output paused. The preview keeps running; the panels are free for another sender.";
+                return ApiResponse.Ok(new { outputEnabled = output.OutputEnabled }, message);
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse.Error(ex);
+            }
+        });
+
         group.MapPut("/hdmi", async (HttpContext ctx) =>
         {
             try
@@ -295,6 +314,7 @@ public static class OutputSettingsEndpoints
         return new
         {
             activeMode = output.Mode,
+            outputEnabled = output.OutputEnabled,
             savedMode = string.IsNullOrWhiteSpace(output.App.OutputMode) ? output.Mode : output.App.OutputMode,
             canvas = new { width = output.Width, height = output.Height },
             inContainer = AppPaths.RunningInContainer(),

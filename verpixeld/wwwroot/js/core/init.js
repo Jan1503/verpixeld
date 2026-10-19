@@ -179,6 +179,7 @@ document.addEventListener('DOMContentLoaded', initializeApplication);
 
 // Auto-refresh interval
 setInterval(() => {
+  if (document.hidden) return;
   fetchStatus();
   fetchFilters();
   refreshLayoutInfo();

@@ -1892,6 +1892,10 @@
             </h3>
           </div>
           <div class="tab-section-body">
+            <p style="margin-bottom: 0.75rem;">
+              <button type="button" class="btn btn-secondary" id="output-enabled-btn" onclick="toggleHardwareOutput()">Pause output</button>
+              <span class="settings-hint" id="output-enabled-hint">Frames are sent to the panel. Pause this to let a desktop streamer drive the wall without quitting verpixeld. The browser preview keeps running. A restart sends again.</span>
+            </p>
             <p class="settings-hint" id="output-mode-hint" style="margin-bottom: 0.75rem;">
               Click a card to edit that output’s settings — only the selected panel is shown.
               Nothing is switched until you save and confirm,
@@ -2930,7 +2934,7 @@
   <script src="/js/ui/toast.js?v=20260208a"></script>
   <script src="/js/ui/modal.js?v=20260208a"></script>
   <script src="/js/ui/theme.js?v=20260817a"></script>
-  <script src="/js/ui/tabs.js?v=20260823a"></script>
+  <script src="/js/ui/tabs.js?v=20261018a"></script>
   <script src="/js/ui/navigation.js?v=20260208a"></script>
   
   <!-- Modular JS - Features -->
@@ -2957,7 +2961,7 @@
   <script src="/js/features/saved-layouts.js?v=20260822h"></script>
   <script src="/js/features/playlist.js?v=20260623a"></script>
   <script src="/js/features/canvas-editor.js?v=20260208a"></script>
-  <script src="/js/features/layer-editor.js?v=20261017c"></script>
+  <script src="/js/features/layer-editor.js?v=20261018a"></script>
   <script src="/js/features/system-control.js?v=20260827a"></script>
   <script src="/js/features/filter-management.js?v=20260208a"></script>
   <script src="/js/features/extension-management.js?v=20260825a"></script>
@@ -2973,8 +2977,8 @@
   <script src="/js/features/image-upload.js?v=20260208c"></script>
   <script src="/js/features/ai-art.js?v=20260829b"></script>
   <script src="/js/features/voice-commands.js?v=20260829d"></script>
-  <script src="/js/features/live-preview.js?v=20260208a"></script>
-  <script src="/js/features/settings.js?v=20261017b"></script>
-  <script src="/js/core/init.js?v=20260827a"></script>
+  <script src="/js/features/live-preview.js?v=20261018a"></script>
+  <script src="/js/features/settings.js?v=20261019a"></script>
+  <script src="/js/core/init.js?v=20261018a"></script>
 </body>
 </html>

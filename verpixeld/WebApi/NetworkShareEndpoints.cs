@@ -239,7 +239,8 @@ public static class NetworkShareEndpoints
             {
                 Type = MediaItemType.NetworkVideo,
                 Name = Path.GetFileName(decodedPath),
-                NetworkUrl = videoUrl,
+                NetworkUrl = MediaPath.Redact(videoUrl),
+                NetworkShareId = share.Id,
                 NetworkShareName = share.Name,
                 NetworkFilePath = decodedPath,
                 NetworkProtocol = "smb"
@@ -306,7 +307,8 @@ public static class NetworkShareEndpoints
             {
                 Type = MediaItemType.NetworkAudio,
                 Name = Path.GetFileName(decodedPath),
-                NetworkUrl = audioUrl,
+                NetworkUrl = MediaPath.Redact(audioUrl),
+                NetworkShareId = share.Id,
                 NetworkShareName = share.Name,
                 NetworkFilePath = decodedPath,
                 NetworkProtocol = "smb"

@@ -54,6 +54,7 @@ public class MediaPlayerService : IDisposable
         _videoPlayer.OnPlaybackStopped += OnPlaybackStopped;
         _videoPlayer.OnFirstFrame += OnFirstFrame;
         _videoPlayer.OnError += OnVideoError;
+        _canvasManager.DisplayResized += OnDisplayResized;
 
         Console.WriteLine($"[MEDIA] Initialized for {width}x{height} display");
         Console.WriteLine($"[MEDIA] FFmpeg available: {FFmpegAvailable}");
@@ -213,9 +214,20 @@ public class MediaPlayerService : IDisposable
 
     public void Dispose()
     {
+        _canvasManager.DisplayResized -= OnDisplayResized;
         StopAsync().Wait();
         _videoPlayer.Dispose();
         _audio.Dispose();
+    }
+
+    private void OnDisplayResized(object? sender, DisplayResizedEventArgs e)
+    {
+        _width = e.Width;
+        _height = e.Height;
+        if (_mediaCanvas == null || _forcedCanvas != null) return;
+        if (!MediaPlaybackTarget.UsesOwnedOverlay(TargetCanvasName)) return;
+        if (_isRunning || _videoPlayer.IsPlaying) return;
+        _mediaCanvas = FullWallOverlay();
     }
 
     /// <summary>
@@ -383,11 +395,11 @@ public class MediaPlayerService : IDisposable
         }
 
         // NOW stop current playback - URL is ready, minimize the gap
-        await StopAsync();
+        await StopAsync(userInitiated: false, keepOverlay: true);
 
         ResetStartGate();
         _mediaCanvas = GetOrCreateTargetCanvas();
-        HideOwnedOverlayUntilReady();
+        HideOwnedOverlayUntilReady(keepLastFrame: true);
 
         CurrentYouTubeInfo = playbackInfo;
         
@@ -454,14 +466,14 @@ public class MediaPlayerService : IDisposable
     private async Task PlayVideoInternalAsync(string source, string displayName, bool loop)
     {
         // Stop any current playback (but preserve extensions on other canvases)
-        await StopAsync();
+        await StopAsync(userInitiated: false, keepOverlay: true);
 
         Console.WriteLine($"[MEDIA] Playing video: {displayName}");
         ResetStartGate();
         _isRunning = true;
 
         _mediaCanvas = GetOrCreateTargetCanvas();
-        HideOwnedOverlayUntilReady();
+        HideOwnedOverlayUntilReady(keepLastFrame: true);
 
         Console.WriteLine($"[MEDIA] Using canvas: {_mediaCanvas.Name} ({_mediaCanvas.Width}x{_mediaCanvas.Height})");
 
@@ -548,17 +560,18 @@ public class MediaPlayerService : IDisposable
     ///     Stop playback
     ///     Note: Preserves playlist and last played info for restart/skip functionality
     /// </summary>
-    public async Task StopAsync(bool userInitiated = true)
+    public async Task StopAsync(bool userInitiated = true, bool keepOverlay = false)
     {
         if (!_isRunning && !_videoPlayer.IsPlaying && _mediaCanvas == null) return;
 
         Interlocked.Exchange(ref _userInitiatedStop, userInitiated ? 1 : 0);
-        Console.WriteLine($"[MEDIA] Stopping... (userInitiated={userInitiated})");
+        Console.WriteLine($"[MEDIA] Stopping... (userInitiated={userInitiated}, keepOverlay={keepOverlay})");
 
         await _videoPlayer.StopAsync();
         _audio.StopMod();
 
-        TeardownOwnedOverlay();
+        if (!keepOverlay)
+            TeardownOwnedOverlay();
 
         // Save last played before clearing (for restart functionality)
         if (CurrentAudio != null)
@@ -818,9 +831,14 @@ public class MediaPlayerService : IDisposable
     private bool IsOwnedOverlay(Canvas? canvas) =>
         canvas != null && canvas.Name == "MediaPlayer" && _forcedCanvas == null;
 
-    private void HideOwnedOverlayUntilReady()
+    private void HideOwnedOverlayUntilReady(bool keepLastFrame = false)
     {
         if (!IsOwnedOverlay(_mediaCanvas)) return;
+        if (keepLastFrame && !_mediaCanvas!.IsHidden)
+        {
+            Console.WriteLine("[MEDIA] Keeping last frame on MediaPlayer overlay during switch");
+            return;
+        }
         _mediaCanvas!.Hide();
         _mediaCanvas.Clear();
         Console.WriteLine("[MEDIA] MediaPlayer overlay hidden until the first frame");

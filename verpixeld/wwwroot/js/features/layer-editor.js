@@ -258,11 +258,13 @@ function buildStudioBodyHtml() {
         <button class="btn btn-small btn-secondary" onclick="openPlaylistDialog()">🔁 Automation</button>
       </div>
       <p class="le-hint" id="le-first-run" style="margin:0 0 10px;">Pick a canvas on the left, assign content on the right, save as a Scene above. Automation rotates scenes; clock times are under Schedule.</p>
+      <p class="le-hint" id="le-size-hint" hidden style="margin:0 0 10px;color:#ffb74d;">Canvases are still smaller than the wall — select one and click Fill wall. They are not stretched automatically.</p>
       <div class="le-studio-body">
         <aside class="le-pane le-layers" id="le-layers"></aside>
         <div class="le-center">
           <div class="le-toolbar">
             <button class="btn btn-small btn-primary" onclick="layerEditorAdd()">+ Add</button>
+            <button class="btn btn-small btn-secondary" onclick="layerEditorFillWall()" title="Stretch the selected canvas to the full wall">Fill wall</button>
             <button class="btn btn-small btn-secondary" onclick="layerEditorDuplicate()" title="Duplicate selected canvas">Duplicate</button>
             <button class="btn btn-small btn-secondary" id="le-undo-btn" onclick="leUndo()" title="Undo (Ctrl+Z)" disabled>Undo</button>
             <button class="btn btn-small btn-secondary" id="le-redo-btn" onclick="leRedo()" title="Redo (Ctrl+Y)" disabled>Redo</button>
@@ -325,7 +327,7 @@ async function mountStudio() {
   await refreshLayerEditor();
   leFitStage();
   if (_studioPoll) clearInterval(_studioPoll);
-  _studioPoll = setInterval(lePollLayout, 1500);
+  _studioPoll = setInterval(() => { if (!document.hidden) lePollLayout(); }, 1500);
   document.addEventListener('mousemove', leOnMove);
   document.addEventListener('mouseup', leOnUp);
   document.addEventListener('touchmove', leOnMove, { passive: false });
@@ -471,6 +473,7 @@ async function refreshLayerEditor(opts) {
     if (skipInspector) leSyncInspectorGeom();
     if (!opts || opts.emitLayout !== false)
       window.dispatchEvent(new CustomEvent('layoutChanged'));
+    leUpdateSizeHint();
   } catch (e) {
     console.error('Layer editor refresh failed:', e);
   }
@@ -999,6 +1002,20 @@ function lePresetGeom(kind) {
 async function layerEditorPreset(kind) {
   const g = lePresetGeom(kind);
   if (g) await leCreateCanvas(g);
+}
+
+async function layerEditorFillWall() {
+  await layerEditorFit('full');
+}
+
+function leUpdateSizeHint() {
+  const el = document.getElementById('le-size-hint');
+  if (!el) return;
+  const wallW = layerEditor.dispW, wallH = layerEditor.dispH;
+  const undersized = layerEditor.canvases.some(c =>
+    !LE_SYS.includes(c.name) && (c.width < wallW || c.height < wallH) &&
+    (c.width * c.height < wallW * wallH));
+  el.hidden = !undersized || wallW * wallH <= 256 * 128;
 }
 
 async function layerEditorFit(kind) {
@@ -2036,6 +2053,7 @@ window.openLayerEditor = openLayerEditor;
 window.closeLayerEditor = closeLayerEditor;
 window.selectLayerCanvas = selectLayerCanvas;
 window.layerEditorAdd = layerEditorAdd;
+window.layerEditorFillWall = layerEditorFillWall;
 window.layerEditorDuplicate = layerEditorDuplicate;
 window.layerEditorRename = layerEditorRename;
 window.layerEditorRemove = layerEditorRemove;

@@ -10,7 +10,6 @@ namespace verpixeld.Services;
 public class RenderLoopService : IRenderService, IDisposable
 {
     private readonly CanvasManager _canvasManager;
-    private readonly TimeSpan _forcedGcInterval = TimeSpan.FromMinutes(30);
     private readonly IMatrixRenderer _matrixRenderer;
     private readonly ImageCorrectionService? _imageCorrection;
 
@@ -18,9 +17,6 @@ public class RenderLoopService : IRenderService, IDisposable
 
     // FPS tracking
     private int _frameCount;
-
-    // Periodic GC scheduling
-    private DateTime _lastForcedGc = DateTime.UtcNow;
     private DateTime _lastFpsReport = DateTime.UtcNow;
 
     /// <summary>
@@ -129,17 +125,6 @@ public class RenderLoopService : IRenderService, IDisposable
                 var memory = GC.GetTotalMemory(false) / 1024 / 1024;
 
                 Console.WriteLine($"[RENDER] FPS: {CurrentFps:F1} | Memory: {memory}MB | Total Frames: {TotalFrames}");
-
-                // Periodic forced GC
-                if (now - _lastForcedGc >= _forcedGcInterval)
-                {
-                    GC.Collect(2, GCCollectionMode.Aggressive, true, true);
-                    GC.WaitForPendingFinalizers();
-                    var memoryAfterGC = GC.GetTotalMemory(true) / 1024 / 1024;
-                    Console.WriteLine($"[GC] Forced collection. Memory after: {memoryAfterGC}MB");
-                    _lastForcedGc = now;
-                }
-
                 _frameCount = 0;
                 _lastFpsReport = now;
             }

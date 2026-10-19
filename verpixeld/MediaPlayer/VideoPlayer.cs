@@ -416,7 +416,7 @@ public class VideoPlayer : IDisposable
                         $"{seekArg}{networkOpts}-i \"{videoUrl}\" " +
                         $"-vf \"{videoFilter}\" -f rawvideo -pix_fmt {FfmpegRawVideo.PixFmt} -an pipe:1";
 
-            Console.WriteLine($"[VIDEO] FFmpeg video command (truncated): ffmpeg {videoFfmpegArgs.Substring(0, Math.Min(200, videoFfmpegArgs.Length))}...");
+            Console.WriteLine($"[VIDEO] FFmpeg video command (truncated): ffmpeg {MediaPath.Redact(videoFfmpegArgs.Substring(0, Math.Min(200, videoFfmpegArgs.Length)))}...");
             
             // Audio command prepared but NOT started yet - will start after first video frame
             string? audioFfmpegArgs = null;
@@ -426,7 +426,7 @@ public class VideoPlayer : IDisposable
                             $"{seekArg}{networkOpts}-i \"{audioUrl}\" " +
                             $"-vn -c:a pcm_s16le -ar 48000 -ac 2 -f pulse \"{audioOutput}\"";
                 
-                Console.WriteLine($"[VIDEO] FFmpeg audio command (will start after first frame): ffmpeg {audioFfmpegArgs.Substring(0, Math.Min(150, audioFfmpegArgs.Length))}...");
+                Console.WriteLine($"[VIDEO] FFmpeg audio command (will start after first frame): ffmpeg {MediaPath.Redact(audioFfmpegArgs.Substring(0, Math.Min(150, audioFfmpegArgs.Length)))}...");
             }
 
             // Start video process
@@ -694,7 +694,7 @@ public class VideoPlayer : IDisposable
             var ffmpegArgs =
                 $"-hide_banner -loglevel error -nostats {seekArg}{networkOpts}{realtimeFlag}-i \"{audioPath}\" -vn {audioOutput}";
 
-            Console.WriteLine($"[AUDIO] FFmpeg args: {ffmpegArgs}");
+            Console.WriteLine($"[AUDIO] FFmpeg args: {MediaPath.Redact(ffmpegArgs)}");
 
             var psi = new ProcessStartInfo("ffmpeg", ffmpegArgs)
             {
@@ -1123,7 +1123,7 @@ public class VideoPlayer : IDisposable
             var streamInfo = isNetworkStream ? " (network stream)" : "";
             Console.WriteLine(
                 $"[VIDEO] Starting FFmpeg{seekInfo}{streamInfo}: {(emitAudio ? "audio+video" : "video only")}");
-            Console.WriteLine($"[VIDEO] FFmpeg args: {ffmpegArgs}");
+            Console.WriteLine($"[VIDEO] FFmpeg args: {MediaPath.Redact(ffmpegArgs)}");
 
             _ffmpegProcess = Process.Start(psi);
             if (_ffmpegProcess == null)

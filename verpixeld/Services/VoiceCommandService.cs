@@ -113,6 +113,7 @@ public class VoiceCommandService : IDisposable
         _tts = new TextToSpeechService();
         _overlay = new VoiceOverlayManager(canvasManager);
         _overlay.Initialize(width, height);
+        _canvasManager.DisplayResized += OnDisplayResized;
 
         _configPath = AppPaths.VoiceConfig;
         LoadConfig();
@@ -146,6 +147,13 @@ public class VoiceCommandService : IDisposable
                     "it will also start automatically on next launch when a device is present.");
             }
         }
+    }
+
+    private void OnDisplayResized(object? sender, DisplayResizedEventArgs e)
+    {
+        _width = e.Width;
+        _height = e.Height;
+        _overlay.FollowDisplay(e.Width, e.Height);
     }
 
     private VoiceContext BuildVoiceContext()

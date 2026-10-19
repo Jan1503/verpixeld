@@ -27,6 +27,13 @@ public class StartupService
     public StartupService(CanvasManager canvasManager)
     {
         _canvasManager = canvasManager;
+        DisplayWidth = canvasManager.Width;
+        DisplayHeight = canvasManager.Height;
+        _canvasManager.DisplayResized += (_, e) =>
+        {
+            DisplayWidth = e.Width;
+            DisplayHeight = e.Height;
+        };
     }
 
     /// <summary>

@@ -112,6 +112,12 @@ public class AudioVisualizerService : IAudioVisualizerService
             await StopAsync();
         }
 
+        if (!CanvasManagement.Interfaces.AudioPlayback.HasPlaybackDevice())
+        {
+            Console.WriteLine("[VISUALIZER] No playback device — not opening a Pulse monitor");
+            return false;
+        }
+
         _canvasDisposed = false;
         _targetCanvas = canvas;
         TargetCanvasName = canvasName;

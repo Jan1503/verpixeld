@@ -12,7 +12,7 @@ public static class FavoritesEndpoints
     /// <summary>
     ///     Play a single auto-play item using the appropriate media service method
     /// </summary>
-    private static async Task PlayAutoPlayItem(AutoPlayItem item, FavoritesService favoritesService, MediaPlayerService mediaService)
+    private static async Task PlayAutoPlayItem(AutoPlayItem item, FavoritesService favoritesService, MediaPlayerService mediaService, NetworkShareService shareService)
     {
         Console.WriteLine($"[AUTOPLAY] Playing item: {item.Name} (type={item.Type})");
 
@@ -54,33 +54,33 @@ public static class FavoritesEndpoints
                 break;
 
             case "network-video":
-                if (!string.IsNullOrEmpty(item.Url))
+            {
+                var fav = favoritesService.GetFavorite(item.FavoriteId);
+                var url = fav != null ? ResolveNetworkUrl(fav, shareService) : item.Url;
+                if (!string.IsNullOrEmpty(url))
                 {
-                    var fav = favoritesService.GetFavorite(item.FavoriteId);
-                    if (fav != null)
-                    {
-                        await mediaService.PlayNetworkVideoAsync(
-                            fav.NetworkUrl!,
-                            fav.NetworkShareName ?? "Network",
-                            fav.NetworkFilePath ?? "",
-                            fav.NetworkProtocol ?? "smb");
-                    }
+                    await mediaService.PlayNetworkVideoAsync(
+                        url,
+                        fav?.NetworkShareName ?? "Network",
+                        fav?.NetworkFilePath ?? "",
+                        fav?.NetworkProtocol ?? "smb");
                 }
                 break;
+            }
 
             case "network-audio":
-                if (!string.IsNullOrEmpty(item.Url))
+            {
+                var fav = favoritesService.GetFavorite(item.FavoriteId);
+                var url = fav != null ? ResolveNetworkUrl(fav, shareService) : item.Url;
+                if (!string.IsNullOrEmpty(url))
                 {
-                    var fav = favoritesService.GetFavorite(item.FavoriteId);
-                    if (fav != null)
-                    {
-                        await mediaService.PlayNetworkAudioAsync(
-                            fav.NetworkUrl!,
-                            fav.NetworkShareName ?? "Network",
-                            fav.NetworkFilePath ?? "");
-                    }
+                    await mediaService.PlayNetworkAudioAsync(
+                        url,
+                        fav?.NetworkShareName ?? "Network",
+                        fav?.NetworkFilePath ?? "");
                 }
                 break;
+            }
 
             default:
                 Console.WriteLine($"[AUTOPLAY] Unknown item type: {item.Type}");
@@ -91,10 +91,35 @@ public static class FavoritesEndpoints
         favoritesService.MarkFavoritePlayed(item.FavoriteId);
     }
 
+    private static string? ResolveNetworkUrl(FavoriteItem favorite, NetworkShareService shares)
+    {
+        if (!string.IsNullOrEmpty(favorite.NetworkShareId) && !string.IsNullOrEmpty(favorite.NetworkFilePath))
+            return shares.BuildFileUrl(favorite.NetworkShareId, favorite.NetworkFilePath);
+        if (!string.IsNullOrEmpty(favorite.NetworkShareName) && !string.IsNullOrEmpty(favorite.NetworkFilePath))
+        {
+            var id = shares.FindShareId(favorite.NetworkShareName);
+            if (id != null) return shares.BuildFileUrl(id, favorite.NetworkFilePath);
+        }
+        return favorite.NetworkUrl;
+    }
+
+    private static string? ResolveNetworkUrl(PlayHistoryItem item, NetworkShareService shares)
+    {
+        if (!string.IsNullOrEmpty(item.NetworkShareId) && !string.IsNullOrEmpty(item.NetworkFilePath))
+            return shares.BuildFileUrl(item.NetworkShareId, item.NetworkFilePath);
+        if (!string.IsNullOrEmpty(item.NetworkShareName) && !string.IsNullOrEmpty(item.NetworkFilePath))
+        {
+            var id = shares.FindShareId(item.NetworkShareName);
+            if (id != null) return shares.BuildFileUrl(id, item.NetworkFilePath);
+        }
+        return item.NetworkUrl;
+    }
+
     public static void MapFavoritesEndpoints(this WebApplication app)
     {
         var favoritesService = app.Services.GetRequiredService<FavoritesService>();
         var mediaService = app.Services.GetRequiredService<MediaPlayerService>();
+        var shareService = app.Services.GetRequiredService<NetworkShareService>();
 
         var group = app.MapGroup("/api/favorites");
 
@@ -150,7 +175,8 @@ public static class FavoritesEndpoints
                     {
                         Type = MediaItemType.NetworkAudio,
                         Name = name ?? mediaService.CurrentAudio,
-                        NetworkUrl = mediaService.LastPlayedAudioUrl,
+                        NetworkUrl = MediaPath.Redact(mediaService.LastPlayedAudioUrl),
+                        NetworkShareId = shareService.FindShareId(mediaService.NetworkShareName),
                         NetworkShareName = mediaService.NetworkShareName,
                         NetworkFilePath = mediaService.NetworkFilePath,
                         NetworkProtocol = mediaService.NetworkProtocol,
@@ -193,7 +219,8 @@ public static class FavoritesEndpoints
                     {
                         Type = MediaItemType.NetworkVideo,
                         Name = name ?? Path.GetFileName(mediaService.NetworkFilePath ?? mediaService.CurrentVideo),
-                        NetworkUrl = mediaService.NetworkVideoUrl,
+                        NetworkUrl = MediaPath.Redact(mediaService.NetworkVideoUrl),
+                        NetworkShareId = shareService.FindShareId(mediaService.NetworkShareName),
                         NetworkShareName = mediaService.NetworkShareName,
                         NetworkFilePath = mediaService.NetworkFilePath,
                         NetworkProtocol = mediaService.NetworkProtocol,
@@ -374,7 +401,7 @@ public static class FavoritesEndpoints
             // Register the play callback that uses the existing play logic
             mediaService.PlayAutoPlayItemCallback = async (item) =>
             {
-                await PlayAutoPlayItem(item, favoritesService, mediaService);
+                await PlayAutoPlayItem(item, favoritesService, mediaService, shareService);
             };
 
             mediaService.StartAutoPlay(items, shuffle ?? false);
@@ -478,29 +505,35 @@ public static class FavoritesEndpoints
                     break;
 
                 case MediaItemType.NetworkVideo:
-                    if (string.IsNullOrEmpty(favorite.NetworkUrl))
+                {
+                    var videoUrl = ResolveNetworkUrl(favorite, shareService);
+                    if (string.IsNullOrEmpty(videoUrl))
                         return Results.Json(new { success = false, message = "Network URL missing" });
-                    
+
                     await mediaService.PlayNetworkVideoAsync(
-                        favorite.NetworkUrl,
+                        videoUrl,
                         favorite.NetworkShareName ?? "Network",
                         favorite.NetworkFilePath ?? "",
                         favorite.NetworkProtocol ?? "smb");
                     success = true;
                     message = $"Playing: {favorite.Name}";
                     break;
+                }
 
                 case MediaItemType.NetworkAudio:
-                    if (string.IsNullOrEmpty(favorite.NetworkUrl))
+                {
+                    var audioUrl = ResolveNetworkUrl(favorite, shareService);
+                    if (string.IsNullOrEmpty(audioUrl))
                         return Results.Json(new { success = false, message = "Network URL missing" });
-                    
+
                     await mediaService.PlayNetworkAudioAsync(
-                        favorite.NetworkUrl,
+                        audioUrl,
                         favorite.NetworkShareName ?? "Network",
                         favorite.NetworkFilePath ?? "");
                     success = true;
                     message = $"Playing: {favorite.Name}";
                     break;
+                }
 
                 default:
                     return Results.Json(new { success = false, message = "Unknown media type" });
@@ -614,11 +647,12 @@ public static class FavoritesEndpoints
                     break;
 
                 case MediaItemType.NetworkVideo:
-                    if (string.IsNullOrEmpty(item.NetworkUrl))
+                    var histVideoUrl = ResolveNetworkUrl(item, shareService);
+                    if (string.IsNullOrEmpty(histVideoUrl))
                         return Results.Json(new { success = false, message = "Network URL missing" });
                     
                     await mediaService.PlayNetworkVideoAsync(
-                        item.NetworkUrl,
+                        histVideoUrl,
                         item.NetworkShareName ?? "Network",
                         item.NetworkFilePath ?? "",
                         item.NetworkProtocol ?? "smb");
@@ -627,11 +661,12 @@ public static class FavoritesEndpoints
                     break;
 
                 case MediaItemType.NetworkAudio:
-                    if (string.IsNullOrEmpty(item.NetworkUrl))
+                    var histAudioUrl = ResolveNetworkUrl(item, shareService);
+                    if (string.IsNullOrEmpty(histAudioUrl))
                         return Results.Json(new { success = false, message = "Network URL missing" });
                     
                     await mediaService.PlayNetworkAudioAsync(
-                        item.NetworkUrl,
+                        histAudioUrl,
                         item.NetworkShareName ?? "Network",
                         item.NetworkFilePath ?? "");
                     success = true;

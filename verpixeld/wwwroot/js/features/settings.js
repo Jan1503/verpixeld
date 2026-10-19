@@ -17,7 +17,8 @@ const outputState = {
   saved: '',
   editing: '',
   canvas: null,
-  unavailable: []
+  unavailable: [],
+  outputEnabled: true
 };
 
 function outputBlocked(mode) {
@@ -116,7 +117,9 @@ async function loadCurrentSettings() {
       ? d.unavailableModes
       : (d.inContainer ? HOST_ONLY_OUTPUTS : []);
     applyContainerOutputLock();
+    outputState.outputEnabled = d.outputEnabled !== false;
     setOutputModeUi(active, saved, d.canvas, outputState.editing || active);
+    updateOutputEnabledUi();
     updateCalculatedResolution();
     updateSystemInfo(d.systemInfo);
   } catch (error) {
@@ -185,7 +188,33 @@ function setOutputModeUi(active, saved, canvas, editing) {
       text += ` · viewing ${editName} settings`;
     if (outputState.saved && outputState.saved !== outputState.active)
       text += ` · next start: ${OUTPUT_LABELS[outputState.saved] || outputState.saved}`;
+    if (!outputState.outputEnabled) text += ' · output paused';
     status.textContent = text;
+  }
+}
+
+function updateOutputEnabledUi() {
+  const btn = document.getElementById('output-enabled-btn');
+  const hint = document.getElementById('output-enabled-hint');
+  if (btn) btn.textContent = outputState.outputEnabled ? 'Pause output' : 'Resume output';
+  if (hint) {
+    hint.textContent = outputState.outputEnabled
+      ? 'Frames are sent to the panel. Pause this to let a desktop streamer drive the wall without quitting verpixeld. The browser preview keeps running. A restart sends again.'
+      : 'Paused. No frames are sent. Start the desktop streamer, then resume here when you want verpixeld back on the wall.';
+  }
+}
+
+async function toggleHardwareOutput() {
+  const next = !outputState.outputEnabled;
+  try {
+    const result = await api.put('/api/settings/output/enabled', { enabled: next });
+    outputState.outputEnabled = result.data?.outputEnabled !== false;
+    updateOutputEnabledUi();
+    setOutputModeUi(outputState.active, outputState.saved, outputState.canvas, outputState.editing);
+    window.toast?.[outputState.outputEnabled ? 'success' : 'warning'](
+      'Output', outputState.outputEnabled ? 'Output resumed' : 'Output paused');
+  } catch (error) {
+    window.toast?.error('Output', error.message || 'Could not change output');
   }
 }
 
@@ -340,8 +369,8 @@ async function saveAppSettings() {
   const config = {
     targetFps: num('app-target-fps', 60),
     verboseLogging: checked('app-verbose-logging'),
-    displayWidth: num('app-display-width', 256),
-    displayHeight: num('app-display-height', 128)
+    displayWidth: num('app-display-width', 0) || undefined,
+    displayHeight: num('app-display-height', 0) || undefined
   };
   try {
     await api.put('/api/settings/app', config);
@@ -1475,6 +1504,7 @@ async function applySeam(save) {
 }
 
 window.selectOutputPanel = selectOutputPanel;
+window.toggleHardwareOutput = toggleHardwareOutput;
 window.requestOutputSwitch = requestOutputSwitch;
 window.saveHdmiSettings = saveHdmiSettings;
 window.saveSpiSettings = saveSpiSettings;

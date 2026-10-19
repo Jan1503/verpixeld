@@ -36,6 +36,20 @@ public class VoiceOverlayManager
         _height = height;
     }
 
+    public void FollowDisplay(int width, int height)
+    {
+        if (_width == width && _height == height) return;
+        _width = width;
+        _height = height;
+        if (_feedbackCanvas != null)
+        {
+            try { _canvasManager.RemoveCanvas(_feedbackCanvas); } catch { /* ignore */ }
+            _feedbackCanvas = null;
+        }
+        _cachedBitmap?.Dispose();
+        _cachedBitmap = null;
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // Feedback Canvas (status bar + word-wrapped text)
     // ═══════════════════════════════════════════════════════════════

@@ -164,30 +164,26 @@ public class LayoutLoaderService : ILayoutLoaderService
         {
             var w = canvasConfig.Width is > 0 ? canvasConfig.Width.Value : _canvasManager.Width;
             var h = canvasConfig.Height is > 0 ? canvasConfig.Height.Value : _canvasManager.Height;
-            Console.WriteLine($"[{source}] Creating canvas '{canvasName}' ({w}x{h}) — not in profile...");
-            canvas = _layoutManager.CreateCustomCanvas(
-                canvasName,
-                canvasConfig.X ?? 0,
-                canvasConfig.Y ?? 0,
-                w,
-                h,
-                canvasConfig.ZOrder
-            );
+            var (x, y, cw, ch) = DisplayGeometry.Clamp(
+                canvasConfig.X ?? 0, canvasConfig.Y ?? 0, w, h,
+                _canvasManager.Width, _canvasManager.Height);
+            Console.WriteLine($"[{source}] Creating canvas '{canvasName}' ({cw}x{ch} @ {x},{y}) — not in profile...");
+            canvas = _layoutManager.CreateCustomCanvas(canvasName, x, y, cw, ch, canvasConfig.ZOrder);
         }
         else if (canvasConfig.Width is > 0 && canvasConfig.Height is > 0)
         {
             // The canvas already exists from the applied profile, but the saved layout positions/sizes it
             // differently (e.g. a repositioned "Main"). Resize it to the saved geometry so profile canvases
-            // restore like overlays do (previously their saved x/y/w/h was ignored).
-            var nx = canvasConfig.X ?? canvas.XPos;
-            var ny = canvasConfig.Y ?? canvas.YPos;
-            if (canvas.XPos != nx || canvas.YPos != ny ||
-                canvas.Width != canvasConfig.Width.Value || canvas.Height != canvasConfig.Height.Value)
+            // restore like overlays do (previously their saved x/y/w/h was ignored). Clamp so a 256×128
+            // scene still lands on a larger wall; never auto-stretch user canvases.
+            var (nx, ny, nw, nh) = DisplayGeometry.Clamp(
+                canvasConfig.X ?? canvas.XPos, canvasConfig.Y ?? canvas.YPos,
+                canvasConfig.Width.Value, canvasConfig.Height.Value,
+                _canvasManager.Width, _canvasManager.Height);
+            if (canvas.XPos != nx || canvas.YPos != ny || canvas.Width != nw || canvas.Height != nh)
             {
-                Console.WriteLine($"[{source}] Resizing '{canvasName}' to saved geometry " +
-                                  $"({canvasConfig.Width}x{canvasConfig.Height} @ {nx},{ny})...");
-                var resized = _layoutManager.ResizeCanvas(canvasName, nx, ny,
-                    canvasConfig.Width.Value, canvasConfig.Height.Value);
+                Console.WriteLine($"[{source}] Resizing '{canvasName}' to saved geometry ({nw}x{nh} @ {nx},{ny})...");
+                var resized = _layoutManager.ResizeCanvas(canvasName, nx, ny, nw, nh);
                 if (resized != null) canvas = resized;
             }
         }

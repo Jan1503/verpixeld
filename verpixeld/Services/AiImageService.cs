@@ -103,6 +103,7 @@ public class AiImageService
         Directory.CreateDirectory(_historyDir);
         LoadConfig();
         LoadHistory();
+        _canvasManager.DisplayResized += OnDisplayResized;
         Console.WriteLine($"[AI] Initialized with display size {_displayWidth}x{_displayHeight}");
         if (ScheduleEnabled)
             StartScheduleTimer();
@@ -300,6 +301,12 @@ public class AiImageService
             _imageOverlay = null;
             Console.WriteLine("[AI] Image overlay dismissed");
         }
+    }
+
+    private void OnDisplayResized(object? sender, DisplayResizedEventArgs e)
+    {
+        _displayWidth = e.Width;
+        _displayHeight = e.Height;
     }
 
     #region Azure OpenAI

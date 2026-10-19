@@ -48,7 +48,14 @@ public class LocalCameraService : IDisposable
 
         _configPath = AppPaths.LocalCamConfig;
         LoadConfig();
+        _canvasManager.DisplayResized += OnDisplayResized;
         Console.WriteLine($"[LOCALCAM] Initialized for {width}x{height} display");
+    }
+
+    private void OnDisplayResized(object? sender, DisplayResizedEventArgs e)
+    {
+        _width = e.Width;
+        _height = e.Height;
     }
 
     // ═══════════════════════════════════════════════════════════════

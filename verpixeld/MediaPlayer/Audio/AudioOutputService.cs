@@ -217,6 +217,12 @@ public class AudioOutputService : IAudioOutputService
 
     public string GetFFmpegAudioOutput()
     {
+        if (!CanvasManagement.Interfaces.AudioPlayback.HasPlaybackDevice())
+        {
+            Console.WriteLine("[AUDIO] No playback device — video only");
+            return "";
+        }
+
         if (IsFFmpegPulseSupported() && IsPulseAudioAvailable())
         {
             try

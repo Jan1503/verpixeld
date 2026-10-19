@@ -18,8 +18,8 @@ public sealed class HaToastService : IDisposable
 
     private readonly CanvasManager _canvasManager;
     private readonly HomeAssistantService _homeAssistant;
-    private readonly int _width;
-    private readonly int _height;
+    private int _width;
+    private int _height;
     private readonly object _lock = new();
     private readonly Queue<HaNotification> _queue = new();
 
@@ -38,7 +38,25 @@ public sealed class HaToastService : IDisposable
         _height = height;
         _barH = Math.Max(22, height / 5);
         HomeAssistantBridge.Notification += OnNotification;
+        _canvasManager.DisplayResized += OnDisplayResized;
         Console.WriteLine($"[HA Toast] Overlay ready ({width}x{height}, bar={_barH}px, z={ZOrder})");
+    }
+
+    private void OnDisplayResized(object? sender, DisplayResizedEventArgs e)
+    {
+        _width = e.Width;
+        _height = e.Height;
+        _barH = Math.Max(22, e.Height / 5);
+        lock (_lock)
+        {
+            if (_canvas != null)
+            {
+                try { _canvasManager.RemoveCanvas(_canvas); } catch { /* ignore */ }
+                _canvas = null;
+            }
+            _bitmap?.Dispose();
+            _bitmap = null;
+        }
     }
 
     private void OnNotification(HaNotification n)
@@ -298,6 +316,7 @@ public sealed class HaToastService : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _canvasManager.DisplayResized -= OnDisplayResized;
         HomeAssistantBridge.Notification -= OnNotification;
         _timer?.Dispose();
         _timer = null;

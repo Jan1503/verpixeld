@@ -16,6 +16,7 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
     private readonly object _lock = new();
     private IMatrixRenderer _inner = null!;
     private bool _started;
+    private bool _outputEnabled = true;
 
     public OutputRuntime(AppOptions app, MatrixOptions matrix, HdmiOptions hdmi, SpiOptions spi,
         NetworkOptions network, ImageCorrectionService imageCorrection)
@@ -38,6 +39,29 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
 
     /// <summary>Canonical mode: network | hdmi | spi | gpio | simulation.</summary>
     public string Mode { get; private set; }
+
+    /// <summary>
+    ///     When false the compositor and preview keep running, but no frame is sent to the panel.
+    ///     Another sender (desktop streamer) can drive the wall without quitting verpixeld.
+    ///     Not persisted — a restart sends again.
+    /// </summary>
+    public bool OutputEnabled
+    {
+        get { lock (_lock) return _outputEnabled; }
+    }
+
+    public void SetOutputEnabled(bool enabled)
+    {
+        lock (_lock)
+        {
+            if (_outputEnabled == enabled) return;
+            _outputEnabled = enabled;
+        }
+
+        Console.WriteLine(enabled
+            ? "[OUTPUT] hardware output resumed"
+            : "[OUTPUT] hardware output paused — panels are free for another sender");
+    }
 
     public int Width
     {
@@ -113,7 +137,11 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
 
     public void RenderFrame(SKBitmap bitmap)
     {
-        lock (_lock) _inner.RenderFrame(bitmap);
+        lock (_lock)
+        {
+            if (!_outputEnabled || _inner == null) return;
+            _inner.RenderFrame(bitmap);
+        }
     }
 
     public void Shutdown()
