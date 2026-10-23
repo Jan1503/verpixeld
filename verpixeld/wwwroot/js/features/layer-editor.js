@@ -257,7 +257,7 @@ function buildStudioBodyHtml() {
         <button class="btn btn-small btn-secondary" onclick="leSaveScene()">💾 Save Scene</button>
         <button class="btn btn-small btn-secondary" onclick="openPlaylistDialog()">🔁 Automation</button>
       </div>
-      <p class="le-hint" id="le-first-run" style="margin:0 0 10px;">Pick a canvas on the left, assign content on the right, save as a Scene above. Automation rotates scenes; clock times are under Schedule.</p>
+      <p class="le-hint" id="le-first-run" style="margin:0 0 8px;">Pick a canvas, assign content, then save a scene. Automation is above; clock times are under Schedule.</p>
       <p class="le-hint" id="le-size-hint" hidden style="margin:0 0 10px;color:#ffb74d;">Canvases are still smaller than the wall — select one and click Fill wall. They are not stretched automatically.</p>
       <div class="le-studio-body">
         <aside class="le-pane le-layers" id="le-layers"></aside>
@@ -278,9 +278,8 @@ function buildStudioBodyHtml() {
                 <button onclick="leApplyProfile('dashboard')">Dashboard 2×2</button>
               </div>
             </span>
-            <button class="btn btn-small btn-secondary" id="le-draw-btn" onclick="layerEditorToggleDraw()">Draw</button>
-            <label class="le-snap"><input type="checkbox" id="le-snap" ${layerEditor.snap ? 'checked' : ''} onchange="layerEditor.snap=this.checked"> snap ${layerEditor.grid}px</label>
-            <span class="le-hint" title="Arrows nudge 1px, Shift+Arrow by the grid. Alt+Arrow always nudges (even on a game).">Arrows nudge</span>
+            <button class="btn btn-small btn-secondary" id="le-draw-btn" onclick="layerEditorToggleDraw()" title="Draw a new canvas on the stage">Draw</button>
+            <label class="le-check" title="Snap moves to the grid. Arrows nudge 1px, Shift+Arrow by the grid."><input type="checkbox" id="le-snap" ${layerEditor.snap ? 'checked' : ''} onchange="layerEditor.snap=this.checked"> Snap ${layerEditor.grid}px</label>
             <span class="le-readout" id="le-readout"></span>
           </div>
           <div class="le-stage-wrap">
@@ -395,6 +394,8 @@ async function lePollLayout() {
 
 function unmountStudio() {
   if (!_studioMounted) return;
+  leHideMenu(document.getElementById('le-scenes-menu'));
+  leHideMenu(document.getElementById('le-new-menu'));
   if (_studioPoll) { clearInterval(_studioPoll); _studioPoll = null; }
   _studioFp = '';
   document.removeEventListener('mousemove', leOnMove);
@@ -589,12 +590,9 @@ function renderInspector() {
         <label><span class="le-axis">W</span><input type="number" id="le-w" value="${c.width}" onchange="leApplyTransform()"${dis}></label>
         <label><span class="le-axis">H</span><input type="number" id="le-h" value="${c.height}" onchange="leApplyTransform()"${dis}></label>
       </div>
-      <p class="le-hint">${locked ? 'Locked — unlock to move or resize.' : 'Or drag / resize on the stage. Arrows nudge 1px, Shift+Arrow by the grid.'}</p>
-      <div class="le-row">
-        <label class="le-sel-lbl"><input type="checkbox" ${locked ? 'checked' : ''} onchange="layerEditorSetLocked(this.checked)"> Lock position &amp; size</label>
-      </div>
-      <div class="le-row">
-        <label class="le-sel-lbl"><input type="checkbox" ${aspect ? 'checked' : ''} ${locked ? 'disabled' : ''} onchange="layerEditorSetAspect(this.checked)"> Lock aspect</label>
+      <div class="le-checks">
+        <label class="le-check"><input type="checkbox" ${locked ? 'checked' : ''} onchange="layerEditorSetLocked(this.checked)"> Lock position &amp; size</label>
+        <label class="le-check"><input type="checkbox" ${aspect ? 'checked' : ''} ${locked ? 'disabled' : ''} onchange="layerEditorSetAspect(this.checked)"> Lock aspect</label>
       </div>
       ${overlap ? `<p class="le-overlap-hint">${overlap}</p>` : ''}
       <div class="le-align">
@@ -630,19 +628,18 @@ function renderInspector() {
       </div>
       <div class="le-row">
         <span class="le-sel-lbl">Panel depth</span>
-        <select id="le-bits" onchange="layerEditorSetPanelBits(this.value)">
+        <select id="le-bits" title="Network wall only. The panel uses the highest depth of the visible canvases." onchange="layerEditorSetPanelBits(this.value)">
           <option value="14" ${(c.panelColorBits ?? 14) !== 8 ? 'selected' : ''}>14-bit (video)</option>
           <option value="8" ${(c.panelColorBits ?? 14) === 8 ? 'selected' : ''}>8-bit (fast)</option>
         </select>
       </div>
-      <p class="le-hint">Network wall only. The panel uses the highest depth of visible canvases; HDMI / SPI / GPIO / simulation ignore this.</p>
       <div class="le-row">
         <span class="le-sel-lbl">Z-order ${c.zOrder}</span>
         <button class="le-ico" onclick="layerEditorZ('up')" title="Bring forward">▲</button>
         <button class="le-ico" onclick="layerEditorZ('down')" title="Send back">▼</button>
       </div>
-      <div class="le-row">
-        <label class="le-sel-lbl" title="Transparent background reveals the layer beneath (the extension must use a transparent background colour)">
+      <div class="le-checks">
+        <label class="le-check" title="Transparent background reveals the layer beneath. The extension needs a transparent background colour.">
           <input type="checkbox" ${c.transparentBackground ? 'checked' : ''} onchange="layerEditorSetTransparent(this.checked)"> Transparent background
         </label>
       </div>
@@ -1392,25 +1389,64 @@ async function leApplyTransform() {
 
 /* ----- Scenes dropdown + New (profile) menu in the Studio ----- */
 
+function leShowMenu(menu) {
+  if (!menu) return;
+  const home = menu._leHome || menu.parentElement;
+  if (!menu._leHome) menu._leHome = home;
+  const anchor = home && home.querySelector('button');
+  if (menu.parentElement !== document.body) document.body.appendChild(menu);
+  menu.hidden = false;
+  if (!anchor) return;
+  const r = anchor.getBoundingClientRect();
+  const alignRight = menu.classList.contains('le-dropdown-right');
+  const w = menu.offsetWidth || 210;
+  const h = menu.offsetHeight || 40;
+  let left = alignRight ? r.right - w : r.left;
+  left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+  let top = r.bottom + 4;
+  if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 4);
+  menu.style.position = 'fixed';
+  menu.style.top = top + 'px';
+  menu.style.left = left + 'px';
+  menu.style.right = 'auto';
+  menu.style.zIndex = '8000';
+  menu.style.marginTop = '0';
+}
+
+function leHideMenu(menu) {
+  if (!menu) return;
+  menu.hidden = true;
+  menu.style.position = '';
+  menu.style.top = '';
+  menu.style.left = '';
+  menu.style.right = '';
+  menu.style.zIndex = '';
+  menu.style.marginTop = '';
+  if (menu._leHome && menu.parentElement !== menu._leHome) menu._leHome.appendChild(menu);
+}
+
 function leCloseMenus(ev) {
-  if (ev && ev.target && ev.target.closest && ev.target.closest('.le-menu')) return;
-  const a = document.getElementById('le-scenes-menu'); if (a) a.hidden = true;
-  const b = document.getElementById('le-new-menu'); if (b) b.hidden = true;
+  if (ev && ev.target && ev.target.closest && (ev.target.closest('.le-menu') || ev.target.closest('.le-dropdown'))) return;
+  leHideMenu(document.getElementById('le-scenes-menu'));
+  leHideMenu(document.getElementById('le-new-menu'));
 }
 
 function leToggleNew(ev) {
   if (ev) ev.stopPropagation();
+  leHideMenu(document.getElementById('le-scenes-menu'));
   const m = document.getElementById('le-new-menu');
-  const sc = document.getElementById('le-scenes-menu'); if (sc) sc.hidden = true;
-  if (m) m.hidden = !m.hidden;
+  if (!m) return;
+  if (m.hidden) leShowMenu(m); else leHideMenu(m);
 }
 
-function leToggleScenes(ev) {
+async function leToggleScenes(ev) {
   if (ev) ev.stopPropagation();
+  leHideMenu(document.getElementById('le-new-menu'));
   const m = document.getElementById('le-scenes-menu');
-  const nw = document.getElementById('le-new-menu'); if (nw) nw.hidden = true;
   if (!m) return;
-  if (m.hidden) { leRenderScenes(); m.hidden = false; } else m.hidden = true;
+  if (!m.hidden) { leHideMenu(m); return; }
+  await leRenderScenes();
+  leShowMenu(m);
 }
 
 async function leRenderScenes() {
@@ -1437,7 +1473,7 @@ async function leRenderScenes() {
 }
 
 async function leOpenScene(name) {
-  const m = document.getElementById('le-scenes-menu'); if (m) m.hidden = true;
+  leHideMenu(document.getElementById('le-scenes-menu'));
   if (typeof loadSavedLayout === 'function') await loadSavedLayout(name);
   await refreshLayerEditor();
   leLoadScene();
@@ -1445,16 +1481,20 @@ async function leOpenScene(name) {
 
 async function leSceneDefault(name) {
   if (typeof setAsDefaultLayout === 'function') await setAsDefaultLayout(name);
-  leRenderScenes();
+  await leRenderScenes();
+  const m = document.getElementById('le-scenes-menu');
+  if (m && !m.hidden) leShowMenu(m);
 }
 
 async function leSceneDelete(name) {
   if (typeof deleteSavedLayout === 'function') await deleteSavedLayout(name);
-  leRenderScenes();
+  await leRenderScenes();
+  const m = document.getElementById('le-scenes-menu');
+  if (m && !m.hidden) leShowMenu(m);
 }
 
 async function leApplyProfile(profile) {
-  const m = document.getElementById('le-new-menu'); if (m) m.hidden = true;
+  leHideMenu(document.getElementById('le-new-menu'));
   try {
     await window.api.post('/api/layout/apply/' + profile, {});
     await refreshLayerEditor();
@@ -1534,10 +1574,10 @@ function renderContentSection() {
   const rotating = steps.length > 1;
   const head = rotating
     ? `<div class="le-rotate-head">
-         <label class="le-sel-lbl"><input type="checkbox" id="le-rot-enabled" ${s.isRunning ? 'checked' : ''} onchange="contentRotationSettings()"> Rotate</label>
+         <label class="le-check"><input type="checkbox" id="le-rot-enabled" ${s.isRunning ? 'checked' : ''} onchange="contentRotationSettings()"> Rotate</label>
          <label class="le-sel-lbl">every <input type="number" id="le-rot-interval" min="2" max="3600" value="${s.interval}" style="width:54px" onchange="contentRotationSettings()">s</label>
          <select id="le-rot-transition" onchange="contentRotationSettings()"><option value="Fade">Fade</option><option value="Instant">Instant</option></select>
-         <label class="le-sel-lbl"><input type="checkbox" id="le-rot-loop" ${s.loop ? 'checked' : ''} onchange="contentRotationSettings()"> loop</label>
+         <label class="le-check"><input type="checkbox" id="le-rot-loop" ${s.loop ? 'checked' : ''} onchange="contentRotationSettings()"> Loop</label>
        </div>`
     : `<p class="le-hint">Add another item below to rotate this canvas.</p>`;
 
@@ -1932,8 +1972,10 @@ async function captureStepFromLiveCanvas(name, index) {
 function ensureLayerEditorStyles() {
   if (document.getElementById('layer-editor-styles')) return;
   const css = `
-  .le-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 10px;}
-  .le-snap{font-size:.8rem;color:var(--text-muted,#aaa);display:flex;align-items:center;gap:4px;}
+  .le-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 8px;}
+  .le-check{display:inline-flex;align-items:center;gap:6px;margin:0;padding:0;line-height:1;cursor:pointer;font-size:.78rem;color:#c8c8c8;background:none;border-radius:0;}
+  .le-check input[type=checkbox]{margin:0;width:15px;height:15px;min-width:15px;min-height:15px;flex:0 0 15px;accent-color:#7eb6ff;vertical-align:middle;}
+  .le-checks{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:8px 0 2px;}
   .le-readout{margin-left:auto;font-size:.8rem;color:var(--text-muted,#aaa);font-variant-numeric:tabular-nums;}
   .le-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px;}
   .le-chip{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1;padding:4px 8px;border:1px solid #3a3a3a;border-radius:6px;background:#1d1d1f;color:#ddd;cursor:pointer;font-size:.78rem;}
@@ -2015,8 +2057,9 @@ function ensureLayerEditorStyles() {
   .le-grid4{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
   .le-grid4 label{display:flex;align-items:center;gap:6px;font-size:.75rem;color:#aaa;}
   .le-axis{flex:0 0 14px;text-align:center;color:#888;}
-  .le-grid4 input{flex:1 1 auto;width:100%;min-width:0;height:26px;box-sizing:border-box;}
-  .le-row{display:flex;align-items:center;gap:8px;margin:5px 0;}
+  .le-grid4 input{flex:1 1 auto;width:100%;min-width:0;height:28px;box-sizing:border-box;padding:2px 6px;font-size:.8rem;}
+  .le-row{display:flex;align-items:center;gap:8px;margin:6px 0;}
+  .le-row select{width:auto;flex:1;min-width:0;height:28px;padding:2px 8px;font-size:.78rem;}
   .le-row input[type=range]{flex:1;}
   .le-content-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;}
   .le-content-name{font-size:.85rem;color:#eee;}
@@ -2032,7 +2075,7 @@ function ensureLayerEditorStyles() {
   .le-params-actions{margin-top:8px;display:flex;justify-content:flex-end;}
   .playlist-row.le-active{background:rgba(46,204,113,.14);}
   .le-menu{position:relative;display:inline-block;}
-  .le-dropdown{position:absolute;top:100%;left:0;z-index:5000;margin-top:4px;min-width:210px;max-height:320px;overflow:auto;background:#161618;border:1px solid #3a3a3a;border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.45);}
+  .le-dropdown{position:absolute;top:100%;left:0;z-index:8000;margin-top:4px;min-width:210px;max-height:320px;overflow:auto;background:#161618;border:1px solid #3a3a3a;border-radius:8px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,.55);}
   .le-dropdown-right{left:auto;right:0;}
   .le-dropdown[hidden]{display:none;}
   .le-dropdown > button{display:block;width:100%;text-align:left;background:transparent;border:0;color:#ddd;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:.82rem;}

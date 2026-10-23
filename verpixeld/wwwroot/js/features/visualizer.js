@@ -40,6 +40,15 @@ async function refreshVisualizerStatus() {
  * Update the visualizer UI based on current status
  */
 function updateVisualizerUI() {
+  const available = visualizerStatus.available !== false;
+  const panel = document.getElementById('visualizer-panel');
+  const unavailable = document.getElementById('visualizer-unavailable');
+  const actions = document.getElementById('visualizer-actions');
+  if (panel) panel.style.display = available ? '' : 'none';
+  if (unavailable) unavailable.style.display = available ? 'none' : '';
+  if (actions) actions.style.display = available ? '' : 'none';
+  if (!available) return;
+
   // Update canvas selector
   const canvasSelect = document.getElementById('visualizer-canvas');
   if (canvasSelect && visualizerStatus.availableCanvases) {
@@ -137,6 +146,8 @@ function getCanvasName(canvasId) {
  * Start the visualizer
  */
 async function startVisualizer() {
+  if (visualizerStatus.available === false) return;
+
   const canvasId = document.getElementById('visualizer-canvas')?.value;
   const mode = document.getElementById('visualizer-mode')?.value;
   const colorScheme = document.getElementById('visualizer-color')?.value;

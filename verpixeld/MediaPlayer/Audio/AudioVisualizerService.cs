@@ -883,12 +883,14 @@ public class AudioVisualizerService : IAudioVisualizerService
             Mode = Mode.ToString(),
             ColorScheme = ColorMode.ToString(),
             Sensitivity = Sensitivity,
-            Smoothing = SmoothingFactor
+            Smoothing = SmoothingFactor,
+            Available = CanvasManagement.Interfaces.AudioPlayback.HasPlaybackDevice()
         };
     }
 
     public class VisualizerStatus
     {
+        public bool Available { get; set; } = true;
         public bool IsRunning { get; set; }
         public string? TargetCanvasName { get; set; }
         public string Mode { get; set; } = "";

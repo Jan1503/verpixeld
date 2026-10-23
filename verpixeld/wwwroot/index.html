@@ -1684,19 +1684,23 @@
              ════════════════════════════════════════════ -->
         <div class="media-page" id="media-page-tools">
           <!-- Audio Visualizer -->
-          <div class="tab-section collapsible">
+          <div class="tab-section collapsible" id="visualizer-section">
             <div class="tab-section-header">
               <h3 class="tab-section-title">
                 <span class="tab-section-title-icon">📊</span>
                 Audio Visualizer
               </h3>
-              <div class="tab-section-actions">
+              <div class="tab-section-actions" id="visualizer-actions">
                 <button class="btn btn-small btn-primary" id="visualizer-start-btn" onclick="startVisualizer()">Start Visualizer</button>
                 <button class="btn btn-small btn-danger" id="visualizer-stop-btn" onclick="stopVisualizer()" disabled>Stop</button>
               </div>
               <span class="tab-section-collapse-icon">▼</span>
             </div>
             <div class="tab-section-body">
+              <p class="text-muted" id="visualizer-unavailable" style="display: none; margin-bottom: 0;">
+                Off on this host. There is no audio output, so nothing can be visualized.
+              </p>
+              <div id="visualizer-panel">
               <p class="text-muted" style="margin-bottom: 1rem;">Real-time audio visualization using FFT analysis. Captures system audio output.</p>
               
               <!-- Visualizer Status -->
@@ -1747,6 +1751,7 @@
               <p class="text-muted" style="font-size: 0.8rem; margin-top: 0.75rem;">
                 💡 The visualizer captures whatever audio is currently playing through PulseAudio.
               </p>
+              </div>
             </div>
           </div>
 
@@ -2961,7 +2966,7 @@
   <script src="/js/features/saved-layouts.js?v=20260822h"></script>
   <script src="/js/features/playlist.js?v=20260623a"></script>
   <script src="/js/features/canvas-editor.js?v=20260208a"></script>
-  <script src="/js/features/layer-editor.js?v=20261018a"></script>
+  <script src="/js/features/layer-editor.js?v=20261020b"></script>
   <script src="/js/features/system-control.js?v=20260827a"></script>
   <script src="/js/features/filter-management.js?v=20260208a"></script>
   <script src="/js/features/extension-management.js?v=20260825a"></script>
@@ -2972,7 +2977,7 @@
   <script src="/js/features/network-shares.js?v=20260208a"></script>
   <script src="/js/features/audio-output.js?v=20260208a"></script>
   <script src="/js/features/favorites.js?v=20260208a"></script>
-  <script src="/js/features/visualizer.js?v=20260822g"></script>
+  <script src="/js/features/visualizer.js?v=20261020a"></script>
   <script src="/js/features/console-log.js?v=20260208a"></script>
   <script src="/js/features/image-upload.js?v=20260208c"></script>
   <script src="/js/features/ai-art.js?v=20260829b"></script>

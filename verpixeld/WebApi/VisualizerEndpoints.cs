@@ -34,6 +34,7 @@ public static class VisualizerEndpoints
 
                 return ApiResponse.Ok(new
                 {
+                    status.Available,
                     status.IsRunning,
                     targetCanvasId = status.TargetCanvasName,
                     status.Mode,
@@ -58,6 +59,9 @@ public static class VisualizerEndpoints
         {
             try
             {
+                if (!CanvasManagement.Interfaces.AudioPlayback.HasPlaybackDevice())
+                    return ApiResponse.Fail("No audio output on this host. The visualizer stays off.");
+
                 if (string.IsNullOrWhiteSpace(request.CanvasId))
                     return ApiResponse.Fail("Canvas name is required");
 
@@ -88,7 +92,7 @@ public static class VisualizerEndpoints
                     success,
                     message = success
                         ? $"Visualizer started on canvas '{request.CanvasId}'"
-                        : "Failed to start visualizer",
+                        : "Could not open the audio monitor.",
                     canvasName = request.CanvasId
                 });
             }
