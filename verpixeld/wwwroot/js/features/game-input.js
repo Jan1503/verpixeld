@@ -14,6 +14,8 @@
     right: 'ArrowRight'
   };
 
+  const NAMED_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape', 'Backspace']);
+
   let maps = {};
   let lastRefresh = 0;
   let refreshing = false;
@@ -50,7 +52,7 @@
     const keys = new Set();
     if (e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar') keys.add('Space');
     if (e.key) {
-      if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+      if (NAMED_KEYS.has(e.key))
         keys.add(e.key);
       else if (e.key.length === 1) keys.add(e.key.toUpperCase());
     }
@@ -163,6 +165,82 @@
 
   document.addEventListener('keydown', e => onKey(e, 'down'), true);
   document.addEventListener('keyup', e => onKey(e, 'up'), true);
+
+  /* --------------------------------------------------------------------------
+     GAMEPAD — standard-mapping pads become Pad* keys (PadA, PadB, PadX, PadY,
+     PadLB, PadRB, PadLT, PadRT, PadBack, PadStart, PadUp/Down/Left/Right).
+     D-pad and left stick share the PadUp… names. If the game binds no Pad*
+     key, the pad falls back to the keyboard keys every game already knows.
+     -------------------------------------------------------------------------- */
+  const PAD_BUTTONS = {
+    0: 'PadA', 1: 'PadB', 2: 'PadX', 3: 'PadY', 4: 'PadLB', 5: 'PadRB', 6: 'PadLT', 7: 'PadRT',
+    8: 'PadBack', 9: 'PadStart', 12: 'PadUp', 13: 'PadDown', 14: 'PadLeft', 15: 'PadRight'
+  };
+  const PAD_FALLBACK = {
+    PadA: 'Space', PadB: 'Escape', PadX: 'Space', PadStart: 'Enter', PadBack: 'Escape',
+    PadUp: 'ArrowUp', PadDown: 'ArrowDown', PadLeft: 'ArrowLeft', PadRight: 'ArrowRight'
+  };
+  const PAD_KEYS = Object.values(PAD_BUTTONS);
+  const padState = {};
+  let padLoop = false;
+
+  function padKey(key, phase) {
+    refresh();
+    const canvas = preferredCanvas();
+    if (!canvas) return;
+    const bindings = maps[canvas] || [];
+    if (!bindings.length) return;
+    const target = bindings.some(b => b.key === key) ? key : (PAD_FALLBACK[key] || key);
+    const fired = new Set();
+    for (const b of bindings) {
+      if (b.phase !== phase || b.key !== target || fired.has(b.name)) continue;
+      fired.add(b.name);
+      invoke(canvas, b.name);
+    }
+  }
+
+  function setPad(key, down) {
+    if (!!padState[key] === down) return;
+    padState[key] = down;
+    padKey(key, down ? 'down' : 'up');
+  }
+
+  function pollPads() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const now = {};
+    let any = false;
+    for (const p of pads) {
+      if (!p || !p.connected) continue;
+      any = true;
+      p.buttons.forEach((b, i) => {
+        const k = PAD_BUTTONS[i];
+        if (k && (b.pressed || b.value > 0.5)) now[k] = true;
+      });
+      const ax = p.axes[0] || 0;
+      const ay = p.axes[1] || 0;
+      // Hysteresis; vertical needs a firmer push so diagonal steering does not brake.
+      const h = (k, on, off) => (padState[k] ? off : on);
+      if (ax < -h('PadLeft', 0.5, 0.35)) now.PadLeft = true;
+      if (ax > h('PadRight', 0.5, 0.35)) now.PadRight = true;
+      if (ay < -h('PadUp', 0.75, 0.55)) now.PadUp = true;
+      if (ay > h('PadDown', 0.75, 0.55)) now.PadDown = true;
+    }
+    if (!document.hidden) PAD_KEYS.forEach(k => setPad(k, !!now[k]));
+    if (any) requestAnimationFrame(pollPads);
+    else {
+      PAD_KEYS.forEach(k => setPad(k, false));
+      padLoop = false;
+    }
+  }
+
+  function startPads() {
+    if (padLoop) return;
+    padLoop = true;
+    requestAnimationFrame(pollPads);
+  }
+
+  window.addEventListener('gamepadconnected', startPads);
+  if (navigator.getGamepads && Array.from(navigator.getGamepads()).some(p => p)) startPads();
   setInterval(refresh, 4000);
   setTimeout(refresh, 800);
 
