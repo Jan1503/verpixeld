@@ -18,12 +18,12 @@ public class VideoPlayer : IDisposable
 
     // Time from a sample entering the board until the DAC plays it (I2S DMA queue).
     // Video is held this long after the first packet so picture and sound start together.
-    private const int Vap1DeviceLatencyMs = 80;
+    private const int PixToneDeviceLatencyMs = 80;
 
     private readonly int _defaultHeight;
     private readonly int _defaultWidth;
     private readonly IAudioOutputService _audioOutputService;
-    private readonly Audio.Vap1OutputService _vap1;
+    private readonly Audio.PixToneOutputService _vap1;
 
     // Audio sync offset in milliseconds
     // Positive = delay audio (use when audio is ahead of video)
@@ -60,7 +60,7 @@ public class VideoPlayer : IDisposable
     private int _targetWidth;
     private int _firstFrameNotified;
 
-    public VideoPlayer(int width, int height, IAudioOutputService audioOutputService, Audio.Vap1OutputService vap1)
+    public VideoPlayer(int width, int height, IAudioOutputService audioOutputService, Audio.PixToneOutputService vap1)
     {
         _defaultWidth = width;
         _defaultHeight = height;
@@ -402,7 +402,7 @@ public class VideoPlayer : IDisposable
             if (playAudio && _vap1.IsSelected)
             {
                 vap1Input = $"{seekArg}{networkOpts}-i \"{audioUrl}\" {AudioMap}-vn";
-                Console.WriteLine($"[VIDEO] Adaptive: VAP1 {_vap1.Host}");
+                Console.WriteLine($"[VIDEO] Adaptive: PixTone {_vap1.Host}");
             }
             else if (playAudio)
             {
@@ -541,7 +541,7 @@ public class VideoPlayer : IDisposable
                     // Start audio when first video frame arrives
                     if (frameCount == 1 && !audioStarted && vap1Input != null)
                     {
-                        Console.WriteLine("[VIDEO] Adaptive: First video frame received, starting VAP1...");
+                        Console.WriteLine("[VIDEO] Adaptive: First video frame received, starting PixTone...");
                         _audioProcess = _vap1.StartDecoder(vap1Input, CurrentVideo, ct);
                         audioStarted = _audioProcess != null;
                         var audioBufferDelayMs = 500 - _audioSyncOffsetMs;
@@ -713,11 +713,11 @@ public class VideoPlayer : IDisposable
             {
                 var vap1Args =
                     $"-hide_banner -loglevel error -nostats {seekArg}{networkOpts}{realtimeFlag}-i \"{audioPath}\" {AudioMap}-vn";
-                Console.WriteLine($"[VAP1] FFmpeg args: {MediaPath.Redact(vap1Args)}");
+                Console.WriteLine($"[PIXTONE] FFmpeg args: {MediaPath.Redact(vap1Args)}");
                 _ffmpegProcess = _vap1.StartDecoder(vap1Args, Path.GetFileName(audioPath), ct);
                 if (_ffmpegProcess == null)
                 {
-                    OnError?.Invoke("Failed to start VAP1 audio");
+                    OnError?.Invoke("Failed to start PixTone audio");
                     break;
                 }
             }
@@ -1125,7 +1125,7 @@ public class VideoPlayer : IDisposable
             {
                 // Positive slider = delay audio. The board already delays by the DMA queue,
                 // so that latency is the zero point and the slider moves either side of it.
-                videoHoldMs = Vap1DeviceLatencyMs - _audioSyncOffsetMs;
+                videoHoldMs = PixToneDeviceLatencyMs - _audioSyncOffsetMs;
                 if (videoHoldMs < 0)
                 {
                     audioDelayMs = -videoHoldMs;
@@ -1144,8 +1144,8 @@ public class VideoPlayer : IDisposable
                 var input = $"{seekArg}{networkOpts}{realtimeFlag}-i \"{videoPath}\" {AudioMap}-vn {delay}";
                 _audioProcess = _vap1.StartDecoder(input.Trim(), Path.GetFileName(videoPath), ct);
                 Console.WriteLine(_audioProcess != null
-                    ? $"[VIDEO] VAP1 {_vap1.Host} hold {videoHoldMs}ms adelay {audioDelayMs}ms slider {_audioSyncOffsetMs}ms"
-                    : "[VIDEO] VAP1 failed — video only");
+                    ? $"[VIDEO] PixTone {_vap1.Host} hold {videoHoldMs}ms adelay {audioDelayMs}ms slider {_audioSyncOffsetMs}ms"
+                    : "[VIDEO] PixTone failed — video only");
             }
             else if (playAudio && !emitAudio)
                 Console.WriteLine("[VIDEO] No audio device — decoding video only");
@@ -1251,7 +1251,7 @@ public class VideoPlayer : IDisposable
                 }
             }
 
-            // VAP1 keeps the picture on the audio clock, so do not dump a prebuffer ahead of it.
+            // PixTone keeps the picture on the audio clock, so do not dump a prebuffer ahead of it.
             var preBufferCount = vap1 ? 0 : (isNetworkStream ? 3 : PreBufferFrames);
             if (playAudio && preBufferCount > 0)
             {

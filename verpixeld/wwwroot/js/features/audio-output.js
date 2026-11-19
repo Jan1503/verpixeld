@@ -252,32 +252,32 @@ async function setAudioOutput(sinkName) {
   }
 }
 
-async function useVap1Host() {
-  const ip = (document.getElementById('vap1-host')?.value || '').trim();
+async function usePixToneHost() {
+  const ip = (document.getElementById('pixtone-host')?.value || '').trim();
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
     window.toast.error('Audio', 'Enter an IPv4 address');
     return;
   }
-  await setAudioOutput('vap1:' + ip);
+  await setAudioOutput('pixtone:' + ip);
 }
 
 let boardVolumeTimer = null;
 
 function syncBoardVolume(sink) {
-  const board = sink?.name?.startsWith('vap1:') ? sink
-    : audioSystemStatus.availableSinks?.find(s => s.name?.startsWith('vap1:') && s.isDefault)
-      || audioSystemStatus.availableSinks?.find(s => s.name?.startsWith('vap1:'));
+  const board = sink?.name?.startsWith('pixtone:') ? sink
+    : audioSystemStatus.availableSinks?.find(s => s.name?.startsWith('pixtone:') && s.isDefault)
+      || audioSystemStatus.availableSinks?.find(s => s.name?.startsWith('pixtone:'));
   if (!board) return;
-  const slider = document.getElementById('vap1-volume');
-  const label = document.getElementById('vap1-volume-label');
-  const mute = document.getElementById('vap1-mute');
+  const slider = document.getElementById('pixtone-volume');
+  const label = document.getElementById('pixtone-volume-label');
+  const mute = document.getElementById('pixtone-mute');
   if (slider && document.activeElement !== slider) slider.value = board.volume;
   if (label) label.textContent = board.volume + '%';
   if (mute) mute.textContent = board.isMuted ? 'Unmute' : 'Mute';
 }
 
 function setBoardVolume(value) {
-  const label = document.getElementById('vap1-volume-label');
+  const label = document.getElementById('pixtone-volume-label');
   if (label) label.textContent = value + '%';
   clearTimeout(boardVolumeTimer);
   boardVolumeTimer = setTimeout(async () => {
@@ -298,10 +298,10 @@ async function toggleBoardMute() {
   }
 }
 
-async function scanVap1() {
+async function scanPixTone() {
   try {
     window.toast.info('Audio', 'Scanning for audio boards...');
-    const result = await api.post('/api/audio/vap1/scan');
+    const result = await api.post('/api/audio/pixtone/scan');
     await refreshAudioStatus();
     const n = result.count || 0;
     if (n === 0) window.toast.info('Audio', 'No board answered on port 5000');

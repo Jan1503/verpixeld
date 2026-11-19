@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using CanvasManagement.Interfaces;
-using Vap1;
+using PixTone;
 
 namespace verpixeld.MediaPlayer.Audio;
 
@@ -18,7 +18,7 @@ public sealed class ExtensionAudioMixer : IExtensionAudio, IDisposable
     private const int MaxTones = 12;
     private const int MaxNoise = 6;
 
-    private readonly Vap1OutputService _vap1;
+    private readonly PixToneOutputService _vap1;
     private readonly object _lock = new();
     private readonly LoopVoice[] _loops = new LoopVoice[Slots];
     private readonly List<ToneVoice> _tones = new();
@@ -31,7 +31,7 @@ public sealed class ExtensionAudioMixer : IExtensionAudio, IDisposable
     private bool _appliedMute;
     private bool _loggedIdle;
 
-    public ExtensionAudioMixer(Vap1OutputService vap1)
+    public ExtensionAudioMixer(PixToneOutputService vap1)
     {
         _vap1 = vap1;
         for (var i = 0; i < Slots; i++) _loops[i] = new LoopVoice();
@@ -155,7 +155,7 @@ public sealed class ExtensionAudioMixer : IExtensionAudio, IDisposable
 
     private async Task Run(CancellationToken ct)
     {
-        Vap1Sender? sender = null;
+        PixToneSender? sender = null;
         var idleSince = DateTime.UtcNow;
         var stereo = new float[Frames * 2];
         var pcm = new byte[Frames * 4];
@@ -196,7 +196,7 @@ public sealed class ExtensionAudioMixer : IExtensionAudio, IDisposable
                 idleSince = DateTime.UtcNow;
                 if (sender == null)
                     Console.WriteLine($"[AUDIO] extension -> {_vap1.Host} vol {_vap1.Volume}");
-                sender ??= new Vap1Sender(_vap1.Host);
+                sender ??= new PixToneSender(_vap1.Host);
                 if (_appliedVolume != _vap1.Volume || _appliedMute != _vap1.Muted)
                 {
                     sender.SetVolume(_vap1.Volume, _vap1.Muted);

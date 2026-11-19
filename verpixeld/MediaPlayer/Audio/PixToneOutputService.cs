@@ -1,21 +1,21 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
 using verpixeld.Configuration;
-using Vap1;
+using PixTone;
 
 namespace verpixeld.MediaPlayer.Audio;
 
 /// <summary>
-///     The selected verpixeld audio board. FFmpeg stays here; packets go out through <see cref="Vap1Sender"/>.
+///     The selected verpixeld audio board. FFmpeg stays here; packets go out through <see cref="PixToneSender"/>.
 /// </summary>
-public sealed class Vap1OutputService
+public sealed class PixToneOutputService
 {
     private readonly object _gate = new();
     private TaskCompletionSource _audioStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private Vap1Sender? _liveSender;
+    private PixToneSender? _liveSender;
     private List<AudioAnnouncement> _seen = [];
 
-    public Vap1OutputService() => Load();
+    public PixToneOutputService() => Load();
 
     public bool IsSelected { get; private set; }
     public string Host { get; private set; } = "";
@@ -112,14 +112,14 @@ public sealed class Vap1OutputService
                 {
                     if (line.Contains("Error", StringComparison.OrdinalIgnoreCase) ||
                         line.Contains("Failed", StringComparison.OrdinalIgnoreCase))
-                        Console.WriteLine("[VAP1] " + line);
+                        Console.WriteLine("[PIXTONE] " + line);
                 }
             }
             catch { /* process gone */ }
         }, ct);
         _ = Task.Run(async () =>
         {
-        var sender = new Vap1Sender(host);
+        var sender = new PixToneSender(host);
         _liveSender = sender;
         IsStreaming = true;
         try
@@ -129,7 +129,7 @@ public sealed class Vap1OutputService
             await sender.PumpAsync(stdout, ct, () => started.TrySetResult()).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { Console.WriteLine("[VAP1] " + ex.Message); }
+        catch (Exception ex) { Console.WriteLine("[PIXTONE] " + ex.Message); }
         finally
         {
             IsStreaming = false;
@@ -137,7 +137,7 @@ public sealed class Vap1OutputService
             sender.Dispose();
         }
         }, ct);
-        Console.WriteLine($"[VAP1] streaming to {host}:{Vap1Protocol.Port}");
+        Console.WriteLine($"[PIXTONE] streaming to {host}:{PixToneProtocol.Port}");
         return proc;
     }
 
@@ -163,18 +163,20 @@ public sealed class Vap1OutputService
         if (string.IsNullOrWhiteSpace(Host)) return;
         try
         {
-            using var sender = new Vap1Sender(Host);
+            using var sender = new PixToneSender(Host);
             sender.SetVolume(Volume, Muted);
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[VAP1] volume: " + ex.Message);
+            Console.WriteLine("[PIXTONE] volume: " + ex.Message);
         }
     }
 
     private void Load()
     {
-        var o = AppSettingsStore.Get<Vap1Options>("Vap1");
+        var o = AppSettingsStore.Get<PixToneOptions>("PixTone");
+        if (string.IsNullOrWhiteSpace(o.Host))
+            o = AppSettingsStore.Get<PixToneOptions>("Vap1");
         Host = o.Host ?? "";
         IsSelected = o.Selected && !string.IsNullOrWhiteSpace(Host);
         Volume = Math.Clamp(o.Volume, 0, 100);
@@ -184,7 +186,7 @@ public sealed class Vap1OutputService
     private void Save()
     {
         var root = AppSettingsStore.Load();
-        var section = AppSettingsStore.Section(root, "Vap1");
+        var section = AppSettingsStore.Section(root, "PixTone");
         AppSettingsStore.Set(section, "Host", JsonValue.Create(Host));
         AppSettingsStore.Set(section, "Selected", JsonValue.Create(IsSelected));
         AppSettingsStore.Set(section, "Volume", JsonValue.Create(Volume));
@@ -192,7 +194,7 @@ public sealed class Vap1OutputService
         AppSettingsStore.Save(root);
     }
 
-    private sealed class Vap1Options
+    private sealed class PixToneOptions
     {
         public string? Host { get; set; }
         public bool Selected { get; set; }

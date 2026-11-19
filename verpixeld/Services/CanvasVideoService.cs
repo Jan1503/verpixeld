@@ -13,14 +13,14 @@ namespace verpixeld.Services;
 public class CanvasVideoService : IDisposable
 {
     private readonly CanvasManager _cm;
-    private readonly Vap1OutputService _vap1;
+    private readonly PixToneOutputService _vap1;
     private readonly object _lock = new();
     private readonly Dictionary<string, FfmpegFrameStreamer> _streams = new(StringComparer.OrdinalIgnoreCase);
     private Process? _audio;
     private CancellationTokenSource? _audioCts;
     private string? _audioCanvas;
 
-    public CanvasVideoService(CanvasManager cm, Vap1OutputService vap1)
+    public CanvasVideoService(CanvasManager cm, PixToneOutputService vap1)
     {
         _cm = cm;
         _vap1 = vap1;

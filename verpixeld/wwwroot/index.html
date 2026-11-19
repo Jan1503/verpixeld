@@ -2575,7 +2575,7 @@
               Audio Output & Bluetooth
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small btn-secondary" onclick="scanVap1()">Scan audio boards</button>
+              <button class="btn btn-small btn-secondary" onclick="scanPixTone()">Scan audio boards</button>
               <button class="btn btn-small btn-secondary" onclick="refreshAudioStatus()">Refresh</button>
             </div>
             <span class="tab-section-collapse-icon">▼</span>
@@ -2593,15 +2593,15 @@
                 <!-- Audio sinks will be populated here -->
               </div>
               <div class="settings-row" style="margin-top:12px;align-items:end">
-                <label for="vap1-host" style="min-width:8rem">Board IP</label>
-                <input id="vap1-host" type="text" inputmode="decimal" placeholder="192.168.10.225" autocomplete="off" style="flex:1">
-                <button class="btn btn-small btn-primary" onclick="useVap1Host()">Use</button>
+                <label for="pixtone-host" style="min-width:8rem">Board IP</label>
+                <input id="pixtone-host" type="text" inputmode="decimal" placeholder="192.168.10.225" autocomplete="off" style="flex:1">
+                <button class="btn btn-small btn-primary" onclick="usePixToneHost()">Use</button>
               </div>
               <div class="settings-row" style="margin-top:8px;align-items:center">
-                <label for="vap1-volume" style="min-width:8rem">Volume</label>
-                <input id="vap1-volume" type="range" min="0" max="100" value="70" style="flex:1" oninput="setBoardVolume(this.value)">
-                <span id="vap1-volume-label" style="min-width:3rem;text-align:right">70%</span>
-                <button class="btn btn-small btn-secondary" id="vap1-mute" type="button" onclick="toggleBoardMute()">Mute</button>
+                <label for="pixtone-volume" style="min-width:8rem">Volume</label>
+                <input id="pixtone-volume" type="range" min="0" max="100" value="70" style="flex:1" oninput="setBoardVolume(this.value)">
+                <span id="pixtone-volume-label" style="min-width:3rem;text-align:right">70%</span>
+                <button class="btn btn-small btn-secondary" id="pixtone-mute" type="button" onclick="toggleBoardMute()">Mute</button>
               </div>
               <p class="text-muted" style="margin-top:6px">The board page is <code>http://&lt;ip&gt;:5000/</code>. Scan only reaches a /24 that this container owns, so type the address from the display when it is on another network.</p>
             </div>

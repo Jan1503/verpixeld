@@ -42,7 +42,7 @@ public class MediaPlayerService : IDisposable
     private int _width;
 
     public MediaPlayerService(CanvasManager canvasManager, IAudioOutputService audioOutputService,
-        Vap1OutputService vap1, int width, int height)
+        PixToneOutputService vap1, int width, int height)
     {
         _canvasManager = canvasManager;
         _audioOutputService = audioOutputService;

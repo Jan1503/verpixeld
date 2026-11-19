@@ -68,7 +68,7 @@ Whether you want to show the time, display weather information, run animations, 
 - ✏️ **Drawing Mode** — Create pixel art directly on the display
 - 🎬 **Media Player** — Full video/audio playback with YouTube, network shares, and local files
 - ⭐ **Favorites & History** — Save and quickly replay media with remembered settings
-- 🔊 **Audio output** — PulseAudio, Bluetooth, or a network board ([VAP1](https://github.com/Jan1503/vap1), UDP 7779). The board volume sits in Settings even when nothing is playing. Extensions share that one stream and stay quiet while a movie owns it.
+- 🔊 **Audio output** — PulseAudio, Bluetooth, or a network board ([PixTone](https://github.com/Jan1503/pixtone), UDP 7779). The board volume sits in Settings even when nothing is playing. Extensions share that one stream and stay quiet while a movie owns it.
 - 📹 **Camera Motion Alerts** — Auto-switch to a camera feed when motion is detected
 - 🖼️ **Image & Video Upload** — Upload photos or stream video clips from any device to the display
 - 🏠 **Home Assistant Integration** — Live tiles (sensor, grid, graph, energy, weather, now-playing, climate, waste, **departures**), configurable wall toasts, and the wall itself as an MQTT device (notify, layout, brightness, night mode)
@@ -97,7 +97,7 @@ verpixeld/           this host (web UI, media, outputs)
   docker/            NAS image (Dockerfile, compose, build.ps1)
 CanvasManagement/    canvas engine, extensions, filters, deploy.ps1
 pixplane/            BGRA → bit-plane UDP library
-vap1/                48 kHz stereo → paced UDP for the audio board
+pixtone/                48 kHz stereo → paced UDP for the audio board
 DesktopStreamer/     DeskCast (Windows capture)
 verpixeld-panel/     RP2350 + W6300 firmware
 ```
@@ -107,7 +107,7 @@ verpixeld-panel/     RP2350 + W6300 firmware
 | [verpixeld](https://github.com/Jan1503/verpixeld) | This application |
 | [canvasmanagement](https://github.com/Jan1503/canvasmanagement) | Canvas engine, extensions, filters, `deploy.ps1` |
 | [pixplane](https://github.com/Jan1503/pixplane) | Panel protocol (stream, discovery, `/cmd`) |
-| [vap1](https://github.com/Jan1503/vap1) | Audio protocol (48 kHz stereo, volume, discovery) |
+| [pixtone](https://github.com/Jan1503/pixtone) | Audio protocol (48 kHz stereo, volume, discovery) |
 | [verpixeld-panel](https://github.com/Jan1503/verpixeld-panel) | ICND1065L firmware 1.7 |
 | [deskcast](https://github.com/Jan1503/deskcast) | Windows desktop → panel or verpixeld |
 | [rpi-rgb-led-matrix](https://github.com/hzeller/rpi-rgb-led-matrix) | GPIO HUB75 driver (not vendored) |
@@ -122,7 +122,7 @@ Dated from the public GitHub history so you can follow what landed when. Newest 
 
 ### 2026-11-19 — Network audio board
 
-A second RP2350 can be the wall’s speaker. Pick it in Settings → Audio Output, or type its IP when Docker cannot scan the LAN. Media and Studio video send 48 kHz stereo as VAP1. Volume and mute apply with no movie open. Turbo Kart and any other extension that uses `ICanvas.Audio` share that output and give it up while a movie is actually playing. The sender lives in [vap1](https://github.com/Jan1503/vap1); the clips and their licenses live in CanvasManagement.
+A second RP2350 can be the wall’s speaker. Pick it in Settings → Audio Output, or type its IP when Docker cannot scan the LAN. Media and Studio video send 48 kHz stereo as PixTone. Volume and mute apply with no movie open. Turbo Kart and any other extension that uses `ICanvas.Audio` share that output and give it up while a movie is actually playing. The sender lives in [pixtone](https://github.com/Jan1503/pixtone); the clips and their licenses live in CanvasManagement.
 
 ### 2026-10-17 — Several network panels on one wall
 
@@ -669,7 +669,7 @@ Common stack:
 - .NET 10.0 ASP.NET Core Runtime (framework-dependent publish)
 - FFmpeg (PulseAudio + libsmbclient on the Pi — see [compilation guide](docs/FFMPEG_SMB.md); the Docker image already includes both plus yt-dlp)
 - `yt-dlp` (optional, YouTube — install a current binary, not the apt package)
-- Sibling checkouts: `CanvasManagement`, `pixplane`, `vap1` (and rpi-rgb-led-matrix for GPIO)
+- Sibling checkouts: `CanvasManagement`, `pixplane`, `pixtone` (and rpi-rgb-led-matrix for GPIO)
 
 ### Installation
 

@@ -90,7 +90,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<AudioOutputService>();
         services.AddSingleton<IAudioOutputService>(sp => sp.GetRequiredService<AudioOutputService>());
-        services.AddSingleton<Vap1OutputService>();
+        services.AddSingleton<PixToneOutputService>();
         services.AddSingleton(sp => new BluetoothAudioService(sp.GetRequiredService<AudioOutputService>()));
         services.AddSingleton<IAudioVisualizerService>(_ => new AudioVisualizerService());
 
@@ -107,7 +107,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(sp =>
         {
-            var mix = new ExtensionAudioMixer(sp.GetRequiredService<Vap1OutputService>());
+            var mix = new ExtensionAudioMixer(sp.GetRequiredService<PixToneOutputService>());
             sp.GetRequiredService<CanvasManager>().UseExtensionAudio(mix);
             mix.Start();
             return mix;
@@ -149,7 +149,7 @@ public static class ServiceCollectionExtensions
             var rot = new CanvasRotationService(
                 sp.GetRequiredService<CanvasManager>(),
                 sp.GetRequiredService<ICanvasContentManager>(),
-                sp.GetRequiredService<Vap1OutputService>());
+                sp.GetRequiredService<PixToneOutputService>());
             rot.LocalCamera = sp.GetRequiredService<LocalCameraService>();
             return rot;
         });
@@ -173,7 +173,7 @@ public static class ServiceCollectionExtensions
         {
             var cm = sp.GetRequiredService<CanvasManager>();
             return new MediaPlayerService(cm, sp.GetRequiredService<IAudioOutputService>(),
-                sp.GetRequiredService<Vap1OutputService>(), cm.Width, cm.Height);
+                sp.GetRequiredService<PixToneOutputService>(), cm.Width, cm.Height);
         });
 
         services.AddSingleton(sp =>

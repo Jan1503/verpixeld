@@ -21,7 +21,7 @@ public static class AudioEndpoints
     {
         var audioService = app.Services.GetRequiredService<IAudioOutputService>();
         var bluetoothService = app.Services.GetRequiredService<BluetoothAudioService>();
-        var vap1 = app.Services.GetRequiredService<Vap1OutputService>();
+        var vap1 = app.Services.GetRequiredService<PixToneOutputService>();
 
         List<AudioOutputService.AudioSink> WithBoards(List<AudioOutputService.AudioSink> sinks)
         {
@@ -29,12 +29,12 @@ public static class AudioEndpoints
                 foreach (var sink in sinks) sink.IsDefault = false;
             var boards = vap1.Seen.ToList();
             if (!string.IsNullOrWhiteSpace(vap1.Host) && boards.All(b => b.Host != vap1.Host))
-                boards.Insert(0, new Vap1.AudioAnnouncement { Host = vap1.Host, Name = vap1.Host, Volume = vap1.Volume, Muted = vap1.Muted });
+                boards.Insert(0, new PixTone.AudioAnnouncement { Host = vap1.Host, Name = vap1.Host, Volume = vap1.Volume, Muted = vap1.Muted });
             foreach (var board in boards)
             {
                 sinks.Insert(0, new AudioOutputService.AudioSink
                 {
-                    Name = "vap1:" + board.Host,
+                    Name = "pixtone:" + board.Host,
                     Description = string.IsNullOrWhiteSpace(board.Name) ? board.Host : $"{board.Name} ({board.Host})",
                     Type = AudioOutputService.AudioOutputType.Network,
                     IsDefault = vap1.IsSelected && board.Host == vap1.Host,
@@ -123,10 +123,12 @@ public static class AudioEndpoints
                 if (string.IsNullOrWhiteSpace(sinkName))
                     return Results.Json(new { success = false, error = "Sink name required" });
 
-                if (sinkName.StartsWith("vap1:", StringComparison.OrdinalIgnoreCase))
+                if (sinkName.StartsWith("pixtone:", StringComparison.OrdinalIgnoreCase) ||
+                    sinkName.StartsWith("vap1:", StringComparison.OrdinalIgnoreCase))
                 {
-                    vap1.Select(sinkName[5..]);
-                    return Results.Json(new { success = true, message = $"Audio output set to {sinkName[5..]}" });
+                    var host = sinkName[(sinkName.IndexOf(':') + 1)..];
+                    vap1.Select(host);
+                    return Results.Json(new { success = true, message = $"Audio output set to {host}" });
                 }
 
                 vap1.Deselect();
@@ -143,7 +145,7 @@ public static class AudioEndpoints
             }
         });
 
-        group.MapPost("/vap1/scan", async (CancellationToken ct) =>
+        async Task<IResult> ScanBoards(CancellationToken ct)
         {
             try
             {
@@ -154,7 +156,10 @@ public static class AudioEndpoints
             {
                 return Results.Json(new { success = false, error = ex.Message }, _jsonOptions);
             }
-        });
+        }
+
+        group.MapPost("/pixtone/scan", ScanBoards);
+        group.MapPost("/vap1/scan", ScanBoards);
 
         group.MapPost("/volume", async ([FromQuery] int volume) =>
         {
