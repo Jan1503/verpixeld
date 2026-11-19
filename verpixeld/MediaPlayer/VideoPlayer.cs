@@ -16,9 +16,14 @@ public class VideoPlayer : IDisposable
     // Adjust this if audio/video is out of sync
     private const int PreBufferFrames = 5;
 
+    // Time from a sample entering the board until the DAC plays it (I2S DMA queue).
+    // Video is held this long after the first packet so picture and sound start together.
+    private const int Vap1DeviceLatencyMs = 80;
+
     private readonly int _defaultHeight;
     private readonly int _defaultWidth;
     private readonly IAudioOutputService _audioOutputService;
+    private readonly Audio.Vap1OutputService _vap1;
 
     // Audio sync offset in milliseconds
     // Positive = delay audio (use when audio is ahead of video)
@@ -55,13 +60,14 @@ public class VideoPlayer : IDisposable
     private int _targetWidth;
     private int _firstFrameNotified;
 
-    public VideoPlayer(int width, int height, IAudioOutputService audioOutputService)
+    public VideoPlayer(int width, int height, IAudioOutputService audioOutputService, Audio.Vap1OutputService vap1)
     {
         _defaultWidth = width;
         _defaultHeight = height;
         _targetWidth = width;
         _targetHeight = height;
         _audioOutputService = audioOutputService;
+        _vap1 = vap1;
     }
 
     // Playback state
@@ -116,6 +122,11 @@ public class VideoPlayer : IDisposable
         get => _audioSyncOffsetMs;
         set => _audioSyncOffsetMs = Math.Clamp(value, -5000, 5000);
     }
+
+    /// <summary>0-based audio stream (<c>0:a:N</c>). 0 is the first audio track in the file.</summary>
+    public int AudioStreamIndex { get; set; }
+
+    private string AudioMap => $"-map 0:a:{Math.Clamp(AudioStreamIndex, 0, 63)}? ";
 
     public void Dispose()
     {
@@ -386,8 +397,14 @@ public class VideoPlayer : IDisposable
 
             // Audio output setup — skip Pulse when this host has no audio device (Docker/NAS)
             string audioOutput = "";
+            string? vap1Input = null;
             var defaultSink = _audioOutputService.CurrentSinkName;
-            if (playAudio)
+            if (playAudio && _vap1.IsSelected)
+            {
+                vap1Input = $"{seekArg}{networkOpts}-i \"{audioUrl}\" {AudioMap}-vn";
+                Console.WriteLine($"[VIDEO] Adaptive: VAP1 {_vap1.Host}");
+            }
+            else if (playAudio)
             {
                 var ffmpegAudio = _audioOutputService.GetFFmpegAudioOutput();
                 if (string.IsNullOrWhiteSpace(ffmpegAudio))
@@ -424,7 +441,7 @@ public class VideoPlayer : IDisposable
             {
                 audioFfmpegArgs = $"-hide_banner -loglevel warning " +
                             $"{seekArg}{networkOpts}-i \"{audioUrl}\" " +
-                            $"-vn -c:a pcm_s16le -ar 48000 -ac 2 -f pulse \"{audioOutput}\"";
+                            $"-vn {AudioMap}-c:a pcm_s16le -ar 48000 -ac 2 -f pulse \"{audioOutput}\"";
                 
                 Console.WriteLine($"[VIDEO] FFmpeg audio command (will start after first frame): ffmpeg {MediaPath.Redact(audioFfmpegArgs.Substring(0, Math.Min(150, audioFfmpegArgs.Length)))}...");
             }
@@ -522,7 +539,20 @@ public class VideoPlayer : IDisposable
                     frameCount++;
                     
                     // Start audio when first video frame arrives
-                    if (frameCount == 1 && !audioStarted && audioFfmpegArgs != null)
+                    if (frameCount == 1 && !audioStarted && vap1Input != null)
+                    {
+                        Console.WriteLine("[VIDEO] Adaptive: First video frame received, starting VAP1...");
+                        _audioProcess = _vap1.StartDecoder(vap1Input, CurrentVideo, ct);
+                        audioStarted = _audioProcess != null;
+                        var audioBufferDelayMs = 500 - _audioSyncOffsetMs;
+                        if (audioStarted && audioBufferDelayMs > 0)
+                        {
+                            Console.WriteLine($"[VIDEO] Adaptive: Waiting {audioBufferDelayMs}ms for audio to buffer...");
+                            await Task.Delay(audioBufferDelayMs, ct);
+                        }
+                        playbackStart = DateTime.UtcNow;
+                    }
+                    else if (frameCount == 1 && !audioStarted && audioFfmpegArgs != null)
                     {
                         Console.WriteLine("[VIDEO] Adaptive: First video frame received, starting audio...");
                         
@@ -676,7 +706,23 @@ public class VideoPlayer : IDisposable
                     networkOpts += "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 ";
             }
 
-            // Get audio output (PulseAudio / ALSA)
+            // Pace local files at native duration. Without -re, FFmpeg dumps decoded audio as fast as it can.
+            var realtimeFlag = isNetworkStream ? "" : "-re ";
+
+            if (_vap1.IsSelected)
+            {
+                var vap1Args =
+                    $"-hide_banner -loglevel error -nostats {seekArg}{networkOpts}{realtimeFlag}-i \"{audioPath}\" {AudioMap}-vn";
+                Console.WriteLine($"[VAP1] FFmpeg args: {MediaPath.Redact(vap1Args)}");
+                _ffmpegProcess = _vap1.StartDecoder(vap1Args, Path.GetFileName(audioPath), ct);
+                if (_ffmpegProcess == null)
+                {
+                    OnError?.Invoke("Failed to start VAP1 audio");
+                    break;
+                }
+            }
+            else
+            {
             var audioOutput = _audioOutputService.GetFFmpegAudioOutput();
             if (string.IsNullOrWhiteSpace(audioOutput))
             {
@@ -685,14 +731,10 @@ public class VideoPlayer : IDisposable
                 break;
             }
 
-            // Pace local files at native duration. Without -re, FFmpeg dumps decoded audio into
-            // Pulse as fast as it can, bloating the sink buffer — the visualizer then lags/stutters.
-            var realtimeFlag = isNetworkStream ? "" : "-re ";
-
             // FFmpeg for audio-only: use -vn to explicitly disable video decoding
             // This prevents FFmpeg from decoding embedded cover art
             var ffmpegArgs =
-                $"-hide_banner -loglevel error -nostats {seekArg}{networkOpts}{realtimeFlag}-i \"{audioPath}\" -vn {audioOutput}";
+                $"-hide_banner -loglevel error -nostats {seekArg}{networkOpts}{realtimeFlag}-i \"{audioPath}\" {AudioMap}-vn {audioOutput}";
 
             Console.WriteLine($"[AUDIO] FFmpeg args: {MediaPath.Redact(ffmpegArgs)}");
 
@@ -705,35 +747,34 @@ public class VideoPlayer : IDisposable
 
             // Same Pulse daemon as parec, with a short buffer so the visualizer stays in sync.
             PulseAudioHelper.ApplyPulseEnv(psi, 30);
+            _ffmpegProcess = Process.Start(psi);
+            if (_ffmpegProcess == null)
+            {
+                OnError?.Invoke("Failed to start FFmpeg");
+                break;
+            }
+
+            var ffmpegProc = _ffmpegProcess;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var stderr = ffmpegProc.StandardError;
+                    while (await stderr.ReadLineAsync() is { } line)
+                        if (line.Contains("Error", StringComparison.OrdinalIgnoreCase) ||
+                            line.Contains("Failed", StringComparison.OrdinalIgnoreCase) ||
+                            line.Contains("pulse", StringComparison.OrdinalIgnoreCase))
+                            Console.WriteLine($"[FFMPEG] {line}");
+                }
+                catch
+                {
+                    // Process exited or stderr closed
+                }
+            });
+            }
 
             try
             {
-                _ffmpegProcess = Process.Start(psi);
-                if (_ffmpegProcess == null)
-                {
-                    OnError?.Invoke("Failed to start FFmpeg");
-                    break;
-                }
-
-                var ffmpegProc = _ffmpegProcess;
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        var stderr = ffmpegProc.StandardError;
-                        while (await stderr.ReadLineAsync() is { } line)
-                            if (line.Contains("Error", StringComparison.OrdinalIgnoreCase) ||
-                                line.Contains("Failed", StringComparison.OrdinalIgnoreCase) ||
-                                line.Contains("pulse", StringComparison.OrdinalIgnoreCase))
-                                Console.WriteLine($"[FFMPEG] {line}");
-                    }
-                    catch
-                    {
-                        // Process exited or stderr closed
-                    }
-                });
-
-                // Monitor for completion or cancellation
                 while (!ct.IsCancellationRequested && !_ffmpegProcess.HasExited)
                 {
                     // Handle pause by checking flag
@@ -892,19 +933,15 @@ public class VideoPlayer : IDisposable
     {
         if (!IsPaused)
         {
-            // Starting pause - record when we paused
             _pauseStartTime = DateTime.UtcNow;
-
-            // Send SIGSTOP to FFmpeg to pause the process (pauses both video and audio)
+            _vap1.PauseClock();
             PauseFFmpegProcess();
         }
         else
         {
-            // Ending pause - add time spent paused to total
             _pausedDuration += DateTime.UtcNow - _pauseStartTime;
-
-            // Send SIGCONT to FFmpeg to resume the process
             ResumeFFmpegProcess();
+            _vap1.ResumeClock();
         }
 
         IsPaused = !IsPaused;
@@ -918,17 +955,25 @@ public class VideoPlayer : IDisposable
     {
         try
         {
-            if (_ffmpegProcess != null && !_ffmpegProcess.HasExited)
-            {
-                // Use kill -STOP to pause the process (Linux)
-                var killProc = Process.Start(new ProcessStartInfo("kill", $"-STOP {_ffmpegProcess.Id}")
+                if (_ffmpegProcess != null && !_ffmpegProcess.HasExited)
                 {
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                });
-                killProc?.WaitForExit(1000);
-                Console.WriteLine($"[VIDEO] Paused FFmpeg process (PID: {_ffmpegProcess.Id})");
-            }
+                    var killProc = Process.Start(new ProcessStartInfo("kill", $"-STOP {_ffmpegProcess.Id}")
+                    {
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    });
+                    killProc?.WaitForExit(1000);
+                    Console.WriteLine($"[VIDEO] Paused FFmpeg process (PID: {_ffmpegProcess.Id})");
+                }
+                if (_audioProcess != null && !_audioProcess.HasExited)
+                {
+                    var killAudio = Process.Start(new ProcessStartInfo("kill", $"-STOP {_audioProcess.Id}")
+                    {
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    });
+                    killAudio?.WaitForExit(1000);
+                }
         }
         catch (Exception ex)
         {
@@ -943,16 +988,25 @@ public class VideoPlayer : IDisposable
     {
         try
         {
-            if (_ffmpegProcess != null && !_ffmpegProcess.HasExited)
-            {
-                var killProc = Process.Start(new ProcessStartInfo("kill", $"-CONT {_ffmpegProcess.Id}")
+                if (_ffmpegProcess != null && !_ffmpegProcess.HasExited)
                 {
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                });
-                killProc?.WaitForExit(1000);
-                Console.WriteLine($"[VIDEO] Resumed FFmpeg process (PID: {_ffmpegProcess.Id})");
-            }
+                    var killProc = Process.Start(new ProcessStartInfo("kill", $"-CONT {_ffmpegProcess.Id}")
+                    {
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    });
+                    killProc?.WaitForExit(1000);
+                    Console.WriteLine($"[VIDEO] Resumed FFmpeg process (PID: {_ffmpegProcess.Id})");
+                }
+                if (_audioProcess != null && !_audioProcess.HasExited)
+                {
+                    var killAudio = Process.Start(new ProcessStartInfo("kill", $"-CONT {_audioProcess.Id}")
+                    {
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    });
+                    killAudio?.WaitForExit(1000);
+                }
         }
         catch (Exception ex)
         {
@@ -1064,23 +1118,36 @@ public class VideoPlayer : IDisposable
             // - Local files: minimal (50ms for ALSA buffer startup)
             // - Network streams: ~500-1500ms depending on network speed and buffering
 
-            var baseAudioDelayMs = 0;
-            if (isNetworkStream)
-                // Network streams need significant base delay due to buffering
-                // FFmpeg probesize (5M) + thread_queue_size + our pre-buffer
-                baseAudioDelayMs = 1500; // 1.5 second base delay for network
-            else if (!string.IsNullOrEmpty(realtimeFlag))
-                // Local files with -re: minimal delay, FFmpeg handles sync
-                baseAudioDelayMs = 0;
+            var vap1 = playAudio && _vap1.IsSelected;
+            var videoHoldMs = 0;
+            var audioDelayMs = 0;
+            if (vap1)
+            {
+                // Positive slider = delay audio. The board already delays by the DMA queue,
+                // so that latency is the zero point and the slider moves either side of it.
+                videoHoldMs = Vap1DeviceLatencyMs - _audioSyncOffsetMs;
+                if (videoHoldMs < 0)
+                {
+                    audioDelayMs = -videoHoldMs;
+                    videoHoldMs = 0;
+                }
+            }
 
-            // Total audio delay = base + user adjustment
-            var totalAudioDelayMs = baseAudioDelayMs + _audioSyncOffsetMs;
+            var totalAudioDelayMs = vap1 ? audioDelayMs : (isNetworkStream ? 1500 : 0) + _audioSyncOffsetMs;
+            if (!vap1 && totalAudioDelayMs < 0) totalAudioDelayMs = 0;
 
-            // Empty when there is no device — do not pass `-f alsa default` or FFmpeg
-            // dies before the first video frame (Docker/NAS has no sound card).
-            var audioOutput = playAudio ? _audioOutputService.GetFFmpegAudioOutput() : "";
-            var emitAudio = playAudio && !string.IsNullOrWhiteSpace(audioOutput);
-            if (playAudio && !emitAudio)
+            var audioOutput = playAudio && !vap1 ? _audioOutputService.GetFFmpegAudioOutput() : "";
+            var emitAudio = playAudio && !vap1 && !string.IsNullOrWhiteSpace(audioOutput);
+            if (vap1)
+            {
+                var delay = audioDelayMs > 0 ? $"-af adelay={audioDelayMs}:all=1 " : "";
+                var input = $"{seekArg}{networkOpts}{realtimeFlag}-i \"{videoPath}\" {AudioMap}-vn {delay}";
+                _audioProcess = _vap1.StartDecoder(input.Trim(), Path.GetFileName(videoPath), ct);
+                Console.WriteLine(_audioProcess != null
+                    ? $"[VIDEO] VAP1 {_vap1.Host} hold {videoHoldMs}ms adelay {audioDelayMs}ms slider {_audioSyncOffsetMs}ms"
+                    : "[VIDEO] VAP1 failed — video only");
+            }
+            else if (playAudio && !emitAudio)
                 Console.WriteLine("[VIDEO] No audio device — decoding video only");
 
             var audioFilter = "";
@@ -1088,7 +1155,7 @@ public class VideoPlayer : IDisposable
             {
                 audioFilter = $"-af \"adelay={totalAudioDelayMs}:all=1\" ";
                 Console.WriteLine(
-                    $"[VIDEO] Audio sync: delaying audio by {totalAudioDelayMs}ms (base: {baseAudioDelayMs}ms + user: {_audioSyncOffsetMs}ms)");
+                    $"[VIDEO] Audio sync: delaying audio by {totalAudioDelayMs}ms (slider {_audioSyncOffsetMs}ms)");
             }
             else if (totalAudioDelayMs < 0 && emitAudio)
             {
@@ -1101,7 +1168,7 @@ public class VideoPlayer : IDisposable
                 ffmpegArgs = $"{seekArg}{hwAccelArg}{networkOpts}{realtimeFlag}-i \"{videoPath}\" " +
                              $"-map 0:v:0 -f rawvideo -pix_fmt {FfmpegRawVideo.PixFmt} -s {_targetWidth}x{_targetHeight} " +
                              $"-vf \"scale={_targetWidth}:{_targetHeight}:flags={scaleFlags}\" pipe:1 " +
-                             $"-map 0:a:0? {audioFilter}{audioOutput}";
+                             $"{AudioMap}{audioFilter}{audioOutput}";
             else
                 // Video only (no audio) - still use hardware acceleration
                 ffmpegArgs = $"{seekArg}{hwAccelArg}{networkOpts}{realtimeFlag}-i \"{videoPath}\" " +
@@ -1166,10 +1233,26 @@ public class VideoPlayer : IDisposable
             var stream = _ffmpegProcess.StandardOutput.BaseStream;
             var frameCount = 0;
 
-            // Pre-buffer: Minimal for network (sync handled by adelay), small for local
-            // We only need enough frames to smooth out jitter, not for A/V sync
-            // A/V sync is now handled by adelay filter in FFmpeg
-            var preBufferCount = isNetworkStream ? 3 : PreBufferFrames; // Minimal for network
+            if (vap1 && _audioProcess != null)
+            {
+                // Freeze the picture until the first sample is in the board and the DAC
+                // queue has had time to fill. Both -re clocks then run together.
+                SignalProcess(_ffmpegProcess, "STOP");
+                try
+                {
+                    await _vap1.WaitForAudioStartAsync(TimeSpan.FromSeconds(3), ct);
+                    if (videoHoldMs > 0)
+                        await Task.Delay(videoHoldMs, ct);
+                }
+                catch (OperationCanceledException) { throw; }
+                finally
+                {
+                    SignalProcess(_ffmpegProcess, "CONT");
+                }
+            }
+
+            // VAP1 keeps the picture on the audio clock, so do not dump a prebuffer ahead of it.
+            var preBufferCount = vap1 ? 0 : (isNetworkStream ? 3 : PreBufferFrames);
             if (playAudio && preBufferCount > 0)
             {
                 var preBuffer = new Queue<byte[]>();
@@ -1215,7 +1298,7 @@ public class VideoPlayer : IDisposable
 
             // Audio sync: negative offset = video is ahead, delay video start
             // This is a one-time delay before playback begins (positive offset is handled by adelay filter)
-            if (_audioSyncOffsetMs < 0 && !ct.IsCancellationRequested)
+            if (!vap1 && _audioSyncOffsetMs < 0 && !ct.IsCancellationRequested)
             {
                 var videoDelayMs = -_audioSyncOffsetMs;
                 Console.WriteLine($"[VIDEO] Audio sync: delaying video start by {videoDelayMs}ms (audio is behind)");
@@ -1326,6 +1409,24 @@ public class VideoPlayer : IDisposable
 
         IsPlaying = false;
         OnPlaybackStopped?.Invoke();
+    }
+
+    private static void SignalProcess(Process? proc, string signal)
+    {
+        if (proc == null) return;
+        try
+        {
+            if (proc.HasExited) return;
+            Process.Start(new ProcessStartInfo("kill", $"-{signal} {proc.Id}")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true
+            })?.WaitForExit(1000);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[VIDEO] signal {signal}: {ex.Message}");
+        }
     }
 
     private void NotifyFirstFrame()

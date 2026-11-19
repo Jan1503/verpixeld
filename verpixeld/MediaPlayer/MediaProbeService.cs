@@ -398,4 +398,66 @@ public static class MediaProbeService
         seconds = 0;
         return false;
     }
+
+    /// <summary>Audio streams in file order. Index is the <c>0:a:N</c> number FFmpeg expects.</summary>
+    public static async Task<IReadOnlyList<AudioTrackChoice>> ListAudioTracksAsync(string source)
+    {
+        var list = new List<AudioTrackChoice>();
+        if (!IsUrl(source) && !File.Exists(source)) return list;
+        try
+        {
+            var args =
+                $"-v error -select_streams a -show_entries stream=codec_name,channels:stream_tags=language,title -of json \"{source}\"";
+            var psi = new ProcessStartInfo("ffprobe", args)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var proc = Process.Start(psi);
+            if (proc == null) return list;
+            var output = await proc.StandardOutput.ReadToEndAsync();
+            await proc.WaitForExitAsync();
+            if (proc.ExitCode != 0 || string.IsNullOrWhiteSpace(output)) return list;
+
+            using var doc = System.Text.Json.JsonDocument.Parse(output);
+            if (!doc.RootElement.TryGetProperty("streams", out var streams)) return list;
+            var n = 0;
+            foreach (var s in streams.EnumerateArray())
+            {
+                var codec = s.TryGetProperty("codec_name", out var c) ? c.GetString() : null;
+                var channels = s.TryGetProperty("channels", out var ch) && ch.TryGetInt32(out var cv) ? cv : 0;
+                string? language = null, title = null;
+                if (s.TryGetProperty("tags", out var tags))
+                {
+                    if (tags.TryGetProperty("language", out var lang)) language = lang.GetString();
+                    if (tags.TryGetProperty("title", out var ti)) title = ti.GetString();
+                }
+                list.Add(new AudioTrackChoice(n, codec ?? "audio", channels, language, title));
+                n++;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MEDIA] Audio track probe failed: {ex.Message}");
+        }
+        return list;
+    }
+}
+
+public sealed record AudioTrackChoice(int Index, string Codec, int Channels, string? Language, string? Title)
+{
+    public string Label
+    {
+        get
+        {
+            var bits = new List<string> { (Index + 1).ToString() };
+            if (!string.IsNullOrWhiteSpace(Language)) bits.Add(Language);
+            if (!string.IsNullOrWhiteSpace(Title)) bits.Add(Title);
+            bits.Add(Codec);
+            if (Channels > 0) bits.Add(Channels + "ch");
+            return string.Join(" · ", bits);
+        }
+    }
 }

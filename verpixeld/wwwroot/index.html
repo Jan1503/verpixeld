@@ -1365,14 +1365,22 @@
               <div class="media-canvas-selector">
                 <label for="media-target-canvas">Target Canvas:</label>
                 <select id="media-target-canvas" class="media-select">
-                  <option value="Main">Main (Default)</option>
+                  <option value="Main" selected>Main</option>
+                  <option value="MediaPlayer">Full wall</option>
+                </select>
+              </div>
+              <div class="media-canvas-selector">
+                <label for="media-audio-track">Audio track:</label>
+                <select id="media-audio-track" class="media-select" onchange="setMediaAudioTrack(this.value)">
+                  <option value="0">1</option>
                 </select>
               </div>
               <div class="media-sync-section" id="media-sync-section">
                 <span class="media-sync-label" title="Adjust if audio/video are out of sync. Positive = delay audio, negative = delay video">⏱️ A/V Sync</span>
                 <input type="range" id="media-sync-slider" class="media-sync-slider" 
-                       min="-5000" max="5000" value="0" step="100"
-                       oninput="setAudioSync(this.value)">
+                       min="-2000" max="2000" value="0" step="20"
+                       oninput="var ms=+this.value; document.getElementById('media-sync-value').textContent = ms===0?'0ms':(ms>0?'+'+ms:ms)+'ms'"
+                       onchange="setAudioSync(this.value)">
                 <span class="media-sync-value" id="media-sync-value">0ms</span>
               </div>
               <div class="media-scale-section" id="media-scale-section">
@@ -2567,6 +2575,7 @@
               Audio Output & Bluetooth
             </h3>
             <div class="tab-section-actions">
+              <button class="btn btn-small btn-secondary" onclick="scanVap1()">Scan audio boards</button>
               <button class="btn btn-small btn-secondary" onclick="refreshAudioStatus()">Refresh</button>
             </div>
             <span class="tab-section-collapse-icon">▼</span>
@@ -2583,6 +2592,18 @@
               <div class="audio-output-list" id="audio-output-list">
                 <!-- Audio sinks will be populated here -->
               </div>
+              <div class="settings-row" style="margin-top:12px;align-items:end">
+                <label for="vap1-host" style="min-width:8rem">Board IP</label>
+                <input id="vap1-host" type="text" inputmode="decimal" placeholder="192.168.10.225" autocomplete="off" style="flex:1">
+                <button class="btn btn-small btn-primary" onclick="useVap1Host()">Use</button>
+              </div>
+              <div class="settings-row" style="margin-top:8px;align-items:center">
+                <label for="vap1-volume" style="min-width:8rem">Volume</label>
+                <input id="vap1-volume" type="range" min="0" max="100" value="70" style="flex:1" oninput="setBoardVolume(this.value)">
+                <span id="vap1-volume-label" style="min-width:3rem;text-align:right">70%</span>
+                <button class="btn btn-small btn-secondary" id="vap1-mute" type="button" onclick="toggleBoardMute()">Mute</button>
+              </div>
+              <p class="text-muted" style="margin-top:6px">The board page is <code>http://&lt;ip&gt;:5000/</code>. Scan only reaches a /24 that this container owns, so type the address from the display when it is on another network.</p>
             </div>
             
             <!-- Bluetooth Devices -->

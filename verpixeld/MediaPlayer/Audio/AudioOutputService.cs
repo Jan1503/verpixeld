@@ -18,7 +18,8 @@ public class AudioOutputService : IAudioOutputService
         HDMI,
         Analog, // 3.5mm jack
         USB,
-        Bluetooth
+        Bluetooth,
+        Network
     }
 
     // Cache for PulseAudio mode detection

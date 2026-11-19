@@ -109,10 +109,12 @@ async function playMediaVideo(filename, loop = true) {
     // Also call the function if available
     if (window.showMediaPlayerBar) window.showMediaPlayerBar();
     
-    const result = await api.post(`/api/media/play/${mediaApiPath(filename)}?loop=${loop}`);
+    const canvasName = document.getElementById('media-target-canvas')?.value || 'Main';
+    const result = await api.post(`/api/media/play/${mediaApiPath(filename)}?loop=${loop}&canvasName=${encodeURIComponent(canvasName)}`);
     
     if (result.success) {
       window.toast.success('Media', `Playing: ${filename}`);
+      loadMediaAudioTracks(filename);
       startMediaStatusPolling();
       await fetchMediaStatus();
       if (typeof loadCanvasStack === 'function') loadCanvasStack();
@@ -1007,6 +1009,12 @@ async function populateMediaCanvasSelector() {
       // Sort by z-order (lowest first = bottom to top in layer stack)
       const canvases = (typeof contentTargetCanvases === 'function'
         ? contentTargetCanvases(result.data) : result.data).sort((a, b) => a.zOrder - b.zOrder);
+
+      const full = document.createElement('option');
+      full.value = 'MediaPlayer';
+      full.textContent = 'Full wall';
+      if (currentValue === 'MediaPlayer') full.selected = true;
+      select.appendChild(full);
       
       canvases.forEach(canvas => {
         const option = document.createElement('option');
@@ -1050,6 +1058,41 @@ async function setMediaTargetCanvas(canvasName) {
     }
   } catch (error) {
     console.error('Failed to set target canvas:', error);
+  }
+}
+
+async function loadMediaAudioTracks(filename) {
+  const select = document.getElementById('media-audio-track');
+  if (!select || !filename) return;
+  try {
+    const result = await api.get('/api/media/audio-tracks/' + mediaApiPath(filename));
+    const tracks = result.tracks || [];
+    select.innerHTML = '';
+    if (tracks.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '0';
+      opt.textContent = '1';
+      select.appendChild(opt);
+      return;
+    }
+    tracks.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = String(t.index);
+      opt.textContent = t.label || String(t.index + 1);
+      if (t.index === result.selected) opt.selected = true;
+      select.appendChild(opt);
+    });
+  } catch (error) {
+    console.error('Failed to load audio tracks:', error);
+  }
+}
+
+async function setMediaAudioTrack(index) {
+  try {
+    await api.post(`/api/media/audio-track?index=${encodeURIComponent(index)}`);
+  } catch (error) {
+    console.error('Failed to set audio track:', error);
+    window.toast.error('Media', 'Could not switch audio track');
   }
 }
 

@@ -1,15 +1,15 @@
 namespace verpixeld.MediaPlayer;
 
 /// <summary>
-///     Where video frames go when the media player target is the default "Main" canvas.
-///     Main stays free for extensions; playback uses a dedicated overlay named <see cref="OverlayName"/>.
+///     Full-wall playback uses a dedicated overlay named <see cref="OverlayName"/>.
+///     Any other name, including "Main", is that canvas.
 /// </summary>
 public static class MediaPlaybackTarget
 {
     public const string OverlayName = "MediaPlayer";
 
     public static bool UsesOwnedOverlay(string? targetCanvasName) =>
-        string.IsNullOrEmpty(targetCanvasName) || targetCanvasName == "Main";
+        string.Equals(targetCanvasName, OverlayName, StringComparison.OrdinalIgnoreCase);
 
     public static string ResolveName(string? targetCanvasName) =>
         UsesOwnedOverlay(targetCanvasName) ? OverlayName : targetCanvasName!;

@@ -121,6 +121,26 @@ public static class MediaPlayerEndpoints
             });
         });
 
+        group.MapGet("/audio-tracks/{*filename}", async (string filename) =>
+        {
+            var filePath = MediaLibrary.ResolveVideo(filename);
+            if (filePath == null)
+                return Results.Json(new { success = false, message = "Video not found" });
+            var tracks = await MediaProbeService.ListAudioTracksAsync(filePath);
+            return Results.Json(new
+            {
+                success = true,
+                selected = mediaService.AudioStreamIndex,
+                tracks = tracks.Select(t => new { t.Index, t.Label, t.Codec, t.Channels, t.Language, t.Title })
+            });
+        });
+
+        group.MapPost("/audio-track", async (int index) =>
+        {
+            await mediaService.SetAudioStreamIndexAsync(index);
+            return Results.Json(new { success = true, index = mediaService.AudioStreamIndex });
+        });
+
         // Folder browser for the Media mount (same shape as /api/network/shares/{id}/browse)
         group.MapGet("/browse", (string? path) =>
         {
@@ -190,7 +210,7 @@ public static class MediaPlayerEndpoints
         });
 
         // Play a video
-        group.MapPost("/play/{*filename}", async (string filename, bool? loop) =>
+        group.MapPost("/play/{*filename}", async (HttpRequest request, string filename, bool? loop) =>
         {
             if (!MediaPlayerService.FFmpegAvailable)
                 return Results.Json(new
@@ -198,6 +218,11 @@ public static class MediaPlayerEndpoints
                     success = false,
                     message = "FFmpeg not available. Install with: sudo apt install ffmpeg"
                 });
+
+            var canvasName = request.Query["canvasName"].ToString();
+            if (!string.IsNullOrWhiteSpace(canvasName))
+                mediaService.TargetCanvasName = canvasName.Trim();
+            Console.WriteLine($"[MEDIA-API] play target='{mediaService.TargetCanvasName ?? "Main"}'");
 
             var filePath = MediaLibrary.ResolveVideo(filename);
 

@@ -90,6 +90,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<AudioOutputService>();
         services.AddSingleton<IAudioOutputService>(sp => sp.GetRequiredService<AudioOutputService>());
+        services.AddSingleton<Vap1OutputService>();
         services.AddSingleton(sp => new BluetoothAudioService(sp.GetRequiredService<AudioOutputService>()));
         services.AddSingleton<IAudioVisualizerService>(_ => new AudioVisualizerService());
 
@@ -104,10 +105,20 @@ public static class ServiceCollectionExtensions
         });
         services.AddSingleton<IDisplayLayoutManager>(sp => sp.GetRequiredService<DisplayLayoutManager>());
 
+        services.AddSingleton(sp =>
+        {
+            var mix = new ExtensionAudioMixer(sp.GetRequiredService<Vap1OutputService>());
+            sp.GetRequiredService<CanvasManager>().UseExtensionAudio(mix);
+            mix.Start();
+            return mix;
+        });
+
         services.AddSingleton<ICanvasContentManager>(sp =>
             new CanvasContentManager(
                 sp.GetRequiredService<IDisplayLayoutManager>(),
-                sp.GetRequiredService<IExtensionDiscovery>()));
+                sp.GetRequiredService<CanvasManager>(),
+                sp.GetRequiredService<IExtensionDiscovery>(),
+                sp.GetRequiredService<ExtensionAudioMixer>()));
 
         services.AddSingleton<LayoutStorageManager>();
         services.AddSingleton(sp => new NightModeManager(sp.GetRequiredService<CanvasManager>()));
@@ -137,7 +148,8 @@ public static class ServiceCollectionExtensions
         {
             var rot = new CanvasRotationService(
                 sp.GetRequiredService<CanvasManager>(),
-                sp.GetRequiredService<ICanvasContentManager>());
+                sp.GetRequiredService<ICanvasContentManager>(),
+                sp.GetRequiredService<Vap1OutputService>());
             rot.LocalCamera = sp.GetRequiredService<LocalCameraService>();
             return rot;
         });
@@ -160,7 +172,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(sp =>
         {
             var cm = sp.GetRequiredService<CanvasManager>();
-            return new MediaPlayerService(cm, sp.GetRequiredService<IAudioOutputService>(), cm.Width, cm.Height);
+            return new MediaPlayerService(cm, sp.GetRequiredService<IAudioOutputService>(),
+                sp.GetRequiredService<Vap1OutputService>(), cm.Width, cm.Height);
         });
 
         services.AddSingleton(sp =>

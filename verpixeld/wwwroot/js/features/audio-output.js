@@ -76,9 +76,7 @@ async function refreshAudioStatusSilent() {
       
       // Update UI without "loading" states
       updateAudioStatusDisplay();
-      if (audioSystemStatus.pulseAudioAvailable) {
-        updateAudioOutputList();
-      }
+      updateAudioOutputList();
       if (audioSystemStatus.bluetoothPoweredOn) {
         updateBluetoothDevicesList();
       }
@@ -92,6 +90,7 @@ async function refreshAudioStatusSilent() {
           volumeSlider.value = defaultSink.volume;
         }
       }
+      syncBoardVolume(defaultSink);
     }
   } catch {
     return;
@@ -118,9 +117,7 @@ async function refreshAudioStatus() {
       console.log('[AUDIO] Status refreshed, sinks:', audioSystemStatus.availableSinks?.map(s => `${s.name}:${s.volume}%`));
       
       // Show/hide sections based on availability
-      if (outputSection) {
-        outputSection.style.display = audioSystemStatus.pulseAudioAvailable ? 'block' : 'none';
-      }
+      if (outputSection) outputSection.style.display = 'block';
       if (bluetoothSection) {
         // Show Bluetooth section if adapter is present (even if off - we can show power button)
         bluetoothSection.style.display = audioSystemStatus.bluetoothAdapterPresent ? 'block' : 'none';
@@ -131,11 +128,7 @@ async function refreshAudioStatus() {
       
       // Update status display
       updateAudioStatusDisplay();
-      
-      // Update output list
-      if (audioSystemStatus.pulseAudioAvailable) {
-        updateAudioOutputList();
-      }
+      updateAudioOutputList();
       
       // Update Bluetooth devices
       if (audioSystemStatus.bluetoothPoweredOn) {
@@ -224,6 +217,7 @@ function updateAudioOutputList() {
   }).join('');
   
   container.innerHTML = html;
+  syncBoardVolume();
 }
 
 /**
@@ -231,6 +225,8 @@ function updateAudioOutputList() {
  */
 function getAudioTypeIcon(type) {
   switch (type) {
+    case 'Network':
+    case 5: return '\u{1F50A}';
     case 'Bluetooth': return '\u{1F4F6}';
     case 'HDMI': return '\u{1F5A5}\uFE0F';
     case 'USB': return '\u{1F50C}';
@@ -253,6 +249,66 @@ async function setAudioOutput(sinkName) {
   } catch (error) {
     console.error('Failed to set audio output:', error);
     window.toast.error('Audio', 'Failed to set audio output');
+  }
+}
+
+async function useVap1Host() {
+  const ip = (document.getElementById('vap1-host')?.value || '').trim();
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+    window.toast.error('Audio', 'Enter an IPv4 address');
+    return;
+  }
+  await setAudioOutput('vap1:' + ip);
+}
+
+let boardVolumeTimer = null;
+
+function syncBoardVolume(sink) {
+  const board = sink?.name?.startsWith('vap1:') ? sink
+    : audioSystemStatus.availableSinks?.find(s => s.name?.startsWith('vap1:') && s.isDefault)
+      || audioSystemStatus.availableSinks?.find(s => s.name?.startsWith('vap1:'));
+  if (!board) return;
+  const slider = document.getElementById('vap1-volume');
+  const label = document.getElementById('vap1-volume-label');
+  const mute = document.getElementById('vap1-mute');
+  if (slider && document.activeElement !== slider) slider.value = board.volume;
+  if (label) label.textContent = board.volume + '%';
+  if (mute) mute.textContent = board.isMuted ? 'Unmute' : 'Mute';
+}
+
+function setBoardVolume(value) {
+  const label = document.getElementById('vap1-volume-label');
+  if (label) label.textContent = value + '%';
+  clearTimeout(boardVolumeTimer);
+  boardVolumeTimer = setTimeout(async () => {
+    try {
+      await api.post(`/api/audio/volume?volume=${parseInt(value, 10)}`);
+    } catch (error) {
+      console.error('Failed to set board volume:', error);
+    }
+  }, 80);
+}
+
+async function toggleBoardMute() {
+  try {
+    await api.post('/api/audio/mute/toggle');
+    await refreshAudioStatusSilent();
+  } catch (error) {
+    console.error('Failed to toggle mute:', error);
+  }
+}
+
+async function scanVap1() {
+  try {
+    window.toast.info('Audio', 'Scanning for audio boards...');
+    const result = await api.post('/api/audio/vap1/scan');
+    await refreshAudioStatus();
+    const n = result.count || 0;
+    if (n === 0) window.toast.info('Audio', 'No board answered on port 5000');
+    else window.toast.success('Audio', n + ' board' + (n === 1 ? '' : 's'));
+  } catch (error) {
+    console.error('Audio board scan failed:', error);
+    window.toast.error('Audio', 'Scan failed');
   }
 }
 

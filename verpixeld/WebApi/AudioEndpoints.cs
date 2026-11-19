@@ -21,6 +21,29 @@ public static class AudioEndpoints
     {
         var audioService = app.Services.GetRequiredService<IAudioOutputService>();
         var bluetoothService = app.Services.GetRequiredService<BluetoothAudioService>();
+        var vap1 = app.Services.GetRequiredService<Vap1OutputService>();
+
+        List<AudioOutputService.AudioSink> WithBoards(List<AudioOutputService.AudioSink> sinks)
+        {
+            if (vap1.IsSelected)
+                foreach (var sink in sinks) sink.IsDefault = false;
+            var boards = vap1.Seen.ToList();
+            if (!string.IsNullOrWhiteSpace(vap1.Host) && boards.All(b => b.Host != vap1.Host))
+                boards.Insert(0, new Vap1.AudioAnnouncement { Host = vap1.Host, Name = vap1.Host, Volume = vap1.Volume, Muted = vap1.Muted });
+            foreach (var board in boards)
+            {
+                sinks.Insert(0, new AudioOutputService.AudioSink
+                {
+                    Name = "vap1:" + board.Host,
+                    Description = string.IsNullOrWhiteSpace(board.Name) ? board.Host : $"{board.Name} ({board.Host})",
+                    Type = AudioOutputService.AudioOutputType.Network,
+                    IsDefault = vap1.IsSelected && board.Host == vap1.Host,
+                    Volume = vap1.Volume,
+                    IsMuted = vap1.Muted
+                });
+            }
+            return sinks;
+        }
 
         var group = app.MapGroup("/api/audio");
 
@@ -42,9 +65,9 @@ public static class AudioEndpoints
                     bluetoothPoweredOn = btPoweredOn,
                     bluetoothAvailable = btPoweredOn,
                     defaultSink = audioService.IsPulseAudioAvailable() ? await audioService.GetDefaultSinkAsync() : "",
-                    availableSinks = audioService.IsPulseAudioAvailable()
+                    availableSinks = WithBoards(audioService.IsPulseAudioAvailable()
                         ? await audioService.GetAudioSinksAsync()
-                        : new List<AudioOutputService.AudioSink>(),
+                        : new List<AudioOutputService.AudioSink>()),
                     pairedDevices = btPoweredOn
                         ? await bluetoothService.GetPairedDevicesAsync()
                         : new List<BluetoothAudioService.BluetoothDevice>()
@@ -62,7 +85,9 @@ public static class AudioEndpoints
         {
             try
             {
-                var sinks = await audioService.GetAudioSinksAsync();
+                var sinks = WithBoards(audioService.IsPulseAudioAvailable()
+                    ? await audioService.GetAudioSinksAsync()
+                    : new List<AudioOutputService.AudioSink>());
                 return Results.Json(new { success = true, data = sinks }, _jsonOptions);
             }
             catch (Exception ex)
@@ -98,6 +123,13 @@ public static class AudioEndpoints
                 if (string.IsNullOrWhiteSpace(sinkName))
                     return Results.Json(new { success = false, error = "Sink name required" });
 
+                if (sinkName.StartsWith("vap1:", StringComparison.OrdinalIgnoreCase))
+                {
+                    vap1.Select(sinkName[5..]);
+                    return Results.Json(new { success = true, message = $"Audio output set to {sinkName[5..]}" });
+                }
+
+                vap1.Deselect();
                 var success = await audioService.SetDefaultSinkAsync(sinkName);
 
                 if (success)
@@ -111,10 +143,28 @@ public static class AudioEndpoints
             }
         });
 
+        group.MapPost("/vap1/scan", async (CancellationToken ct) =>
+        {
+            try
+            {
+                var boards = await vap1.ScanAsync(ct);
+                return Results.Json(new { success = true, count = boards.Count, data = boards }, _jsonOptions);
+            }
+            catch (Exception ex)
+            {
+                return Results.Json(new { success = false, error = ex.Message }, _jsonOptions);
+            }
+        });
+
         group.MapPost("/volume", async ([FromQuery] int volume) =>
         {
             try
             {
+                if (vap1.IsSelected)
+                {
+                    vap1.SetVolume(Math.Clamp(volume, 0, 100));
+                    return Results.Json(new { success = true, volume = vap1.Volume }, _jsonOptions);
+                }
                 var clampedVolume = Math.Clamp(volume, 0, 150);
                 var success = await audioService.SetVolumeAsync(clampedVolume);
                 Console.WriteLine($"[AUDIO] Volume API: set to {clampedVolume}%, success={success}");
@@ -130,6 +180,11 @@ public static class AudioEndpoints
         {
             try
             {
+                if (vap1.IsSelected)
+                {
+                    vap1.ToggleMute();
+                    return Results.Json(new { success = true, muted = vap1.Muted });
+                }
                 var success = await audioService.ToggleMuteAsync();
                 return Results.Json(new { success });
             }

@@ -1,8 +1,10 @@
 using System.Reflection;
 using System.Text.Json;
+using CanvasManagement;
 using CanvasManagement.Interfaces;
 using SkiaSharp;
 using verpixeld.Interfaces;
+using verpixeld.MediaPlayer.Audio;
 using verpixeld.WebApi;
 
 namespace verpixeld.Layout;
@@ -10,7 +12,11 @@ namespace verpixeld.Layout;
 /// <summary>
 ///     Manages content (extensions, static content) on named canvases
 /// </summary>
-public class CanvasContentManager(IDisplayLayoutManager layoutManager, IExtensionDiscovery? extensionDiscovery = null)
+public class CanvasContentManager(
+    IDisplayLayoutManager layoutManager,
+    CanvasManager canvasManager,
+    IExtensionDiscovery? extensionDiscovery = null,
+    ExtensionAudioMixer? audioMixer = null)
     : ICanvasContentManager
 {
     private readonly Dictionary<string, CanvasContent> _canvasContents = new();
@@ -42,6 +48,8 @@ public class CanvasContentManager(IDisplayLayoutManager layoutManager, IExtensio
 
         // Stop existing content on this canvas
         StopContent(canvasName);
+        if (audioMixer != null)
+            canvasManager.UseExtensionAudio(audioMixer);
 
         Console.WriteLine($"[CONTENT] Assigning extension '{extensionDisplayName}' to canvas '{canvasName}'");
 
@@ -130,6 +138,7 @@ public class CanvasContentManager(IDisplayLayoutManager layoutManager, IExtensio
             };
 
             _canvasContents[canvasName] = content;
+            TrackAudio(ext, true);
 
             Console.WriteLine($"[CONTENT] Extension '{extensionDisplayName}' started on '{canvasName}'");
 
@@ -351,6 +360,13 @@ public class CanvasContentManager(IDisplayLayoutManager layoutManager, IExtensio
         }
     }
 
+    private void TrackAudio(DynamicExtension? ext, bool on)
+    {
+        if (audioMixer == null || ext?.Instance is not ICanvasAudioSource source) return;
+        if (on) audioMixer.Attach(source);
+        else audioMixer.Detach(source);
+    }
+
     /// <summary>
     ///     Stops content on a specific canvas
     /// </summary>
@@ -366,6 +382,7 @@ public class CanvasContentManager(IDisplayLayoutManager layoutManager, IExtensio
         {
             if (content.ExtensionInstance != null)
             {
+                TrackAudio(content.ExtensionInstance as DynamicExtension, false);
                 try
                 {
                     // Stop extension

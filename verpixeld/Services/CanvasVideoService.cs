@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using CanvasManagement;
 using verpixeld.MediaPlayer;
+using verpixeld.MediaPlayer.Audio;
 
 namespace verpixeld.Services;
 
@@ -11,12 +13,17 @@ namespace verpixeld.Services;
 public class CanvasVideoService : IDisposable
 {
     private readonly CanvasManager _cm;
+    private readonly Vap1OutputService _vap1;
     private readonly object _lock = new();
     private readonly Dictionary<string, FfmpegFrameStreamer> _streams = new(StringComparer.OrdinalIgnoreCase);
+    private Process? _audio;
+    private CancellationTokenSource? _audioCts;
+    private string? _audioCanvas;
 
-    public CanvasVideoService(CanvasManager cm)
+    public CanvasVideoService(CanvasManager cm, Vap1OutputService vap1)
     {
         _cm = cm;
+        _vap1 = vap1;
     }
 
     public bool IsPlaying(string canvasName)
@@ -61,6 +68,7 @@ public class CanvasVideoService : IDisposable
         if (old != null) { old.Stop("[CVID]"); old.Dispose(); }
 
         streamer.Start(args, canvas, displayFps: 20, logPrefix: "[CVID]");
+        StartAudio(canvas.Name, filePath, loop);
         Console.WriteLine($"[CVID] Playing {Path.GetFileName(filePath)} on '{canvas.Name}' ({w}x{h})");
         return true;
     }
@@ -75,6 +83,8 @@ public class CanvasVideoService : IDisposable
 
         s.Stop("[CVID]");
         s.Dispose();
+        if (string.Equals(_audioCanvas, canvasName, StringComparison.OrdinalIgnoreCase))
+            StopAudio();
         try { _cm.GetCanvasByName(canvasName)?.Clear(); } catch { /* ignore */ }
         Console.WriteLine($"[CVID] Stopped on '{canvasName}'");
     }
@@ -94,11 +104,54 @@ public class CanvasVideoService : IDisposable
             kv.Value.Dispose();
             try { _cm.GetCanvasByName(kv.Key)?.Clear(); } catch { /* ignore */ }
         }
+        StopAudio();
     }
 
     public void Dispose()
     {
         StopAll();
         GC.SuppressFinalize(this);
+    }
+
+    // One board, one stream. The canvas that just started owns the output.
+    // The picture process stays -an so several videos can still draw at once.
+    private void StartAudio(string canvasName, string filePath, bool loop)
+    {
+        StopAudio();
+        if (!_vap1.IsSelected)
+        {
+            Console.WriteLine("[CVID] No audio board selected — video only");
+            return;
+        }
+
+        var loopArg = loop ? "-stream_loop -1 " : "";
+        var args = $"-hide_banner -loglevel warning -re {loopArg}-i \"{filePath}\" -vn";
+        _audioCts = new CancellationTokenSource();
+        _audio = _vap1.StartDecoder(args, Path.GetFileName(filePath), _audioCts.Token);
+        if (_audio == null)
+        {
+            _audioCts.Dispose();
+            _audioCts = null;
+            Console.WriteLine("[CVID] Audio decoder did not start");
+            return;
+        }
+
+        _audioCanvas = canvasName;
+        Console.WriteLine($"[CVID] Audio {_vap1.Host} for '{canvasName}'");
+    }
+
+    private void StopAudio()
+    {
+        try { _audioCts?.Cancel(); } catch { /* already done */ }
+        _audioCts?.Dispose();
+        _audioCts = null;
+        if (_audio != null)
+        {
+            try { if (!_audio.HasExited) _audio.Kill(entireProcessTree: true); }
+            catch { /* already gone */ }
+            _audio.Dispose();
+            _audio = null;
+        }
+        _audioCanvas = null;
     }
 }

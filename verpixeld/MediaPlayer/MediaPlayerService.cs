@@ -41,14 +41,15 @@ public class MediaPlayerService : IDisposable
 
     private int _width;
 
-    public MediaPlayerService(CanvasManager canvasManager, IAudioOutputService audioOutputService, int width, int height)
+    public MediaPlayerService(CanvasManager canvasManager, IAudioOutputService audioOutputService,
+        Vap1OutputService vap1, int width, int height)
     {
         _canvasManager = canvasManager;
         _audioOutputService = audioOutputService;
         _width = width;
         _height = height;
         _audio = new AlsaAudioService();
-        _videoPlayer = new VideoPlayer(width, height, audioOutputService);
+        _videoPlayer = new VideoPlayer(width, height, audioOutputService, vap1);
 
         _videoPlayer.OnPlaybackStarted += () => Console.WriteLine("[MEDIA] Video playback started");
         _videoPlayer.OnPlaybackStopped += OnPlaybackStopped;
@@ -169,15 +170,13 @@ public class MediaPlayerService : IDisposable
     public bool IsMuted => _audio.IsMuted;
 
     /// <summary>
-    ///     Target canvas name for video/audio playback
-    ///     If null or "Main", creates a full-screen canvas
-    ///     Otherwise, uses the existing canvas with matching name
+    ///     Target canvas for video playback. "MediaPlayer" (or empty) is the full-wall overlay.
+    ///     Any other name, including Main, is that canvas.
     /// </summary>
     public string? TargetCanvasName { get; set; }
 
     /// <summary>
     ///     Canvas that is actually receiving video frames right now.
-    ///     Target "Main" (the default) is remapped to a dedicated MediaPlayer overlay.
     /// </summary>
     public string? PlaybackCanvasName => _mediaCanvas?.Name;
 
@@ -188,14 +187,29 @@ public class MediaPlayerService : IDisposable
     }
 
     /// <summary>
-    ///     Audio sync offset in milliseconds
-    ///     Positive = delay audio (use when audio is ahead of video)
-    ///     Negative = delay video (use when video is ahead of audio)
+    ///     Audio sync offset in milliseconds.
+    ///     Positive = delay audio (use when audio is ahead of video).
+    ///     Negative = delay video (use when video is ahead of audio).
     /// </summary>
     public int AudioSyncOffsetMs
     {
         get => _videoPlayer.AudioSyncOffsetMs;
         set => _videoPlayer.AudioSyncOffsetMs = value;
+    }
+
+    public int AudioStreamIndex
+    {
+        get => _videoPlayer.AudioStreamIndex;
+        set => _videoPlayer.AudioStreamIndex = Math.Clamp(value, 0, 63);
+    }
+
+    /// <summary>Switch audio stream. Restarts the current file at the same position when one is playing.</summary>
+    public async Task SetAudioStreamIndexAsync(int index)
+    {
+        AudioStreamIndex = index;
+        Console.WriteLine($"[MEDIA] Audio track {AudioStreamIndex}");
+        if (_videoPlayer.IsPlaying && _videoPlayer.CurrentVideo != null)
+            await _videoPlayer.SeekAsync(_videoPlayer.Position);
     }
 
     public static bool FFmpegAvailable => FfmpegCapabilities.IsFFmpegAvailable();
@@ -513,19 +527,21 @@ public class MediaPlayerService : IDisposable
         // A caller forced an exact canvas (Studio content/rotation) — render into it directly.
         if (_forcedCanvas != null) return _forcedCanvas;
 
-        if (MediaPlaybackTarget.UsesOwnedOverlay(TargetCanvasName))
-            return FullWallOverlay();
-
-        var existingCanvas = _canvasManager.GetCanvasesByZOrder()
-            .FirstOrDefault(c => c.Name == TargetCanvasName);
-
-        if (existingCanvas != null)
+        var wanted = string.IsNullOrWhiteSpace(TargetCanvasName) ? "Main" : TargetCanvasName.Trim();
+        if (!MediaPlaybackTarget.UsesOwnedOverlay(wanted))
         {
-            Console.WriteLine($"[MEDIA] Using existing canvas: {TargetCanvasName}");
-            return existingCanvas;
+            var existingCanvas = _canvasManager.GetCanvasesByZOrder()
+                .FirstOrDefault(c => string.Equals(c.Name, wanted, StringComparison.OrdinalIgnoreCase));
+
+            if (existingCanvas != null)
+            {
+                Console.WriteLine($"[MEDIA] Using canvas {existingCanvas.Name} {existingCanvas.Width}x{existingCanvas.Height} at {existingCanvas.XPos},{existingCanvas.YPos}");
+                return existingCanvas;
+            }
+
+            Console.WriteLine($"[MEDIA] Canvas '{wanted}' not found, using full-screen");
         }
 
-        Console.WriteLine($"[MEDIA] Canvas '{TargetCanvasName}' not found, using full-screen");
         return FullWallOverlay();
     }
 

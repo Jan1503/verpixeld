@@ -30,6 +30,7 @@
     <ProjectReference Include="..\..\CanvasManagement\CanvasManagement\CanvasManagement.csproj" />
     <ProjectReference Include="..\..\CanvasManagement\CanvasManagement.BdfFontManager\CanvasManagement.BdfFontManager.csproj" />
     <ProjectReference Include="..\..\pixplane\PixPlane.csproj" />
+    <ProjectReference Include="..\..\vap1\Vap1.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Update="wwwroot\**\*">

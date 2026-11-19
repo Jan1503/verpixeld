@@ -251,7 +251,7 @@ function mediaPlaybackCanvasName(state) {
   if (!s.isRunning || s.isAudioPlayback) return null;
   if (s.playbackCanvasName) return s.playbackCanvasName;
   const t = s.targetCanvasName;
-  if (!t || t === 'Main') return 'MediaPlayer';
+  if (!t || t === 'MediaPlayer') return 'MediaPlayer';
   return t;
 }
 

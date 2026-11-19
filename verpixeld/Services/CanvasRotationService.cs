@@ -29,11 +29,11 @@ public class CanvasRotationService
     // Multi-instance, video-only player so several canvases can play different videos simultaneously.
     private readonly CanvasVideoService _video;
 
-    public CanvasRotationService(CanvasManager cm, ICanvasContentManager content)
+    public CanvasRotationService(CanvasManager cm, ICanvasContentManager content, MediaPlayer.Audio.Vap1OutputService vap1)
     {
         _cm = cm;
         _content = content;
-        _video = new CanvasVideoService(cm);
+        _video = new CanvasVideoService(cm, vap1);
         Load();
     }
 
