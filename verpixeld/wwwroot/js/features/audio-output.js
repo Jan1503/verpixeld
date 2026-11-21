@@ -129,6 +129,7 @@ async function refreshAudioStatus() {
       // Update status display
       updateAudioStatusDisplay();
       updateAudioOutputList();
+      syncBoardVolume();
       
       // Update Bluetooth devices
       if (audioSystemStatus.bluetoothPoweredOn) {
@@ -274,19 +275,57 @@ function syncBoardVolume(sink) {
   if (slider && document.activeElement !== slider) slider.value = board.volume;
   if (label) label.textContent = board.volume + '%';
   if (mute) mute.textContent = board.isMuted ? 'Unmute' : 'Mute';
+  const wall = document.getElementById('pixtone-wall');
+  if (wall && document.activeElement !== wall) wall.checked = !!audioSystemStatus.wallPreview;
+  const fps = document.getElementById('pixtone-fps');
+  if (fps && document.activeElement !== fps && audioSystemStatus.previewFps)
+    fps.value = String(audioSystemStatus.previewFps);
+  const width = document.getElementById('pixtone-width');
+  if (width && document.activeElement !== width && audioSystemStatus.previewWidth)
+    width.value = String(audioSystemStatus.previewWidth);
 }
 
 function setBoardVolume(value) {
+  const shown = parseInt(value, 10);
   const label = document.getElementById('pixtone-volume-label');
-  if (label) label.textContent = value + '%';
+  if (label) label.textContent = shown + '%';
+  const board = audioSystemStatus.availableSinks?.find(s => s.name?.startsWith('pixtone:') && s.isDefault)
+    || audioSystemStatus.availableSinks?.find(s => s.name?.startsWith('pixtone:'));
+  if (board) board.volume = shown;
+  const badge = document.querySelector('.audio-output-item.active .audio-output-volume');
+  if (badge) badge.textContent = (board?.isMuted ? '\u{1F507}' : '\u{1F50A}') + ' ' + shown + '%';
   clearTimeout(boardVolumeTimer);
   boardVolumeTimer = setTimeout(async () => {
     try {
-      await api.post(`/api/audio/volume?volume=${parseInt(value, 10)}`);
+      await api.post(`/api/audio/volume?volume=${shown}`);
     } catch (error) {
       console.error('Failed to set board volume:', error);
     }
   }, 80);
+}
+
+async function setWallPreview(on) {
+  try {
+    await api.post('/api/audio/pixtone/preview?on=' + (on ? 'true' : 'false'));
+  } catch (error) {
+    console.error('Failed to set wall preview:', error);
+  }
+}
+
+async function setPreviewFps(fps) {
+  try {
+    await api.post('/api/audio/pixtone/preview-fps?fps=' + encodeURIComponent(fps));
+  } catch (error) {
+    console.error('Failed to set preview fps:', error);
+  }
+}
+
+async function setPreviewWidth(width) {
+  try {
+    await api.post('/api/audio/pixtone/preview-width?width=' + encodeURIComponent(width));
+  } catch (error) {
+    console.error('Failed to set preview width:', error);
+  }
 }
 
 async function toggleBoardMute() {

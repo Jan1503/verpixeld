@@ -379,7 +379,9 @@ public class MediaPlayerService : IDisposable
             _isRunning = true;
 
             Console.WriteLine($"[YOUTUBE] Playing audio-only: {audioInfo.Title}");
+            _videoPlayer.SetBoardTitle(audioInfo.Title);
             await _videoPlayer.PlayAudioOnlyAsync(audioInfo.AudioUrl!, loop);
+            _videoPlayer.SetBoardCover(audioInfo.Thumbnail);
 
             if (_videoPlayer.Duration == TimeSpan.Zero && audioInfo.Duration > TimeSpan.Zero)
                 _videoPlayer.SetDuration(audioInfo.Duration);
@@ -432,6 +434,7 @@ public class MediaPlayerService : IDisposable
         Console.WriteLine($"[YOUTUBE] Format: {playbackInfo.Width}x{playbackInfo.Height} ({(playbackInfo.IsAdaptive ? "adaptive" : "combined")})");
 
         _isRunning = true;
+        _videoPlayer.SetBoardTitle(playbackInfo.Title);
 
         Console.WriteLine($"[MEDIA] Using canvas: {_mediaCanvas.Name} ({_mediaCanvas.Width}x{_mediaCanvas.Height}) (hidden until first frame)");
 
@@ -456,6 +459,7 @@ public class MediaPlayerService : IDisposable
         {
             await _videoPlayer.PlayAsync(playbackInfo.VideoUrl!, _mediaCanvas, loop, playVideoAudio);
         }
+        _videoPlayer.SetBoardCover(playbackInfo.Thumbnail);
 
         // Ensure duration is set from yt-dlp metadata if ffprobe couldn't determine it
         if (_videoPlayer.Duration == TimeSpan.Zero && playbackInfo.Duration > TimeSpan.Zero)
@@ -494,7 +498,9 @@ public class MediaPlayerService : IDisposable
         if (_audioEnabled && ModFilePath != null) _audio.PlayMod(ModFilePath);
 
         var playVideoAudio = ModFilePath == null && _audioEnabled;
+        _videoPlayer.SetBoardTitle(null);
         await _videoPlayer.PlayAsync(source, _mediaCanvas, loop, playVideoAudio);
+        _videoPlayer.SetBoardCover(source);
 
         if (!await WaitForPlaybackStartAsync(TimeSpan.FromSeconds(15)))
         {
@@ -646,6 +652,8 @@ public class MediaPlayerService : IDisposable
         NetworkProtocol = null;
 
         // Play directly via the video player's audio-only path (handles HTTP streams with reconnect)
+        _videoPlayer.SetBoardTitle(stationName);
+        _videoPlayer.SetBoardCover(null);
         await _videoPlayer.PlayAudioOnlyAsync(streamUrl, loop: false);
     }
 
@@ -809,7 +817,9 @@ public class MediaPlayerService : IDisposable
         // Pass null canvas to VideoPlayer to indicate audio-only mode
         _mediaCanvas = null;
 
+        _videoPlayer.SetBoardTitle(null);
         await _videoPlayer.PlayAudioOnlyAsync(audioPath, loop);
+        _videoPlayer.SetBoardCover(audioPath);
     }
 
     /// <summary>
@@ -841,7 +851,9 @@ public class MediaPlayerService : IDisposable
         // Audio playback: NO canvas needed
         _mediaCanvas = null;
 
+        _videoPlayer.SetBoardTitle(null);
         await _videoPlayer.PlayAudioOnlyAsync(url, loop);
+        _videoPlayer.SetBoardCover(url);
     }
 
     private bool IsOwnedOverlay(Canvas? canvas) =>
@@ -1072,7 +1084,9 @@ public class MediaPlayerService : IDisposable
         _isRunning = true;
         _mediaCanvas = null; // Audio-only: no canvas needed
 
+        _videoPlayer.SetBoardTitle(null);
         await _videoPlayer.PlayAudioOnlyAsync(filePath);
+        _videoPlayer.SetBoardCover(filePath);
         return true;
     }
 
@@ -1128,7 +1142,9 @@ public class MediaPlayerService : IDisposable
         _isRunning = true;
         _mediaCanvas = null; // Audio-only: no canvas needed
 
+        _videoPlayer.SetBoardTitle(null);
         await _videoPlayer.PlayAudioOnlyAsync(filePath);
+        _videoPlayer.SetBoardCover(filePath);
         return true;
     }
 

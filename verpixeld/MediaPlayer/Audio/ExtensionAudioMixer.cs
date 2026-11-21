@@ -27,8 +27,6 @@ public sealed class ExtensionAudioMixer : IExtensionAudio, IDisposable
     private readonly ConcurrentDictionary<ICanvasAudioSource, byte> _sources = new();
     private readonly CancellationTokenSource _cts = new();
     private uint _rng = 0x6d2b79f5;
-    private int _appliedVolume = -1;
-    private bool _appliedMute;
     private bool _loggedIdle;
 
     public ExtensionAudioMixer(PixToneOutputService vap1)
@@ -167,7 +165,6 @@ public sealed class ExtensionAudioMixer : IExtensionAudio, IDisposable
                 {
                     sender?.Dispose();
                     sender = null;
-                    _appliedVolume = -1;
                     Drop();
                     if (!_loggedIdle)
                     {
@@ -197,12 +194,6 @@ public sealed class ExtensionAudioMixer : IExtensionAudio, IDisposable
                 if (sender == null)
                     Console.WriteLine($"[AUDIO] extension -> {_vap1.Host} vol {_vap1.Volume}");
                 sender ??= new PixToneSender(_vap1.Host);
-                if (_appliedVolume != _vap1.Volume || _appliedMute != _vap1.Muted)
-                {
-                    sender.SetVolume(_vap1.Volume, _vap1.Muted);
-                    _appliedVolume = _vap1.Volume;
-                    _appliedMute = _vap1.Muted;
-                }
                 Array.Clear(stereo);
                 Render(stereo, SampleRate);
                 WritePcm(stereo, pcm);

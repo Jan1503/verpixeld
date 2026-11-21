@@ -23,15 +23,18 @@ public class RenderLoopService : IRenderService, IDisposable
     ///     Creates a new render loop service
     /// </summary>
     public RenderLoopService(CanvasManager canvasManager, IMatrixRenderer matrixRenderer,
-        ImageCorrectionService? imageCorrection = null)
+        ImageCorrectionService? imageCorrection = null, MediaPlayer.Audio.PixToneOutputService? board = null)
     {
         _canvasManager = canvasManager;
         _matrixRenderer = matrixRenderer;
         _imageCorrection = imageCorrection;
+        _board = board;
 
         // Subscribe to canvas manager render events
         _canvasManager.RenderCompleted += OnRenderCompleted;
     }
+
+    private readonly MediaPlayer.Audio.PixToneOutputService? _board;
 
     public void Dispose()
     {
@@ -108,8 +111,9 @@ public class RenderLoopService : IRenderService, IDisposable
 
             MaybeSyncNetworkColorDepth();
 
-            // Render to matrix hardware
+            // Render to matrix hardware. The preview sample, if enabled, runs after this returns.
             _matrixRenderer.RenderFrame(bitmap);
+            _board?.NoteFrame(bitmap);
 
             var renderTime = DateTime.UtcNow - startTime;
 

@@ -70,7 +70,10 @@ public static class AudioEndpoints
                         : new List<AudioOutputService.AudioSink>()),
                     pairedDevices = btPoweredOn
                         ? await bluetoothService.GetPairedDevicesAsync()
-                        : new List<BluetoothAudioService.BluetoothDevice>()
+                        : new List<BluetoothAudioService.BluetoothDevice>(),
+                    wallPreview = vap1.WallPreview,
+                    previewFps = vap1.PreviewFps,
+                    previewWidth = vap1.PreviewWidth
                 };
 
                 return Results.Json(new { success = true, data = status }, _jsonOptions);
@@ -143,6 +146,24 @@ public static class AudioEndpoints
             {
                 return Results.Json(new { success = false, error = ex.Message });
             }
+        });
+
+        group.MapPost("/pixtone/preview", ([FromQuery] bool on) =>
+        {
+            vap1.SetWallPreview(on);
+            return Results.Json(new { success = true, on });
+        });
+
+        group.MapPost("/pixtone/preview-fps", ([FromQuery] int fps) =>
+        {
+            vap1.SetPreviewFps(fps);
+            return Results.Json(new { success = true, fps = vap1.PreviewFps });
+        });
+
+        group.MapPost("/pixtone/preview-width", ([FromQuery] int width) =>
+        {
+            vap1.SetPreviewWidth(width);
+            return Results.Json(new { success = true, width = vap1.PreviewWidth });
         });
 
         async Task<IResult> ScanBoards(CancellationToken ct)

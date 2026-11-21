@@ -73,7 +73,8 @@ public static class ServiceCollectionExtensions
             new RenderLoopService(
                 sp.GetRequiredService<CanvasManager>(),
                 sp.GetRequiredService<IMatrixRenderer>(),
-                sp.GetRequiredService<ImageCorrectionService>()));
+                sp.GetRequiredService<ImageCorrectionService>(),
+                sp.GetRequiredService<MediaPlayer.Audio.PixToneOutputService>()));
 
         services.AddSingleton(sp => new FrameStreamService(sp.GetRequiredService<IRenderService>()));
 

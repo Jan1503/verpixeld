@@ -42,12 +42,15 @@ RUN apt-get update \
       libsmbclient libgnutls30t64 \
       smbclient \
       python3 python3-pip \
+      tzdata \
  && if [ "$VLC" = "1" ]; then \
       apt-get install -y --no-install-recommends \
         libvlc-dev vlc-plugin-base vlc-plugin-video-output; \
     fi \
  && echo /usr/local/lib > /etc/ld.so.conf.d/local-ffmpeg.conf \
  && ldconfig \
+ && ln -snf /usr/share/zoneinfo/Europe/Berlin /etc/localtime \
+ && echo Europe/Berlin > /etc/timezone \
  && pip3 install --no-cache-dir --break-system-packages yt-dlp \
  && rm -rf /var/lib/apt/lists/* \
  && ffmpeg -hide_banner -version \
@@ -64,6 +67,7 @@ ENV PATH="/usr/local/bin:${PATH}" \
     LD_LIBRARY_PATH="/usr/local/lib:/usr/lib/x86_64-linux-gnu" \
     VLC_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/vlc/plugins" \
     ASPNETCORE_ENVIRONMENT=Docker \
+    TZ=Europe/Berlin \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
     # Survive Portainer/TrueNAS overwriting the environment name (they often set Production).
     App__OutputMode=network \

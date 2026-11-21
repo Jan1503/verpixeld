@@ -47,6 +47,7 @@ public class VideoPlayer : IDisposable
     // Media metadata (extracted from file)
     private bool _currentPlayAudio;
     private string? _currentVideoPath;
+    private string? _boardTitle;
     private TimeSpan _duration;
     private Process? _ffmpegProcess;
     private TimeSpan _pausedDuration;
@@ -78,6 +79,39 @@ public class VideoPlayer : IDisposable
     public bool IsLooping { get; private set; }
 
     public string? CurrentVideo => _currentVideoPath != null ? Path.GetFileName(_currentVideoPath) : null;
+
+    /// <summary>Title shown on the audio board. YouTube passes the real title; files use tags or the filename.</summary>
+    public void SetBoardTitle(string? title)
+    {
+        _boardTitle = string.IsNullOrWhiteSpace(title) ? null : title.Trim();
+    }
+
+    private string BoardTitle()
+    {
+        if (!string.IsNullOrWhiteSpace(_boardTitle)) return _boardTitle;
+        var file = CurrentVideo;
+        if (!string.IsNullOrWhiteSpace(file))
+        {
+            var q = file.IndexOf('?');
+            if (q >= 0) file = file[..q];
+            if (file.Equals("videoplayback", StringComparison.OrdinalIgnoreCase)) file = null;
+        }
+        if (Metadata != null && Metadata.HasMetadata)
+            return Metadata.DisplayString(file);
+        return file ?? "";
+    }
+
+    public void SetBoardCover(string? source)
+    {
+        if (!_vap1.IsSelected) return;
+        _vap1.ShowCover(source);
+    }
+
+    private void PublishBoardTitle()
+    {
+        if (!_vap1.IsSelected) return;
+        _vap1.SetTrackTitle(BoardTitle());
+    }
     public double Fps { get; private set; } = 30;
 
     public TimeSpan Duration => _duration;
@@ -183,7 +217,11 @@ public class VideoPlayer : IDisposable
         }
 
         // Extract metadata (title, artist, etc.) in background - don't block playback
-        _ = Task.Run(async () => { Metadata = await MediaProbeService.ExtractMetadataAsync(videoSource); });
+        _ = Task.Run(async () =>
+        {
+            Metadata = await MediaProbeService.ExtractMetadataAsync(videoSource);
+            if (string.IsNullOrWhiteSpace(_boardTitle)) PublishBoardTitle();
+        });
 
         _currentVideoPath = videoSource;
         Fps = info.Fps;
@@ -264,7 +302,11 @@ public class VideoPlayer : IDisposable
         }
 
         // Extract metadata (title, artist, etc.) in background
-        _ = Task.Run(async () => { Metadata = await MediaProbeService.ExtractMetadataAsync(audioSource); });
+        _ = Task.Run(async () =>
+        {
+            Metadata = await MediaProbeService.ExtractMetadataAsync(audioSource);
+            if (string.IsNullOrWhiteSpace(_boardTitle)) PublishBoardTitle();
+        });
 
         _currentVideoPath = audioSource;
         Fps = 0; // No video
@@ -542,7 +584,7 @@ public class VideoPlayer : IDisposable
                     if (frameCount == 1 && !audioStarted && vap1Input != null)
                     {
                         Console.WriteLine("[VIDEO] Adaptive: First video frame received, starting PixTone...");
-                        _audioProcess = _vap1.StartDecoder(vap1Input, CurrentVideo, ct);
+                        _audioProcess = _vap1.StartDecoder(vap1Input, BoardTitle(), ct);
                         audioStarted = _audioProcess != null;
                         var audioBufferDelayMs = 500 - _audioSyncOffsetMs;
                         if (audioStarted && audioBufferDelayMs > 0)
@@ -714,7 +756,7 @@ public class VideoPlayer : IDisposable
                 var vap1Args =
                     $"-hide_banner -loglevel error -nostats {seekArg}{networkOpts}{realtimeFlag}-i \"{audioPath}\" {AudioMap}-vn";
                 Console.WriteLine($"[PIXTONE] FFmpeg args: {MediaPath.Redact(vap1Args)}");
-                _ffmpegProcess = _vap1.StartDecoder(vap1Args, Path.GetFileName(audioPath), ct);
+                _ffmpegProcess = _vap1.StartDecoder(vap1Args, BoardTitle(), ct);
                 if (_ffmpegProcess == null)
                 {
                     OnError?.Invoke("Failed to start PixTone audio");
@@ -919,6 +961,7 @@ public class VideoPlayer : IDisposable
         IsPlaying = false;
         IsPaused = false;
         _currentVideoPath = null;
+        SetBoardCover(null);
         _currentAudioUrl = null; // Clear adaptive stream audio URL
         Metadata = null;
 
@@ -1142,7 +1185,7 @@ public class VideoPlayer : IDisposable
             {
                 var delay = audioDelayMs > 0 ? $"-af adelay={audioDelayMs}:all=1 " : "";
                 var input = $"{seekArg}{networkOpts}{realtimeFlag}-i \"{videoPath}\" {AudioMap}-vn {delay}";
-                _audioProcess = _vap1.StartDecoder(input.Trim(), Path.GetFileName(videoPath), ct);
+                _audioProcess = _vap1.StartDecoder(input.Trim(), BoardTitle(), ct);
                 Console.WriteLine(_audioProcess != null
                     ? $"[VIDEO] PixTone {_vap1.Host} hold {videoHoldMs}ms adelay {audioDelayMs}ms slider {_audioSyncOffsetMs}ms"
                     : "[VIDEO] PixTone failed — video only");

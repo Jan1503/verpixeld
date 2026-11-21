@@ -2603,6 +2603,25 @@
                 <span id="pixtone-volume-label" style="min-width:3rem;text-align:right">70%</span>
                 <button class="btn btn-small btn-secondary" id="pixtone-mute" type="button" onclick="toggleBoardMute()">Mute</button>
               </div>
+              <label class="settings-row" style="margin-top:8px;align-items:center;gap:8px">
+                <input id="pixtone-wall" type="checkbox" onchange="setWallPreview(this.checked)">
+                <span>Wall image on the idle screen</span>
+                <label for="pixtone-fps" style="margin-left:12px">fps</label>
+                <select id="pixtone-fps" onchange="setPreviewFps(this.value)">
+                  <option value="4">4</option>
+                  <option value="8">8</option>
+                  <option value="15">15</option>
+                  <option value="20" selected>20</option>
+                  <option value="25">25</option>
+                  <option value="30">30</option>
+                </select>
+                <label for="pixtone-width" style="margin-left:12px">width</label>
+                <select id="pixtone-width" onchange="setPreviewWidth(this.value)">
+                  <option value="160">160</option>
+                  <option value="240">240</option>
+                  <option value="480" selected>480</option>
+                </select>
+              </label>
               <p class="text-muted" style="margin-top:6px">The board page is <code>http://&lt;ip&gt;:5000/</code>. Scan only reaches a /24 that this container owns, so type the address from the display when it is on another network.</p>
             </div>
             

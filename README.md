@@ -98,6 +98,7 @@ verpixeld/           this host (web UI, media, outputs)
 CanvasManagement/    canvas engine, extensions, filters, deploy.ps1
 pixplane/            BGRA → bit-plane UDP library
 pixtone/                48 kHz stereo → paced UDP for the audio board
+verpixeld-audio/     RP2350 + WM8960 firmware (2.8" and 3.5" front panel)
 DesktopStreamer/     DeskCast (Windows capture)
 verpixeld-panel/     RP2350 + W6300 firmware
 ```
@@ -107,7 +108,8 @@ verpixeld-panel/     RP2350 + W6300 firmware
 | [verpixeld](https://github.com/Jan1503/verpixeld) | This application |
 | [canvasmanagement](https://github.com/Jan1503/canvasmanagement) | Canvas engine, extensions, filters, `deploy.ps1` |
 | [pixplane](https://github.com/Jan1503/pixplane) | Panel protocol (stream, discovery, `/cmd`) |
-| [pixtone](https://github.com/Jan1503/pixtone) | Audio protocol (48 kHz stereo, volume, discovery) |
+| [pixtone](https://github.com/Jan1503/pixtone) | Audio protocol (48 kHz stereo, volume, preview, cover) |
+| [verpixeld-audio](https://github.com/Jan1503/verpixeld-audio) | Audio-board firmware, 2.8" ILI9341 and 3.5" ILI9488 |
 | [verpixeld-panel](https://github.com/Jan1503/verpixeld-panel) | ICND1065L firmware 1.7 |
 | [deskcast](https://github.com/Jan1503/deskcast) | Windows desktop → panel or verpixeld |
 | [rpi-rgb-led-matrix](https://github.com/hzeller/rpi-rgb-led-matrix) | GPIO HUB75 driver (not vendored) |
@@ -119,6 +121,10 @@ CanvasManagement is the shared framework ([Jan1503/canvasmanagement](https://git
 ## What's new
 
 Dated from the public GitHub history so you can follow what landed when. Newest first.
+
+### 2026-11-21 — Audio board display
+
+The same RP2350 can wear a 2.8" ILI9341 or a 3.5" ILI9488. Both show volume, mute, title, clock, VU, a wall preview and cover art. The 2.8" preview is the 160-wide mode, doubled to 320×240. The 3.5" preview is 160, 240 or 480, letterboxed. Cover art is 80×80 on the 3.5" and 40×40 on the 2.8". Firmware, pinout and the two sketches are in [verpixeld-audio](https://github.com/Jan1503/verpixeld-audio).
 
 ### 2026-11-19 — Network audio board
 
