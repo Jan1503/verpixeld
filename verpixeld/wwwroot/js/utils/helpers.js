@@ -287,17 +287,8 @@ async function refreshAllCanvasSelectors() {
     fillSelect('gallery-slideshow-canvas');
     fillSelect('upload-target-canvas');
     
-    // Media selector keeps a Default suffix on Main
-    const mediaSelect = document.getElementById('media-target-canvas');
-    if (mediaSelect) {
-      const currentValue = mediaSelect.value;
-      mediaSelect.innerHTML = canvases.map(c => 
-        `<option value="${c.name}">${c.name}${c.name === 'Main' ? ' (Default)' : ''}</option>`
-      ).join('');
-      if (canvases.some(c => c.name === currentValue)) {
-        mediaSelect.value = currentValue;
-      }
-    }
+    // The media target list has the media layer first; media-player.js builds it.
+    if (typeof populateMediaCanvasSelector === 'function') populateMediaCanvasSelector();
 
     // Update visualizer canvas selector
     if (typeof refreshVisualizerStatus === 'function') {

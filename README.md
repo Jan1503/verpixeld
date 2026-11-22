@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="verpixeld/docs/webgui.jpg" alt="verpixeld Studio: 256×128 wall, layers, Home Assistant tiles" width="960">
+  <img src="verpixeld/docs/webgui.jpg" alt="verpixeld Studio on a 256×128 wall: player bar with a playing video, the media layer beside a clock and a lava lamp over a plasma background" width="800">
 </p>
 
 ---
@@ -499,6 +499,10 @@ Search and play music from YouTube Music or internet radio — by voice or throu
 - **Voice-Triggered** — Say "Hey Pixel, spiele Bohemian Rhapsody von Queen" to search and play instantly
 - **Genre Radio** — Say "Hey Pixel, spiele Trance Musik" to start endless genre playback with shuffled tracks and automatic queue refill
 - **Internet Radio** — Search and play live internet radio stations by genre using the Radio Browser API (free, no API key required)
+<p align="center">
+  <img src="verpixeld/docs/radio.jpg" alt="Radio page: saved stations, Radio Browser search, alarm clock and songs" width="620">
+</p>
+
 - **Radio page** (Media → 📻 Radio) — Saved stations with logos (play, reorder, rename, remove), search by name, genre and country sorted by plays, votes, trend or bitrate, genre chips, stations by stream address, recently played, song titles read from the stream (ICY), earlier songs, previous / next station, import and export as JSON
 - **Sleep timer** — 15 minutes to 2 hours; the audio board fades out over the last 20 seconds (`/api/sleep`)
 - **Radio alarm clock** — Alarms with weekdays, station, target volume and fade-in on the Radio page (`/api/alarms`); the first alarm is also on the audio board's panel

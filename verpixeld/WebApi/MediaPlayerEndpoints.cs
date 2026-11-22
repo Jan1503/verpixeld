@@ -62,7 +62,7 @@ public static class MediaPlayerEndpoints
                     networkProtocol = mediaService.NetworkProtocol,
                     seekingSupported = mediaService.SeekingSupported,
                     // Target canvas (dropdown) vs the canvas that is actually playing
-                    targetCanvasName = mediaService.TargetCanvasName ?? "Main",
+                    targetCanvasName = mediaService.TargetCanvasName ?? MediaPlaybackTarget.OverlayName,
                     playbackCanvasName = mediaService.PlaybackCanvasName,
                     // Video scaling
                     scaleFilter = mediaService.ScaleFilter,
