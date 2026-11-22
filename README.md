@@ -122,6 +122,18 @@ CanvasManagement is the shared framework ([Jan1503/canvasmanagement](https://git
 
 Dated from the public GitHub history so you can follow what landed when. Newest first.
 
+### 2026-11-22 — Media player, internet radio, audio board as a remote
+
+- **Media layer.** Video plays on its own layer `MediaPlayer` (z 200: above the layout, below alerts and toasts), not on Main. Move and resize it in Studio while something plays; verpixeld keeps the place and size (`MediaLayer` in the settings). If a video's canvas disappears (Main deleted or recreated, a layout loaded), the video carries on on the media layer at the same position. A new video on another canvas clears the old frame.
+- **Player bar.** Redesigned after the radio card: state line, picture of what plays (video frame, embedded cover, station logo, YouTube thumbnail), large play button, drag-to-seek progress bar, `LIVE` for radio, volume with its value. Mute and volume act on the audio board when it is the output. Play on a stopped bar starts the last thing again from any source.
+- **Seeking.** The position waits at the target until the first frame (or the first sound) of the restarted FFmpeg; a seek no longer counts as the end of playback; quick seeks queue and the last one wins.
+- **Audio tracks** are listed for whatever plays (library, share, favorite, history, panel); each new film starts on track 1; favorites remember their track.
+- **Favorites and history** find library files in Docker (`Media/…`), get pictures for network files and embedded covers, store library-relative paths, never store a share password, and replays move to the top of "Recently played". Music playlists are the folder of the started track.
+- **Faster status.** Library listings are cached for a minute (the status poll used to walk the whole NAS three times a second).
+- **Internet radio** (Media → 📻 Radio): saved stations, Radio Browser search, song titles from the stream, station covers, alarms, songs heard and remembered, sleep timer.
+- **Audio board panel.** The 3.5" verpixeld-audio panel is a remote: transport, favorites, radio, layouts, wall brightness, wall spectrum, shuffle, repeat, sleep, alarm, A/V sync, remember song. A restarted board gets its title and cover again.
+- **Home Assistant:** a second MQTT device `verpixeld audio`.
+
 ### 2026-11-21 — Audio board display
 
 The same RP2350 can wear a 2.8" ILI9341 or a 3.5" ILI9488. Both show volume, mute, title, clock, VU, a wall preview and cover art. The 2.8" preview is the 160-wide mode, doubled to 320×240. The 3.5" preview is 160, 240 or 480, letterboxed. Cover art is 80×80 on the 3.5" and 40×40 on the 2.8". Firmware, pinout and the two sketches are in [verpixeld-audio](https://github.com/Jan1503/verpixeld-audio).
@@ -327,6 +339,8 @@ Pull live state from Home Assistant over its WebSocket API (long-lived token, ke
 
 **MQTT device** — with Mosquitto / MQTT integration, the wall appears under **Devices → verpixeld**. Notify + dashboard text for toasts, layout select, brightness, night-mode schedule switch, night-active binary sensor. Native HA notification drawer (the bell) stays HA-side; use `persistent_notification` if you want both the bell and the wall.
 
+**Audio board device** — with an audio board selected, a second device **verpixeld audio** appears: volume, mute, now playing, playback state, radio station, play/pause, stop, next, previous, remember song, sleep timer, alarm, next alarm, wall spectrum and board online (topics `verpixeld/audio/#`).
+
 **REST:** `GET /api/homeassistant/status`, `GET /api/homeassistant/entities`, `POST /api/homeassistant/toast`, `POST /api/homeassistant/notify`.
 
 ### 🧲 Live Layer Editor
@@ -368,7 +382,9 @@ Interactive drawing with freehand tools, shapes, color picker, and the ability t
 
 Full video and audio playback system powered by FFmpeg:
 
-- **Playback canvas** — Target empty/`Main` plays on overlay canvas `MediaPlayer`; pick another canvas to play there. Main can still run an extension beside video.
+- **Media layer** — By default video plays on its own canvas `MediaPlayer` (z 200, above the layout, below alerts and toasts), so Main keeps its content. Move and resize it in Studio while something plays; the place and size are kept (`MediaLayer` in the settings) and a playing video follows within a second. Pick another canvas under "Target Canvas" to play there instead. When the playing canvas goes away (deleted, recreated, layout loaded) the video continues on the media layer
+- **Player bar** — State, picture of what plays, transport, drag-to-seek progress bar, `LIVE` for radio, volume and mute (on the audio board when it is the output). Play on a stopped bar starts the last item again, whatever its source (`POST /api/media/replay`)
+- **Audio tracks** — Track list of whatever plays (`GET /api/media/audio-tracks-current`); a new film starts on track 1
 - **Local files** — Folder browser (same UX as Network Shares). Docker: the `/app/Media` mount. Pi: `Media/Videos` and `Media/Audio` next to the DLL
 - **Network Streaming** — Native SMB/CIFS via FFmpeg libsmbclient (image includes it; on the Pi compile with `--enable-libsmbclient`)
 - **YouTube** — Stream YouTube videos via `yt-dlp` with automatic format selection
@@ -378,9 +394,9 @@ Full video and audio playback system powered by FFmpeg:
 - **A/V Sync Control** — Real-time audio/video synchronization with configurable offset (±5 seconds)
 - **Configurable Video Scaling** — Choose FFmpeg scale filter per stream (area, lanczos, bicubic, gauss, etc.)
 - **Hardware Acceleration** — V4L2 M2M hardware decoding on Raspberry Pi for efficient video playback
-- **Seeking Support** — Full seek support for local and network files
+- **Seeking Support** — Full seek support for local and network files. The position holds the target until the restarted FFmpeg shows its first frame; quick seeks queue and the last one wins
 - **Metadata Extraction** — ID3 tags and container metadata (title, artist, album, etc.)
-- **Playlist Support** — Queue management with shuffle, repeat, and auto-advance
+- **Playlist Support** — The folder of the started track, with shuffle, repeat and auto-advance
 - **Pause/Resume** — Signal-based pause using SIGSTOP/SIGCONT (Linux)
 - **Pre-buffering** — Configurable frame buffering for smooth A/V sync on network streams
 - **Audio Visualizer** — Real-time FFT-based audio visualization with multiple modes and color schemes
@@ -391,8 +407,9 @@ Save and replay your media with full context:
 
 - **Favorites** — Save any currently playing media (video, audio, YouTube, network stream) with a custom name
 - **A/V Sync Remembered** — Audio sync offset is saved per-favorite and re-applied on playback
+- **Audio Track Remembered** — The audio track chosen when saving is used whenever the favorite starts (web, panel, auto-play, Home Assistant)
 - **Scale Filter Remembered** — The chosen video scaling algorithm is saved and restored
-- **Thumbnail Extraction** — Automatic thumbnail generation for videos in favorites and history lists
+- **Thumbnail Extraction** — Pictures for favorites and history: a video frame, or the cover embedded in an audio file; network files get theirs in the background. A replay keeps the picture
 - **Recently Played History** — Persistent list of recently played media with one-click replay
 - **Auto-Play** — Sequential or shuffled playback through your entire favorites list with animated loading screens between tracks
 
@@ -482,6 +499,13 @@ Search and play music from YouTube Music or internet radio — by voice or throu
 - **Voice-Triggered** — Say "Hey Pixel, spiele Bohemian Rhapsody von Queen" to search and play instantly
 - **Genre Radio** — Say "Hey Pixel, spiele Trance Musik" to start endless genre playback with shuffled tracks and automatic queue refill
 - **Internet Radio** — Search and play live internet radio stations by genre using the Radio Browser API (free, no API key required)
+- **Radio page** (Media → 📻 Radio) — Saved stations with logos (play, reorder, rename, remove), search by name, genre and country sorted by plays, votes, trend or bitrate, genre chips, stations by stream address, recently played, song titles read from the stream (ICY), earlier songs, previous / next station, import and export as JSON
+- **Sleep timer** — 15 minutes to 2 hours; the audio board fades out over the last 20 seconds (`/api/sleep`)
+- **Radio alarm clock** — Alarms with weekdays, station, target volume and fade-in on the Radio page (`/api/alarms`); the first alarm is also on the audio board's panel
+- **Songs** — Every song title heard on the radio, and songs remembered from the panel, the web page or Home Assistant, each one click away from a YouTube Music search (`/api/songs`)
+- **Wall spectrum from the audio board** — The visualizer can run on the audio board's spectrum, so the wall gets one without a local audio device
+- **Home Assistant: audio board** — A second MQTT device `verpixeld audio`: volume, mute, now playing, playback state, radio station, play/pause, stop, next, previous, remember song, sleep timer, alarm, next alarm, wall spectrum, board online
+- **Audio board panel** — The 3.5" verpixeld-audio panel plays favorites and radio stations, loads layouts, sets wall brightness, shuffle, repeat, sleep timer and A/V sync
 - **Click-to-Play Results** — Search results displayed as a list with title, artist, album, and duration
 - **yt-dlp Playback** — Uses the existing media player pipeline (yt-dlp + FFmpeg) for reliable playback
 - **Error Handling** — Restricted or unavailable videos show a clear error message in the UI and via voice
@@ -770,7 +794,17 @@ verpixeld exposes a comprehensive REST API for integration with external systems
 | `POST` | `/api/media/play/{filename}` | Play a local video file |
 | `POST` | `/api/media/pause` | Toggle pause/resume |
 | `POST` | `/api/media/stop` | Stop playback |
-| `POST` | `/api/media/seek` | Seek to position |
+| `POST` | `/api/media/seek` | Seek to position (`position=` seconds or `percent=`) |
+| `POST` | `/api/media/replay` | Start the last played item again (any source) |
+| `GET` | `/api/media/current-thumbnail` | Picture of what plays now |
+| `GET` | `/api/media/audio-tracks-current` | Audio tracks of what plays now |
+| `POST` | `/api/media/audio-track` | Switch audio track (`index=`) |
+| `GET` | `/api/radio/stations` | Saved radio stations (also `POST`, `PUT /{id}`, `DELETE /{id}`, `/{id}/play`, `/{id}/move`) |
+| `GET` | `/api/radio/search` | Radio Browser search (`name`, `tag`, `country`, `order`) |
+| `GET` | `/api/radio/now` | Station, song title, earlier songs, sleep timer |
+| `GET`/`POST` | `/api/alarms` | Radio alarms (`DELETE /{id}`, `/{id}/test`, `/stop`) |
+| `GET` | `/api/songs` | Songs heard on the radio and remembered (`POST /save`) |
+| `GET`/`POST` | `/api/sleep` | Sleep timer (`minutes=`; 0 = off) |
 | `POST` | `/api/media/scale-filter` | Set the video scaling algorithm |
 | `GET` | `/api/media/scale-filters` | List available FFmpeg scale filters |
 | `POST` | `/api/youtube/play` | Play a YouTube URL or generic stream |

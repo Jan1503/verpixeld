@@ -52,6 +52,56 @@ public static class MediaLibrary
         return null;
     }
 
+    /// <summary>
+    ///     Library-relative path of a file ("Movies/Film.mkv"), so favorites and history find it again
+    ///     in Docker (Media/…) and on the Pi (Media/Videos/…). Null when the file is outside the library.
+    /// </summary>
+    public static string? ToRelative(string? fullPath, bool video)
+    {
+        if (string.IsNullOrWhiteSpace(fullPath) || !Path.IsPathRooted(fullPath)) return null;
+        var full = Path.GetFullPath(fullPath);
+        var roots = video
+            ? new[] { VideoRoot, AppPaths.VideosDir, AppPaths.MediaDir }
+            : new[] { AudioRoot, AppPaths.AudioDir, AppPaths.MediaDir };
+        foreach (var root in roots)
+        {
+            if (string.IsNullOrWhiteSpace(root)) continue;
+            var r = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (full.StartsWith(r, StringComparison.OrdinalIgnoreCase))
+                return Path.GetRelativePath(r, full).Replace('\\', '/');
+        }
+        return null;
+    }
+
+    /// <summary>
+    ///     A stored local path: library-relative, or (older entries) only the file name, which is
+    ///     then looked for in the library.
+    /// </summary>
+    public static string? FindLocal(string? stored, bool video)
+    {
+        if (string.IsNullOrWhiteSpace(stored)) return null;
+        var hit = video ? ResolveVideo(stored) : ResolveAudio(stored);
+        if (hit != null) return hit;
+        var name = Path.GetFileName(stored.Replace('\\', '/'));
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        var root = video ? VideoRoot : AudioRoot;
+        if (!Directory.Exists(root)) return null;
+        try
+        {
+            return Directory.EnumerateFiles(root, name, new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                IgnoreInaccessible = true,
+                MaxRecursionDepth = 8,
+                MatchCasing = MatchCasing.CaseInsensitive
+            }).FirstOrDefault();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public static string? ParentPath(string? current)
     {
         if (string.IsNullOrEmpty(current)) return null;
@@ -150,7 +200,34 @@ public static class MediaLibrary
         return result;
     }
 
+    // Walking a NAS library takes seconds; the media status (asked every second) lists it three
+    // times. Listings are kept for a minute and refreshed in the background.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime At, IReadOnlyList<string> List)> ListCache = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> ListRefreshing = new();
+
+    /// <summary>Forget cached listings (after an upload).</summary>
+    public static void InvalidateListings() => ListCache.Clear();
+
     public static IReadOnlyList<string> ListRelative(string root, string[] extensions)
+    {
+        var key = root + "|" + string.Join(",", extensions);
+        if (ListCache.TryGetValue(key, out var hit))
+        {
+            if (DateTime.UtcNow - hit.At > TimeSpan.FromSeconds(60) && ListRefreshing.TryAdd(key, 0))
+                _ = Task.Run(() =>
+                {
+                    try { ListCache[key] = (DateTime.UtcNow, ListRelativeNow(root, extensions)); }
+                    catch { /* keep the old list */ }
+                    finally { ListRefreshing.TryRemove(key, out _); }
+                });
+            return hit.List;
+        }
+        var list = ListRelativeNow(root, extensions);
+        ListCache[key] = (DateTime.UtcNow, list);
+        return list;
+    }
+
+    private static IReadOnlyList<string> ListRelativeNow(string root, string[] extensions)
     {
         if (!Directory.Exists(root)) return [];
         var rootFull = Path.GetFullPath(root);

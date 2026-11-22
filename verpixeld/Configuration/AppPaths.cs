@@ -42,6 +42,7 @@ public static class AppPaths
     public static readonly string Playlist = Path.Combine(DataDir, "playlist.json");
     public static readonly string CanvasRotations = Path.Combine(DataDir, "canvas_rotations.json");
     public static readonly string PlayHistory = Path.Combine(DataDir, "play_history.json");
+    public static readonly string RadioStations = Path.Combine(DataDir, "radio_stations.json");
     public static readonly string AiHistory = Path.Combine(DataDir, "ai_history.json");
     public static readonly string Drawings = Path.Combine(DataDir, "drawings.json");
     public static readonly string KeywordModel = Path.Combine(DataDir, "keyword_model.table");

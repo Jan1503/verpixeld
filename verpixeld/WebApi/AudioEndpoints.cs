@@ -73,7 +73,8 @@ public static class AudioEndpoints
                         : new List<BluetoothAudioService.BluetoothDevice>(),
                     wallPreview = vap1.WallPreview,
                     previewFps = vap1.PreviewFps,
-                    previewWidth = vap1.PreviewWidth
+                    previewWidth = vap1.PreviewWidth,
+                    previewFill = vap1.PreviewFill
                 };
 
                 return Results.Json(new { success = true, data = status }, _jsonOptions);
@@ -164,6 +165,12 @@ public static class AudioEndpoints
         {
             vap1.SetPreviewWidth(width);
             return Results.Json(new { success = true, width = vap1.PreviewWidth });
+        });
+
+        group.MapPost("/pixtone/preview-fill", ([FromQuery] bool on) =>
+        {
+            vap1.SetPreviewFill(on);
+            return Results.Json(new { success = true, on });
         });
 
         async Task<IResult> ScanBoards(CancellationToken ct)

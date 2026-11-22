@@ -79,11 +79,18 @@ public class FavoritesService
                 // Update existing instead of adding duplicate
                 existing.Name = item.Name;
                 existing.AvSyncOffset = item.AvSyncOffset;
-                existing.Thumbnail = item.Thumbnail;
+                existing.AudioTrack = item.AudioTrack;
+                if (!string.IsNullOrEmpty(item.Thumbnail)) existing.Thumbnail = item.Thumbnail;
                 SaveFavorites();
                 return existing;
             }
-            
+
+            // A thumbnail the history already has saves another ffmpeg run.
+            if (string.IsNullOrEmpty(item.Thumbnail))
+                item.Thumbnail = _history.FirstOrDefault(h =>
+                    h.Type == item.Type && h.GetSourceIdentifier() == item.GetSourceIdentifier() &&
+                    !string.IsNullOrEmpty(h.Thumbnail))?.Thumbnail;
+
             _favorites.Add(item);
             SaveFavorites();
             
@@ -163,12 +170,19 @@ public class FavoritesService
         Console.WriteLine($"[HISTORY] AddToHistory called: {item.Name} ({item.Type}), thumbnail: {(item.Thumbnail != null ? $"{item.Thumbnail.Length} chars" : "null")}");
         lock (_lock)
         {
-            // Remove existing entry with same source
-            _history.RemoveAll(h => 
-                h.Type == item.Type && 
-                h.GetSourceIdentifier() == item.GetSourceIdentifier());
-            
             SanitizeNetwork(item);
+            var id = item.GetSourceIdentifier();
+
+            // Replaying keeps the picture it had, or takes the favorite's.
+            if (string.IsNullOrEmpty(item.Thumbnail))
+                item.Thumbnail = _history.FirstOrDefault(h => h.Type == item.Type && h.GetSourceIdentifier() == id &&
+                                                              !string.IsNullOrEmpty(h.Thumbnail))?.Thumbnail
+                                 ?? _favorites.FirstOrDefault(f => f.Type == item.Type && f.GetSourceIdentifier() == id &&
+                                                                   !string.IsNullOrEmpty(f.Thumbnail))?.Thumbnail;
+
+            // Remove existing entry with same source
+            _history.RemoveAll(h => h.Type == item.Type && h.GetSourceIdentifier() == id);
+
             item.PlayedAt = DateTime.UtcNow;
             
             // Add to beginning
@@ -207,6 +221,46 @@ public class FavoritesService
             _history.RemoveAt(index);
             SaveHistory();
             return true;
+        }
+    }
+
+    /// <summary>True when history or favorites already hold a picture for this source.</summary>
+    public bool HasThumbnail(MediaItemType type, string sourceId)
+    {
+        lock (_lock)
+        {
+            return _history.Any(h => h.Type == type && h.GetSourceIdentifier() == sourceId && !string.IsNullOrEmpty(h.Thumbnail)) &&
+                   _favorites.Where(f => f.Type == type && f.GetSourceIdentifier() == sourceId)
+                       .All(f => !string.IsNullOrEmpty(f.Thumbnail));
+        }
+    }
+
+    /// <summary>
+    ///     A picture made after the fact (network files take a while): every history entry and
+    ///     favorite for this source that has none gets it.
+    /// </summary>
+    public void SetThumbnail(MediaItemType type, string sourceId, string thumbnail)
+    {
+        if (string.IsNullOrEmpty(thumbnail)) return;
+        lock (_lock)
+        {
+            var h = 0;
+            foreach (var item in _history.Where(x => x.Type == type && x.GetSourceIdentifier() == sourceId &&
+                                                     string.IsNullOrEmpty(x.Thumbnail)))
+            {
+                item.Thumbnail = thumbnail;
+                h++;
+            }
+            var f = 0;
+            foreach (var fav in _favorites.Where(x => x.Type == type && x.GetSourceIdentifier() == sourceId &&
+                                                      string.IsNullOrEmpty(x.Thumbnail)))
+            {
+                fav.Thumbnail = thumbnail;
+                f++;
+            }
+            if (h > 0) SaveHistory();
+            if (f > 0) SaveFavorites();
+            if (h + f > 0) Console.WriteLine($"[HISTORY] Thumbnail for {sourceId} ({h} history, {f} favorites)");
         }
     }
 
@@ -353,6 +407,8 @@ public class FavoriteItem
     // Settings
     public int AvSyncOffset { get; set; }
     public string? ScaleFilter { get; set; }  // FFmpeg scaling algorithm (null = auto)
+    /// <summary>Audio track (0-based) chosen when the favorite was saved; null = the first.</summary>
+    public int? AudioTrack { get; set; }
     
     // Optional thumbnail (base64 or URL)
     public string? Thumbnail { get; set; }

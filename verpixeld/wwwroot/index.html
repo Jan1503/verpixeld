@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="/css/forms.css?v=20260817a">
     <link rel="stylesheet" href="/css/cards.css?v=20260208a">
     <link rel="stylesheet" href="/css/modals.css?v=20260208a">
-    <link rel="stylesheet" href="/css/tabs.css?v=20260208a">
+    <link rel="stylesheet" href="/css/tabs.css?v=20261122c">
     <link rel="stylesheet" href="/css/features/canvas.css?v=20260208a">
     <link rel="stylesheet" href="/css/features/filters.css?v=20260825a">
     <link rel="stylesheet" href="/css/features/layouts.css?v=20260208a">
@@ -26,8 +26,9 @@
     <link rel="stylesheet" href="/css/features/camera-stream.css?v=20260208a">
     <link rel="stylesheet" href="/css/features/media-player.css?v=20260208a">
     <link rel="stylesheet" href="/css/features/network-shares.css?v=20260824a">
-    <link rel="stylesheet" href="/css/features/audio-output.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/audio-output.css?v=20261121a">
     <link rel="stylesheet" href="/css/features/favorites.css?v=20260208a">
+    <link rel="stylesheet" href="/css/features/radio.css?v=20261122b">
     <link rel="stylesheet" href="/css/features/console-log.css?v=20260208a">
     <link rel="stylesheet" href="/css/features/image-upload.css?v=20260208c">
     <link rel="stylesheet" href="/css/features/ai-art.css?v=20260829c">
@@ -117,33 +118,41 @@
 
     <!-- Media Player Bar (only visible when playing) -->
     <div class="media-player-bar hidden" id="media-player-bar">
-      <div class="media-player-info">
-        <span class="media-player-icon" id="media-player-icon">&#127916;</span>
-        <div class="media-player-title-container">
-          <span class="media-player-title" id="media-player-title">No media</span>
+      <div class="mpb-art"><span class="media-player-icon" id="media-player-icon">🎬</span></div>
+      <div class="mpb-main">
+        <div class="mpb-top">
+          <div class="mpb-text">
+            <div class="mpb-state" id="media-player-state"><span class="mpb-dot"></span><span id="media-player-state-text">STOPPED</span></div>
+            <div class="media-player-title-container">
+              <span class="media-player-title" id="media-player-title">No media</span>
+            </div>
+          </div>
+          <div class="media-player-controls">
+            <button class="media-player-btn media-player-btn-small" id="media-shuffle-btn" onclick="toggleShuffleMode()" title="Shuffle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg></button>
+            <button class="media-player-btn" id="media-prev-btn" onclick="playPreviousTrack()" title="Previous"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2.5v14H6zM20 5v14L9.5 12z"/></svg></button>
+            <button class="media-player-btn mpb-play" id="media-pause-btn" onclick="toggleMediaPause()" title="Play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 4.5v15l12-7.5z"/></svg></button>
+            <button class="media-player-btn" id="media-next-btn" onclick="playNextTrack()" title="Next"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 5H18v14h-2.5zM4 5v14l10.5-7z"/></svg></button>
+            <button class="media-player-btn media-player-btn-small" id="media-repeat-btn" onclick="toggleRepeatMode()" title="Repeat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>
+            <button class="media-player-btn mpb-stop" id="media-stop-btn" onclick="stopMediaPlayback()" title="Stop"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+          </div>
+          <div class="media-player-volume">
+            <button class="media-player-btn media-player-btn-small" id="media-mute-btn" onclick="toggleMediaMute()" title="Mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg></button>
+            <input type="range" class="media-player-volume-slider" id="media-volume-slider" min="0" max="100" value="70"
+                   style="--vol: 70%" oninput="mpbVolumeInput(this)">
+            <span class="mpb-vol-value" id="mpb-volume-value">70</span>
+          </div>
+          <button class="favorite-toggle" id="media-favorite-btn" onclick="addCurrentToFavorites()" title="Add to favorites">☆</button>
+          <button class="media-player-close" id="media-player-close" onclick="hideMediaPlayerBar()" title="Hide player bar">✕</button>
+        </div>
+        <div class="media-player-progress">
+          <span class="media-player-time" id="media-player-time-pos">0:00</span>
+          <div class="media-player-progress-bar" id="media-progress-bar">
+            <div class="media-player-progress-fill" id="media-progress-fill"></div>
+            <div class="mpb-knob" id="media-progress-knob"></div>
+          </div>
+          <span class="media-player-time" id="media-player-time">0:00</span>
         </div>
       </div>
-      <div class="media-player-controls">
-        <button class="media-player-btn media-player-btn-small" id="media-shuffle-btn" onclick="toggleShuffleMode()" title="Shuffle">🔀</button>
-        <button class="media-player-btn" id="media-prev-btn" onclick="playPreviousTrack()" title="Previous">⏮️</button>
-        <button class="media-player-btn" id="media-pause-btn" onclick="toggleMediaPause()" title="Pause">&#9208;&#65039;</button>
-        <button class="media-player-btn" id="media-next-btn" onclick="playNextTrack()" title="Next">⏭️</button>
-        <button class="media-player-btn media-player-btn-small" id="media-repeat-btn" onclick="toggleRepeatMode()" title="Repeat">🔁</button>
-        <button class="media-player-btn" id="media-stop-btn" onclick="stopMediaPlayback()" title="Stop">&#9209;&#65039;</button>
-      </div>
-      <div class="media-player-progress">
-        <div class="media-player-progress-bar" id="media-progress-bar" onclick="statusPlayerSeek(event)">
-          <div class="media-player-progress-fill" id="media-progress-fill"></div>
-        </div>
-        <span class="media-player-time" id="media-player-time">0:00 / 0:00</span>
-      </div>
-      <div class="media-player-volume">
-        <button class="media-player-btn" id="media-mute-btn" onclick="toggleMediaMute()" title="Mute">&#128266;</button>
-        <input type="range" class="media-player-volume-slider" id="media-volume-slider" min="0" max="100" value="70" 
-               oninput="setMediaVolume(this.value)">
-      </div>
-      <button class="favorite-toggle" id="media-favorite-btn" onclick="addCurrentToFavorites()" title="Add to favorites">☆</button>
-      <button class="media-player-close" id="media-player-close" onclick="hideMediaPlayerBar()" title="Hide player bar">✕</button>
     </div>
 
     <!-- Tab Navigation -->
@@ -1365,8 +1374,8 @@
               <div class="media-canvas-selector">
                 <label for="media-target-canvas">Target Canvas:</label>
                 <select id="media-target-canvas" class="media-select">
-                  <option value="Main" selected>Main</option>
-                  <option value="MediaPlayer">Full wall</option>
+                  <option value="MediaPlayer" selected>Media layer (default, size in Studio)</option>
+                  <option value="Main">Main</option>
                 </select>
               </div>
               <div class="media-canvas-selector">
@@ -1429,6 +1438,10 @@
             <span class="media-nav-icon">📺</span>
             <span class="media-nav-label">Streams</span>
           </button>
+          <button class="media-nav-btn" data-media-page="radio" onclick="switchMediaPage('radio')">
+            <span class="media-nav-icon">📻</span>
+            <span class="media-nav-label">Radio</span>
+          </button>
           <button class="media-nav-btn" data-media-page="music" onclick="switchMediaPage('music')">
             <span class="media-nav-icon">🎵</span>
             <span class="media-nav-label">Music</span>
@@ -1470,6 +1483,145 @@
               </div>
               <div class="history-content">
                 <div class="history-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════
+             PAGE: Internet Radio
+             ════════════════════════════════════════════ -->
+        <div class="media-page" id="media-page-radio">
+          <div class="radio-now" id="radio-now"></div>
+
+          <div class="radio-toolbar">
+            <label class="radio-sleep">😴 Sleep
+              <select id="radio-sleep" class="media-select" onchange="radioSetSleep(this.value)">
+                <option value="0">Off</option>
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="45">45 min</option>
+                <option value="60">60 min</option>
+                <option value="90">90 min</option>
+                <option value="120">2 h</option>
+              </select>
+              <span id="radio-sleep-left" class="text-muted"></span>
+            </label>
+            <label class="radio-check" title="Song titles need a second connection to the station">
+              <input type="checkbox" id="radio-titles-toggle" checked onchange="radioSetTitles(this.checked)"> Song titles
+            </label>
+            <span class="radio-toolbar-spacer"></span>
+            <button class="btn btn-small" onclick="radioExport()" title="Download your stations as JSON">⬇ Export</button>
+            <label class="btn btn-small" style="margin:0" title="Add stations from a JSON export">⬆ Import
+              <input type="file" accept=".json,application/json" style="display:none" onchange="radioImport(this)">
+            </label>
+          </div>
+
+          <div class="radio-columns">
+            <div class="tab-section radio-col">
+              <div class="tab-section-header">
+                <h3 class="tab-section-title"><span class="tab-section-title-icon">⭐</span> My stations <span id="radio-station-count" class="favorites-count"></span></h3>
+              </div>
+              <div class="tab-section-body">
+                <div id="radio-stations" class="radio-list"></div>
+                <details class="radio-add">
+                  <summary>+ Add a station by its stream address</summary>
+                  <form onsubmit="radioAddManual(event)">
+                    <input id="radio-add-name" class="form-control" placeholder="Name" required>
+                    <input id="radio-add-url" class="form-control" placeholder="https://stream.example/live.mp3" type="url" required>
+                    <input id="radio-add-logo" class="form-control" placeholder="Logo address (optional)" type="url">
+                    <button class="btn btn-small btn-primary" type="submit">Add</button>
+                  </form>
+                </details>
+                <div class="radio-recent-head">
+                  <h4>🕐 Recently played</h4>
+                  <button class="history-clear-btn" onclick="radioClearRecent()">Clear</button>
+                </div>
+                <div id="radio-recent" class="radio-chips"></div>
+              </div>
+            </div>
+
+            <div class="tab-section radio-col">
+              <div class="tab-section-header">
+                <h3 class="tab-section-title"><span class="tab-section-title-icon">🔍</span> Find stations</h3>
+                <span class="text-muted" style="font-size:0.8rem">via radio-browser.info</span>
+              </div>
+              <div class="tab-section-body">
+                <form class="radio-search" onsubmit="event.preventDefault(); radioSearch()">
+                  <input id="radio-q" class="form-control" placeholder="Station name" autocomplete="off">
+                  <input id="radio-tag" class="form-control" placeholder="Genre (rock, jazz, news…)" autocomplete="off">
+                  <select id="radio-country" class="media-select"><option value="">All countries</option></select>
+                  <select id="radio-order" class="media-select">
+                    <option value="clickcount">Most played</option>
+                    <option value="votes">Most liked</option>
+                    <option value="trend">Trending</option>
+                    <option value="bitrate">Best quality</option>
+                    <option value="name">Name</option>
+                  </select>
+                  <button class="btn btn-small btn-primary" type="submit">Search</button>
+                </form>
+                <div id="radio-tags" class="radio-chips"></div>
+                <div id="radio-results" class="radio-list"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="radio-columns" style="margin-top: 1rem;">
+            <div class="tab-section radio-col">
+              <div class="tab-section-header">
+                <h3 class="tab-section-title"><span class="tab-section-title-icon">⏰</span> Alarm clock</h3>
+                <div class="tab-section-actions">
+                  <button class="btn btn-small btn-danger" id="radio-alarm-stop" style="display:none" onclick="radioAlarmStop()">Stop ringing</button>
+                  <button class="btn btn-small btn-primary" onclick="radioAlarmEdit('')">+ Alarm</button>
+                </div>
+              </div>
+              <div class="tab-section-body">
+                <form id="radio-alarm-form" class="radio-alarm-form" style="display:none" onsubmit="radioAlarmSubmit(event)">
+                  <div class="radio-alarm-row">
+                    <input type="time" id="radio-alarm-time" class="form-control" required>
+                    <input id="radio-alarm-label" class="form-control" placeholder="Label (optional)">
+                  </div>
+                  <div class="radio-alarm-row" id="radio-alarm-days">
+                    <label><input type="checkbox"> Mo</label><label><input type="checkbox"> Tu</label>
+                    <label><input type="checkbox"> We</label><label><input type="checkbox"> Th</label>
+                    <label><input type="checkbox"> Fr</label><label><input type="checkbox"> Sa</label>
+                    <label><input type="checkbox"> Su</label>
+                    <span class="text-muted" style="font-size:0.8rem">none = once</span>
+                  </div>
+                  <div class="radio-alarm-row">
+                    <select id="radio-alarm-station" class="media-select"></select>
+                    <label>🔊 <input type="range" id="radio-alarm-volume" min="5" max="100" value="40"
+                      oninput="document.getElementById('radio-alarm-volume-val').textContent=this.value+'%'">
+                      <span id="radio-alarm-volume-val">40%</span></label>
+                    <label>Fade in <select id="radio-alarm-fade" class="media-select">
+                      <option value="0">no</option><option value="1">1 min</option><option value="3">3 min</option>
+                      <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
+                      <option value="30">30 min</option></select></label>
+                  </div>
+                  <div class="radio-alarm-row">
+                    <button class="btn btn-small btn-primary" type="submit">Save alarm</button>
+                    <button class="btn btn-small" type="button" onclick="radioAlarmCancel()">Cancel</button>
+                  </div>
+                </form>
+                <div id="radio-alarms" class="radio-list"></div>
+              </div>
+            </div>
+
+            <div class="tab-section radio-col">
+              <div class="tab-section-header">
+                <h3 class="tab-section-title"><span class="tab-section-title-icon">🎶</span> Songs</h3>
+                <div class="tab-section-actions">
+                  <button class="btn btn-small" onclick="radioRememberCurrent()" title="Remember what is playing">♥ Remember current</button>
+                </div>
+              </div>
+              <div class="tab-section-body">
+                <h4 class="radio-subhead">♥ Remembered</h4>
+                <div id="radio-songs-saved" class="radio-songs"></div>
+                <div class="radio-recent-head">
+                  <h4>📻 Heard on the radio</h4>
+                  <button class="history-clear-btn" onclick="radioClearHeard()">Clear</button>
+                </div>
+                <div id="radio-songs-heard" class="radio-songs"></div>
               </div>
             </div>
           </div>
@@ -2592,37 +2744,73 @@
               <div class="audio-output-list" id="audio-output-list">
                 <!-- Audio sinks will be populated here -->
               </div>
-              <div class="settings-row" style="margin-top:12px;align-items:end">
-                <label for="pixtone-host" style="min-width:8rem">Board IP</label>
-                <input id="pixtone-host" type="text" inputmode="decimal" placeholder="192.168.10.225" autocomplete="off" style="flex:1">
-                <button class="btn btn-small btn-primary" onclick="usePixToneHost()">Use</button>
+              <div class="settings-grid audio-board-form">
+                <div class="settings-group">
+                  <h4 class="settings-group-title">Board</h4>
+                  <div class="settings-row">
+                    <label for="pixtone-host">Address</label>
+                    <div class="settings-inline">
+                      <input id="pixtone-host" class="settings-input" type="text" inputmode="decimal" placeholder="192.168.10.225" autocomplete="off">
+                      <button class="btn btn-small btn-primary" type="button" onclick="usePixToneHost()">Use</button>
+                    </div>
+                    <span class="settings-hint">Shown on the display. The page is <code>http://&lt;ip&gt;:5000/</code>.</span>
+                  </div>
+                  <div class="settings-row">
+                    <label for="pixtone-volume">Volume</label>
+                    <div class="settings-inline">
+                      <input id="pixtone-volume" type="range" min="0" max="100" value="70" oninput="setBoardVolume(this.value)">
+                      <span id="pixtone-volume-label" class="pixtone-volume-label">70%</span>
+                    </div>
+                  </div>
+                  <div class="settings-row">
+                    <label for="pixtone-mute">Mute</label>
+                    <label class="toggle-switch">
+                      <input id="pixtone-mute" type="checkbox" onchange="toggleBoardMute()">
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+                <div class="settings-group">
+                  <h4 class="settings-group-title">Idle screen</h4>
+                  <div class="settings-row">
+                    <label for="pixtone-wall">Wall image</label>
+                    <label class="toggle-switch">
+                      <input id="pixtone-wall" type="checkbox" onchange="setWallPreview(this.checked)">
+                      <span class="toggle-slider"></span>
+                    </label>
+                    <span class="settings-hint">Preview on the board while audio is playing.</span>
+                  </div>
+                  <div class="settings-row">
+                    <label for="pixtone-fps">Frame rate</label>
+                    <select id="pixtone-fps" class="settings-select" onchange="setPreviewFps(this.value)">
+                      <option value="4">4 fps</option>
+                      <option value="8">8 fps</option>
+                      <option value="15">15 fps</option>
+                      <option value="20" selected>20 fps</option>
+                      <option value="25">25 fps</option>
+                      <option value="30">30 fps</option>
+                    </select>
+                  </div>
+                  <div class="settings-row">
+                    <label for="pixtone-width">Width</label>
+                    <select id="pixtone-width" class="settings-select" onchange="setPreviewWidth(this.value)">
+                      <option value="160">160 · 2.8"</option>
+                      <option value="240">240</option>
+                      <option value="480" selected>480 · 3.5"</option>
+                    </select>
+                    <span class="settings-hint">Use 160 on the 2.8" panel. 240 and 480 are for the 3.5".</span>
+                  </div>
+                  <div class="settings-row">
+                    <label for="pixtone-fill">Ausschnitt</label>
+                    <label class="toggle-switch">
+                      <input id="pixtone-fill" type="checkbox" onchange="setPreviewFill(this.checked)">
+                      <span class="toggle-slider"></span>
+                    </label>
+                    <span class="settings-hint">Center of the wall, twice as tall. The 3.5" display only.</span>
+                  </div>
+                </div>
               </div>
-              <div class="settings-row" style="margin-top:8px;align-items:center">
-                <label for="pixtone-volume" style="min-width:8rem">Volume</label>
-                <input id="pixtone-volume" type="range" min="0" max="100" value="70" style="flex:1" oninput="setBoardVolume(this.value)">
-                <span id="pixtone-volume-label" style="min-width:3rem;text-align:right">70%</span>
-                <button class="btn btn-small btn-secondary" id="pixtone-mute" type="button" onclick="toggleBoardMute()">Mute</button>
-              </div>
-              <label class="settings-row" style="margin-top:8px;align-items:center;gap:8px">
-                <input id="pixtone-wall" type="checkbox" onchange="setWallPreview(this.checked)">
-                <span>Wall image on the idle screen</span>
-                <label for="pixtone-fps" style="margin-left:12px">fps</label>
-                <select id="pixtone-fps" onchange="setPreviewFps(this.value)">
-                  <option value="4">4</option>
-                  <option value="8">8</option>
-                  <option value="15">15</option>
-                  <option value="20" selected>20</option>
-                  <option value="25">25</option>
-                  <option value="30">30</option>
-                </select>
-                <label for="pixtone-width" style="margin-left:12px">width</label>
-                <select id="pixtone-width" onchange="setPreviewWidth(this.value)">
-                  <option value="160">160</option>
-                  <option value="240">240</option>
-                  <option value="480" selected>480</option>
-                </select>
-              </label>
-              <p class="text-muted" style="margin-top:6px">The board page is <code>http://&lt;ip&gt;:5000/</code>. Scan only reaches a /24 that this container owns, so type the address from the display when it is on another network.</p>
+              <p class="settings-hint" style="margin-top: 0.75rem;">Scan only reaches a /24 that this container owns. On another network, type the address from the display.</p>
             </div>
             
             <!-- Bluetooth Devices -->
@@ -2979,7 +3167,7 @@
   <script src="/js/ui/toast.js?v=20260208a"></script>
   <script src="/js/ui/modal.js?v=20260208a"></script>
   <script src="/js/ui/theme.js?v=20260817a"></script>
-  <script src="/js/ui/tabs.js?v=20261018a"></script>
+  <script src="/js/ui/tabs.js?v=20261122c"></script>
   <script src="/js/ui/navigation.js?v=20260208a"></script>
   
   <!-- Modular JS - Features -->
@@ -3013,10 +3201,11 @@
   <script src="/js/features/game-input.js?v=20260827a"></script>
   <script src="/js/features/layout-management.js?v=20260823a"></script>
   <script src="/js/features/camera-stream.js?v=20260624a"></script>
-  <script src="/js/features/media-player.js?v=20260824b"></script>
+  <script src="/js/features/media-player.js?v=20261122e"></script>
   <script src="/js/features/network-shares.js?v=20260208a"></script>
-  <script src="/js/features/audio-output.js?v=20260208a"></script>
+  <script src="/js/features/audio-output.js?v=20261121b"></script>
   <script src="/js/features/favorites.js?v=20260208a"></script>
+  <script src="/js/features/radio.js?v=20261122b"></script>
   <script src="/js/features/visualizer.js?v=20261020a"></script>
   <script src="/js/features/console-log.js?v=20260208a"></script>
   <script src="/js/features/image-upload.js?v=20260208c"></script>

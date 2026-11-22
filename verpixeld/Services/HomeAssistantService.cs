@@ -20,6 +20,7 @@ public sealed class HomeAssistantService
     private const int IdSubEvents = 2;
     private const int IdSubPersistent = 3;
     private const int IdSubMqtt = 4;
+    private const int IdSubMqttAudio = 5;
 
     private readonly object _optionsLock = new();
     private readonly SemaphoreSlim _sendLock = new(1, 1);
@@ -179,6 +180,7 @@ public sealed class HomeAssistantService
                 await SendAsync(ws, new { id = IdSubEvents, type = "subscribe_events", event_type = "state_changed" }, ct);
                 await SendAsync(ws, new { id = IdSubPersistent, type = "persistent_notification/subscribe" }, ct);
                 await SendAsync(ws, new { id = IdSubMqtt, type = "mqtt/subscribe", topic = "verpixeld/wall/#" }, ct);
+                await SendAsync(ws, new { id = IdSubMqttAudio, type = "mqtt/subscribe", topic = "verpixeld/audio/#" }, ct);
                 _ = WatchMqttSubscribeAsync(ct);
 
                 Console.WriteLine("[HA] Connected (states + persistent notifications + MQTT device)");

@@ -109,6 +109,119 @@ function showMediaPlayerBar() {
   mediaPlayerUserClosed = false;
 }
 
+// Volume: the label and the fill follow the slider at once; the host gets one request per
+// pause in the movement, and the status poll leaves the slider alone for a moment after a change.
+const mpbVol = { timer: null, until: 0 };
+
+function mpbVolumeInput(el) {
+  el.style.setProperty('--vol', el.value + '%');
+  const vv = document.getElementById('mpb-volume-value');
+  if (vv) vv.textContent = el.value;
+  mpbVol.until = Date.now() + 2000;
+  if (window.mediaState) window.mediaState.volume = +el.value;
+  clearTimeout(mpbVol.timer);
+  mpbVol.timer = setTimeout(() => {
+    if (typeof setMediaVolume === 'function') setMediaVolume(el.value);
+  }, 120);
+}
+window.mpbVolumeInput = mpbVolumeInput;
+
+// Scrubbing on the progress bar and the seek that follows it.
+const mpbScrub = { active: false, pos: 0 };
+const mpbSeek = { target: 0, until: 0 };
+
+function mpbPosFromEvent(bar, ev) {
+  const s = window.mediaState || {};
+  const rect = bar.getBoundingClientRect();
+  const share = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+  return { share, pos: share * (s.videoDuration || 0) };
+}
+
+function mpbInitScrub() {
+  const bar = document.getElementById('media-progress-bar');
+  if (!bar || bar.dataset.scrub) return;
+  bar.dataset.scrub = '1';
+  bar.removeAttribute('onclick');
+  bar.addEventListener('pointerdown', ev => {
+    const s = window.mediaState || {};
+    if (!s.isRunning || !(s.videoDuration > 0) || s.seekingSupported === false) return;
+    ev.preventDefault();
+    bar.setPointerCapture(ev.pointerId);
+    mpbScrub.active = true;
+    mpbScrub.pos = mpbPosFromEvent(bar, ev).pos;
+    bar.classList.add('scrubbing');
+    updateMediaPlayerBar();
+  });
+  bar.addEventListener('pointermove', ev => {
+    if (!mpbScrub.active) return;
+    mpbScrub.pos = mpbPosFromEvent(bar, ev).pos;
+    updateMediaPlayerBar();
+  });
+  const finish = async ev => {
+    if (!mpbScrub.active) return;
+    const { share, pos } = mpbPosFromEvent(bar, ev);
+    mpbScrub.active = false;
+    bar.classList.remove('scrubbing');
+    mpbSeek.target = pos;
+    mpbSeek.until = Date.now() + 10000;
+    if (window.mediaState) window.mediaState.videoPosition = pos;
+    updateMediaPlayerBar();
+    try {
+      await window.api.post(`/api/media/seek?percent=${(share * 100).toFixed(3)}`);
+    } catch (error) {
+      mpbSeek.until = 0;
+      if (window.toast) window.toast.error('Playback', error.message || 'Seek failed');
+    }
+  };
+  bar.addEventListener('pointerup', finish);
+  bar.addEventListener('pointercancel', () => {
+    mpbScrub.active = false;
+    bar.classList.remove('scrubbing');
+    updateMediaPlayerBar();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', mpbInitScrub);
+
+// Picture of what plays (video frame, embedded cover, station logo, YouTube thumbnail).
+let mpbArtKey = null;
+async function mpbLoadArt(key) {
+  const art = document.querySelector('#media-player-bar .mpb-art');
+  if (!art) return;
+  mpbArtKey = key;
+  if (!key) {
+    art.classList.remove('has-image');
+    return;
+  }
+  try {
+    const r = await window.api.get('/api/media/current-thumbnail');
+    if (mpbArtKey !== key) return;
+    let img = art.querySelector('img');
+    if (r.thumbnail) {
+      if (!img) {
+        img = document.createElement('img');
+        img.alt = '';
+        img.referrerPolicy = 'no-referrer';
+        img.onerror = () => art.classList.remove('has-image');
+        art.appendChild(img);
+      }
+      img.src = r.thumbnail;
+      art.classList.add('has-image');
+    } else {
+      art.classList.remove('has-image');
+    }
+  } catch {
+    art.classList.remove('has-image');
+  }
+}
+
+const MPB_ICONS = {
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 4.5v15l12-7.5z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.5 4.5h4v15h-4zM13.5 4.5h4v15h-4z"/></svg>',
+  vol: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>',
+  mute: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z" fill="currentColor"/><path d="M23 9l-6 6M17 9l6 6"/></svg>'
+};
+
 /**
  * Update media player bar - both visibility and contents
  */
@@ -137,9 +250,22 @@ function updateMediaPlayerBar() {
   const volumeSlider = document.getElementById('media-volume-slider');
   const progressBar = document.getElementById('media-progress-bar');
   
+  mpbInitScrub();
+  const artKey = playing
+    ? [s.currentVideo, s.currentAudio, s.networkFilePath, s.radioStationName, s.lastPlayedYouTubeTitle].join('|')
+    : null;
+  if (artKey !== mpbArtKey) mpbLoadArt(artKey);
+
   // Icon
   if (iconEl) {
-    iconEl.textContent = s.isAudioPlayback ? '🎵' : '🎬';
+    iconEl.textContent = s.isRadioPlaying ? '📻' : s.isAudioPlayback ? '🎵' : '🎬';
+  }
+  bar.classList.toggle('playing', playing && !s.isPaused);
+  bar.classList.toggle('paused', playing && !!s.isPaused);
+  const stateText = document.getElementById('media-player-state-text');
+  if (stateText) {
+    const kind = s.isRadioPlaying ? 'RADIO' : s.isAudioPlayback ? 'MUSIC' : 'VIDEO';
+    stateText.textContent = !playing ? 'STOPPED' : s.isPaused ? `PAUSED · ${kind}` : `PLAYING · ${kind}`;
   }
   
   // Title with metadata support and scrolling
@@ -181,26 +307,42 @@ function updateMediaPlayerBar() {
       displayText = s.currentAudio || (s.lastPlayedYouTubeTitle && s.hasYouTubeReplay ? s.lastPlayedYouTubeTitle : null) || s.currentVideo || 'Stopped';
     }
     
-    // Update title and handle scrolling
-    titleEl.textContent = displayText;
-    titleEl.setAttribute('data-text', displayText);
-    
-    // Enable scrolling for long titles (> 200px approx 25 chars)
-    const needsScroll = displayText.length > 30;
-    if (needsScroll) {
-      titleEl.classList.add('scrolling');
-    } else {
+    // Only touch the DOM when the title changed. A running marquee animation otherwise kept
+    // showing the old text until the mouse paused it; restarting the animation repaints it.
+    if (titleEl.getAttribute('data-text') !== displayText) {
       titleEl.classList.remove('scrolling');
+      titleEl.textContent = displayText;
+      titleEl.setAttribute('data-text', displayText);
+      void titleEl.offsetWidth;
+      const box = titleEl.parentElement;
+      if (box && titleEl.scrollWidth > box.clientWidth + 4) titleEl.classList.add('scrolling');
     }
   }
   
-  // Progress
-  const pos = s.videoPosition || 0;
+  // Progress: while dragging the bar shows the finger; after a seek it holds the target
+  // until the host reports a position near it (FFmpeg needs a moment to restart).
+  let pos = s.videoPosition || 0;
   const dur = s.videoDuration || 0;
-  const pct = dur > 0 ? (pos / dur) * 100 : 0;
+  if (mpbScrub.active) {
+    pos = mpbScrub.pos;
+  } else if (mpbSeek.until > Date.now()) {
+    if (Math.abs(pos - mpbSeek.target) < 2.5) mpbSeek.until = 0;
+    else pos = mpbSeek.target;
+  }
+  const pct = dur > 0 ? Math.min(100, (pos / dur) * 100) : 0;
   
   if (progressFill) progressFill.style.width = pct + '%';
-  if (timeEl) timeEl.textContent = formatTime(pos) + ' / ' + formatTime(dur);
+  const knob = document.getElementById('media-progress-knob');
+  if (knob) knob.style.left = pct + '%';
+  const posEl = document.getElementById('media-player-time-pos');
+  const live = playing && dur <= 0;
+  if (posEl) {
+    posEl.textContent = formatTime(pos);
+    if (timeEl) timeEl.textContent = live ? 'LIVE' : formatTime(dur);
+  } else if (timeEl) {
+    timeEl.textContent = formatTime(pos) + ' / ' + formatTime(dur);
+  }
+  if (progressBar) progressBar.classList.toggle('live', live);
   
   // Progress bar cursor
   if (progressBar) {
@@ -210,24 +352,32 @@ function updateMediaPlayerBar() {
   
   // Play/Pause button - CRITICAL: must show correct state
   if (pauseBtn) {
-    if (playing && !s.isPaused) {
-      pauseBtn.textContent = '⏸️';
-      pauseBtn.title = 'Pause';
-    } else {
-      pauseBtn.textContent = '▶️';
-      pauseBtn.title = playing ? 'Resume' : 'Play';
+    const showPause = playing && !s.isPaused;
+    if (pauseBtn.dataset.icon !== (showPause ? 'pause' : 'play')) {
+      pauseBtn.innerHTML = showPause ? MPB_ICONS.pause : MPB_ICONS.play;
+      pauseBtn.dataset.icon = showPause ? 'pause' : 'play';
     }
+    pauseBtn.title = showPause ? 'Pause' : (playing ? 'Resume' : 'Play');
   }
   
   // Mute
   if (muteBtn) {
-    muteBtn.textContent = s.isMuted ? '🔇' : '🔊';
+    if (muteBtn.dataset.icon !== (s.isMuted ? 'mute' : 'vol')) {
+      muteBtn.innerHTML = s.isMuted ? MPB_ICONS.mute : MPB_ICONS.vol;
+      muteBtn.dataset.icon = s.isMuted ? 'mute' : 'vol';
+    }
     muteBtn.title = s.isMuted ? 'Unmute' : 'Mute';
+    muteBtn.classList.toggle('active', !!s.isMuted);
   }
   
   // Volume
-  if (volumeSlider && volumeSlider.value != s.volume) {
-    volumeSlider.value = s.volume || 70;
+  if (volumeSlider && Date.now() > mpbVol.until && s.volume != null && volumeSlider.value != s.volume) {
+    volumeSlider.value = s.volume;
+  }
+  if (volumeSlider) {
+    volumeSlider.style.setProperty('--vol', volumeSlider.value + '%');
+    const vv = document.getElementById('mpb-volume-value');
+    if (vv) vv.textContent = volumeSlider.value;
   }
   
   // Playlist buttons - allow skip even when stopped if we have a playlist

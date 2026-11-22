@@ -31,7 +31,7 @@ let mediaState = {
   networkFilePath: null,
   networkProtocol: null,
   seekingSupported: true,
-  targetCanvasName: 'Main',
+  targetCanvasName: 'MediaPlayer',
   // Playlist state
   playlistIndex: -1,
   playlistCount: 0,
@@ -109,12 +109,11 @@ async function playMediaVideo(filename, loop = true) {
     // Also call the function if available
     if (window.showMediaPlayerBar) window.showMediaPlayerBar();
     
-    const canvasName = document.getElementById('media-target-canvas')?.value || 'Main';
+    const canvasName = document.getElementById('media-target-canvas')?.value || 'MediaPlayer';
     const result = await api.post(`/api/media/play/${mediaApiPath(filename)}?loop=${loop}&canvasName=${encodeURIComponent(canvasName)}`);
     
     if (result.success) {
       window.toast.success('Media', `Playing: ${filename}`);
-      loadMediaAudioTracks(filename);
       startMediaStatusPolling();
       await fetchMediaStatus();
       if (typeof loadCanvasStack === 'function') loadCanvasStack();
@@ -164,6 +163,19 @@ async function stopMediaPlayback() {
  */
 async function toggleMediaPause() {
   try {
+    // Not running: start the last thing again (library, network, YouTube, music, radio).
+    if (!mediaState.isRunning && mediaState.canReplay) {
+      window.toast?.info('Media', 'Starting again…');
+      try {
+        await api.post('/api/media/replay');
+        startMediaStatusPolling();
+        await fetchMediaStatus();
+        if (typeof window.fetchHistory === 'function') window.fetchHistory();
+      } catch (e) {
+        window.toast?.error('Media', e.message || 'Could not start it again');
+      }
+      return;
+    }
     // If not running but we have a last played file, restart it
     if (!mediaState.isRunning) {
       // Try YouTube replay first (if we have a last played YouTube URL)
@@ -344,6 +356,7 @@ async function toggleMediaMute() {
     if (result.success) {
       mediaState.isMuted = result.isMuted;
       updateMediaUI();
+      if (window.updateMediaPlayerBar) window.updateMediaPlayerBar();
       window.toast.info('Audio', result.message);
     }
   } catch (error) {
@@ -891,6 +904,13 @@ async function fetchMediaStatus() {
     
     // Update state from API response
     Object.assign(mediaState, result.data);
+
+    const tracksKey = mediaState.isRunning && !mediaState.isAudioPlayback
+      ? `${mediaState.currentVideo || ''}|${mediaState.networkFilePath || ''}` : null;
+    if (tracksKey !== mediaTracksKey) {
+      mediaTracksKey = tracksKey;
+      if (tracksKey) loadCurrentAudioTracks();
+    }
     
     // Preserve last played info even when stopped
     if (!mediaState.isRunning) {
@@ -1001,7 +1021,7 @@ async function populateMediaCanvasSelector() {
     
     if (result.success && result.data) {
       // Keep current selection or use backend value
-      const currentValue = mediaState.targetCanvasName || select.value || 'Main';
+      const currentValue = mediaState.targetCanvasName || select.value || 'MediaPlayer';
       
       // Clear and repopulate
       select.innerHTML = '';
@@ -1012,11 +1032,11 @@ async function populateMediaCanvasSelector() {
 
       const full = document.createElement('option');
       full.value = 'MediaPlayer';
-      full.textContent = 'Full wall';
+      full.textContent = 'Media layer (default, size in Studio)';
       if (currentValue === 'MediaPlayer') full.selected = true;
       select.appendChild(full);
       
-      canvases.forEach(canvas => {
+      canvases.filter(c => c.name !== 'MediaPlayer').forEach(canvas => {
         const option = document.createElement('option');
         option.value = canvas.name;
         option.textContent = `${canvas.name} (${canvas.width}×${canvas.height})`;
@@ -1026,13 +1046,6 @@ async function populateMediaCanvasSelector() {
         select.appendChild(option);
       });
       
-      // If Main was not in the list, add it as default
-      if (!canvases.find(c => c.name === 'Main')) {
-        const option = document.createElement('option');
-        option.value = 'Main';
-        option.textContent = 'Main (Default)';
-        select.insertBefore(option, select.firstChild);
-      }
       
       // Add change listener if not already added
       if (!select.dataset.listenerAdded) {
@@ -1073,6 +1086,31 @@ async function loadMediaAudioTracks(filename) {
       opt.value = '0';
       opt.textContent = '1';
       select.appendChild(opt);
+      return;
+    }
+    tracks.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = String(t.index);
+      opt.textContent = t.label || String(t.index + 1);
+      if (t.index === result.selected) opt.selected = true;
+      select.appendChild(opt);
+    });
+  } catch (error) {
+    console.error('Failed to load audio tracks:', error);
+  }
+}
+
+// Reloads the track list whenever another video starts, however it was started.
+let mediaTracksKey = null;
+async function loadCurrentAudioTracks() {
+  const select = document.getElementById('media-audio-track');
+  if (!select) return;
+  try {
+    const result = await api.get('/api/media/audio-tracks-current');
+    const tracks = result.tracks || [];
+    select.innerHTML = '';
+    if (tracks.length === 0) {
+      select.innerHTML = '<option value="0">1</option>';
       return;
     }
     tracks.forEach(t => {
@@ -1278,6 +1316,7 @@ function switchMediaPage(page) {
   } catch (e) { /* ignore */ }
 
   if (page === 'local') browseLocalMedia(localMediaCurrentPath());
+  if (page === 'radio' && typeof radioPageShown === 'function') radioPageShown();
 }
 
 // Restore last selected media page on load

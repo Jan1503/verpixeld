@@ -8,8 +8,13 @@ public static class MediaPlaybackTarget
 {
     public const string OverlayName = "MediaPlayer";
 
+    /// <summary>
+    ///     No target, or "MediaPlayer": the media player's own full-wall layer (z 200), above the
+    ///     layout's canvases and below alerts and toasts. Any other name plays into that canvas.
+    /// </summary>
     public static bool UsesOwnedOverlay(string? targetCanvasName) =>
-        string.Equals(targetCanvasName, OverlayName, StringComparison.OrdinalIgnoreCase);
+        string.IsNullOrWhiteSpace(targetCanvasName) ||
+        string.Equals(targetCanvasName.Trim(), OverlayName, StringComparison.OrdinalIgnoreCase);
 
     public static string ResolveName(string? targetCanvasName) =>
         UsesOwnedOverlay(targetCanvasName) ? OverlayName : targetCanvasName!;

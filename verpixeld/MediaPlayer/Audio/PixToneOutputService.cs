@@ -19,6 +19,7 @@ public sealed class PixToneOutputService
     public bool WallPreview { get; private set; }
     public int PreviewFps { get; private set; } = 20;
     public int PreviewWidth { get; private set; } = 480;
+    public bool PreviewFill { get; private set; }
 
     private readonly object _snapGate = new();
     private readonly byte[] _encode = new byte[PixToneProtocol.PreviewWidthMax * PixToneProtocol.PreviewHeightMax * 2];
@@ -35,7 +36,59 @@ public sealed class PixToneOutputService
     {
         Load();
         _ = Task.Run(FeedBoard);
+        _ = Task.Run(WatchBoardVolume);
     }
+
+    /// <summary>Raised when the board's own volume or mute (panel, board web page) changed.</summary>
+    public event Action? VolumeChanged;
+
+    /// <summary>What the host is playing, for the panel's transport row (<c>VPLY</c>). Set by the media player.</summary>
+    public Func<PanelPlayInfo>? PlayStateSource { get; set; }
+
+    /// <summary>
+    ///     A button on the board's panel (<c>VKEY</c>): key, argument, list generation.
+    ///     Repeats of one press are already dropped.
+    /// </summary>
+    public event Action<PanelKey, ushort, byte>? PanelKeyPressed;
+
+    /// <summary>More panel datagrams (<c>VSET</c>, <c>VLST</c>), asked for about once a second.</summary>
+    public Func<IEnumerable<byte[]>>? PanelPackets { get; set; }
+
+    private volatile bool _panelKick;
+
+    /// <summary>True while the wall picture should not go to the board (music, radio).</summary>
+    public Func<bool>? SuppressPreview { get; set; }
+
+    /// <summary>The board answered its /status poll within the last few seconds.</summary>
+    public bool BoardOnline => IsSelected && DateTime.UtcNow - _lastSeen < TimeSpan.FromSeconds(5);
+    private DateTime _lastSeen = DateTime.MinValue;
+
+    // What the board should be showing. A board that restarts has forgotten both, so they go
+    // out again when its uptime drops or it comes back after being unreachable.
+    private string? _shownTitle;
+    private byte[]? _shownCover;
+    private int _lastUptime = -1;
+    private DateTime _nextTitle = DateTime.MinValue;
+
+    private float[]? _bands;
+    private DateTime _bandsAt = DateTime.MinValue;
+
+    /// <summary>The board's spectrum (0–1, low to high), when it came within the last half second.</summary>
+    public float[]? LatestBands
+    {
+        get
+        {
+            var b = _bands;
+            return b != null && DateTime.UtcNow - _bandsAt < TimeSpan.FromMilliseconds(500) ? b : null;
+        }
+    }
+
+    /// <summary>Send the play state and the panel datagrams on the next pass, not in a second.</summary>
+    public void KickPanel() => _panelKick = true;
+
+    public readonly record struct PanelPlayInfo(PlayState State, PlayFlags Flags, TimeSpan Position, TimeSpan Duration);
+
+    private DateTime _localVolumeAt = DateTime.MinValue;
 
     public bool IsSelected { get; private set; }
     public string Host { get; private set; } = "";
@@ -68,6 +121,7 @@ public sealed class PixToneOutputService
     {
         Volume = Math.Clamp(volumePercent, 0, 100);
         if (mute.HasValue) Muted = mute.Value;
+        _localVolumeAt = DateTime.UtcNow;
         Save();
         PushVolume();
     }
@@ -75,6 +129,7 @@ public sealed class PixToneOutputService
     public void ToggleMute()
     {
         Muted = !Muted;
+        _localVolumeAt = DateTime.UtcNow;
         Save();
         PushVolume();
     }
@@ -174,6 +229,54 @@ public sealed class PixToneOutputService
         await Task.WhenAny(started, Task.Delay(timeout, ct)).ConfigureAwait(false);
     }
 
+    /// <summary>
+    ///     The panel sets volume on its own. Read it back once a second so verpixeld shows what the
+    ///     board plays. Skipped for 2 s after a change from here, so a VVOL in flight is not undone.
+    /// </summary>
+    private async Task WatchBoardVolume()
+    {
+        while (true)
+        {
+            await Task.Delay(1000).ConfigureAwait(false);
+            try
+            {
+                var host = Host;
+                if (!IsSelected || string.IsNullOrWhiteSpace(host)) continue;
+                var board = await AudioDiscovery.QueryStatusAsync(host).ConfigureAwait(false);
+                if (board == null || host != Host) continue;
+                var wasAway = _lastSeen != DateTime.MinValue && DateTime.UtcNow - _lastSeen > TimeSpan.FromSeconds(5);
+                var restarted = _lastUptime >= 0 && board.Uptime + 3 < _lastUptime;
+                _lastUptime = board.Uptime;
+                _lastSeen = DateTime.UtcNow;
+                if (restarted || wasAway)
+                {
+                    Console.WriteLine(restarted
+                        ? "[PIXTONE] Board restarted: sending title and cover again"
+                        : "[PIXTONE] Board is back: sending title and cover again");
+                    _ = Task.Run(() => ResendShownAsync(host));
+                }
+                else if (DateTime.UtcNow >= _nextTitle && _shownTitle != null)
+                {
+                    // A lost VTIT costs nothing to repeat; the board ignores an unchanged title.
+                    _nextTitle = DateTime.UtcNow.AddSeconds(15);
+                    SendTitle(host, _shownTitle);
+                }
+                if (DateTime.UtcNow - _localVolumeAt < TimeSpan.FromSeconds(2)) continue;
+                var vol = Math.Clamp(board.Volume, 0, 100);
+                if (vol == Volume && board.Muted == Muted) continue;
+                Volume = vol;
+                Muted = board.Muted;
+                Save();
+                Console.WriteLine($"[PIXTONE] board volume {vol}{(Muted ? " muted" : "")}");
+                VolumeChanged?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[PIXTONE] volume read: " + ex.Message);
+            }
+        }
+    }
+
     private void PushVolume()
     {
         if (string.IsNullOrWhiteSpace(Host)) return;
@@ -202,6 +305,7 @@ public sealed class PixToneOutputService
         if (fps is 0 or 8 or 10) fps = 20;
         PreviewFps = Math.Clamp(fps, 1, 30);
         PreviewWidth = NormalizeWidth(o.PreviewWidth == 0 ? 480 : o.PreviewWidth);
+        PreviewFill = o.PreviewFill;
     }
 
     private void Save()
@@ -215,6 +319,7 @@ public sealed class PixToneOutputService
         AppSettingsStore.Set(section, "WallPreview", JsonValue.Create(WallPreview));
         AppSettingsStore.Set(section, "PreviewFps", JsonValue.Create(PreviewFps));
         AppSettingsStore.Set(section, "PreviewWidth", JsonValue.Create(PreviewWidth));
+        AppSettingsStore.Set(section, "PreviewFill", JsonValue.Create(PreviewFill));
         AppSettingsStore.Save(root);
     }
 
@@ -239,6 +344,28 @@ public sealed class PixToneOutputService
         Console.WriteLine("[PIXTONE] preview width " + PreviewWidth);
     }
 
+    public void SetPreviewFill(bool on)
+    {
+        PreviewFill = on;
+        Save();
+        PushFill();
+        Console.WriteLine("[PIXTONE] preview fill " + (on ? "on" : "off"));
+    }
+
+    private void PushFill()
+    {
+        if (string.IsNullOrWhiteSpace(Host) || !IsSelected) return;
+        try
+        {
+            using var sender = new PixToneSender(Host);
+            sender.SendControl(PixToneProtocol.FillPacket(PreviewFill));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[PIXTONE] fill: " + ex.Message);
+        }
+    }
+
     private static int NormalizeWidth(int width)
     {
         if (width <= 160) return 160;
@@ -248,15 +375,41 @@ public sealed class PixToneOutputService
 
     public void SetTrackTitle(string? title)
     {
+        _shownTitle = title;
+        _nextTitle = DateTime.UtcNow.AddSeconds(15);
         if (string.IsNullOrWhiteSpace(Host) || !IsSelected) return;
+        SendTitle(Host, title);
+    }
+
+    private static void SendTitle(string host, string? title)
+    {
         try
         {
-            using var sender = new PixToneSender(Host);
+            using var sender = new PixToneSender(host);
             sender.SetTitle(title);
         }
         catch (Exception ex)
         {
             Console.WriteLine("[PIXTONE] title: " + ex.Message);
+        }
+    }
+
+    /// <summary>After a board restart: title, cover, volume and the panel data once it is ready.</summary>
+    private async Task ResendShownAsync(string host)
+    {
+        try
+        {
+            // The board answers /status before its audio socket has settled; give it a moment.
+            await Task.Delay(1500).ConfigureAwait(false);
+            if (host != Host || !IsSelected) return;
+            if (_shownTitle != null) SendTitle(host, _shownTitle);
+            var cover = _shownCover;
+            if (cover != null) SendCover(host, cover);
+            KickPanel();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[PIXTONE] resend: " + ex.Message);
         }
     }
 
@@ -287,6 +440,10 @@ public sealed class PixToneOutputService
         var th = Math.Max(1, (int)(sh * scale));
         if (tw > dw) tw = dw;
         if (th > dh) th = dh;
+        // Above 160 the frame is as wide as the picture: a 2:1 wall at 480 is 320×160, and
+        // black side bars would be a third of every frame on the wire and on the board's SPI.
+        // The 3.5" board centres a narrower frame. The 2.8" board expects exactly 160.
+        if (dw > PixToneProtocol.PreviewWidth) dw = Math.Max(2, tw);
         var ox = (dw - tw) / 2;
         var oy = (dh - th) / 2;
         var local = _encode;
@@ -324,8 +481,14 @@ public sealed class PixToneOutputService
     {
         var chunk = new byte[PixToneProtocol.PictureChunkBytesFast];
         PixToneSender? sender = null;
+        PixToneSender? picSender = null;
         var senderHost = "";
+        var picPort = PixToneProtocol.Port;
         var nextClock = DateTime.UtcNow;
+        var nextStatus = DateTime.MinValue;
+        PixToneSender? listening = null;
+        var nextPlay = DateTime.MinValue;
+        var lastPlay = default(PanelPlayInfo);
         while (true)
         {
             try
@@ -334,6 +497,8 @@ public sealed class PixToneOutputService
                 {
                     sender?.Dispose();
                     sender = null;
+                    picSender?.Dispose();
+                    picSender = null;
                     await Task.Delay(250).ConfigureAwait(false);
                     continue;
                 }
@@ -342,20 +507,68 @@ public sealed class PixToneOutputService
                     sender?.Dispose();
                     sender = new PixToneSender(Host);
                     senderHost = Host;
+                    nextStatus = DateTime.MinValue;
+                }
+                // Newer boards take the preview on a port of its own ("pic" in /status), so a
+                // burst of picture chunks cannot crowd PCM out of the board's receive buffer.
+                if (DateTime.UtcNow >= nextStatus)
+                {
+                    var board = await AudioDiscovery.QueryStatusAsync(senderHost).ConfigureAwait(false);
+                    var port = board is { PicturePort: > 0 } ? board.PicturePort : PixToneProtocol.Port;
+                    nextStatus = DateTime.UtcNow.AddSeconds(board != null ? 30 : 10);
+                    if (port != picPort || picSender == null)
+                    {
+                        picSender?.Dispose();
+                        picSender = new PixToneSender(senderHost, port);
+                        if (port != picPort) Console.WriteLine($"[PIXTONE] preview on UDP {port}");
+                        picPort = port;
+                    }
                 }
                 var now = DateTime.UtcNow;
                 if (now >= nextClock)
                 {
                     var local = BoardLocalNow();
                     sender.SendControl(PixToneProtocol.ClockPacket(local.Hour, local.Minute, local.Second));
+                    sender.SendControl(PixToneProtocol.FillPacket(PreviewFill));
                     nextClock = now.AddSeconds(2);
+                }
+                // Play state for the panel: once a second, and at once when it changes. The board
+                // answers panel keys to this sender's port, so listen on it after its first send.
+                var play = ReadPlayState();
+                if (now >= nextPlay || _panelKick || play.State != lastPlay.State || play.Flags != lastPlay.Flags ||
+                    (play.Position - lastPlay.Position).Duration() > TimeSpan.FromSeconds(3))
+                {
+                    _panelKick = false;
+                    sender.SendControl(PixToneProtocol.PlayPacket(play.State, play.Flags,
+                        (uint)Math.Max(0, play.Position.TotalMilliseconds),
+                        (uint)Math.Max(0, play.Duration.TotalMilliseconds)));
+                    lastPlay = play;
+                    nextPlay = now.AddSeconds(1);
+                    try
+                    {
+                        var extra = PanelPackets?.Invoke();
+                        if (extra != null)
+                            foreach (var datagram in extra)
+                                sender.SendControl(datagram);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("[PIXTONE] panel data: " + ex.Message);
+                    }
+                }
+                if (!ReferenceEquals(listening, sender))
+                {
+                    listening = sender;
+                    _ = Task.Run(() => ListenPanel(sender));
                 }
                 int serial, originY, rows, width, frameH;
                 byte[]? picture = null;
                 lock (_snapGate)
                 {
                     serial = _snapSerial;
-                    if (WallPreview && serial != _sentSerial && serial != 0)
+                    var suppress = false;
+                    try { suppress = SuppressPreview?.Invoke() == true; } catch { /* keep sending */ }
+                    if (WallPreview && !suppress && serial != _sentSerial && serial != 0)
                     {
                         picture = (byte[])_snap.Clone();
                         originY = _snapY;
@@ -392,7 +605,7 @@ public sealed class PixToneOutputService
                     var off = i * chunkSize;
                     var n = Math.Min(chunkSize, packed - off);
                     picture.AsSpan(originY * rowBytes + off, n).CopyTo(chunk);
-                    sender.SendControl(PixToneProtocol.PictureChunk(
+                    picSender!.SendControl(PixToneProtocol.PictureChunk(
                         frame, i, count, (byte)originY, (byte)rows, (ushort)width, (ushort)frameH,
                         (ushort)chunkSize, chunk.AsSpan(0, n)));
                     if (chunkSize <= PixToneProtocol.PictureChunkBytes)
@@ -409,7 +622,69 @@ public sealed class PixToneOutputService
                 Console.WriteLine("[PIXTONE] idle feed: " + ex.Message);
                 sender?.Dispose();
                 sender = null;
+                picSender?.Dispose();
+                picSender = null;
                 await Task.Delay(250).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private PanelPlayInfo ReadPlayState()
+    {
+        try
+        {
+            return PlayStateSource?.Invoke() ?? default;
+        }
+        catch
+        {
+            return default;
+        }
+    }
+
+    private async Task ListenPanel(PixToneSender sender)
+    {
+        byte? lastSeq = null;
+        var lastAt = DateTime.MinValue;
+        while (true)
+        {
+            byte[] d;
+            try
+            {
+                d = await sender.ReceiveAsync().ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException)
+            {
+                return;
+            }
+            catch (System.Net.Sockets.SocketException)
+            {
+                // Windows reports an ICMP "port unreachable" here. Keep listening.
+                await Task.Delay(100).ConfigureAwait(false);
+                continue;
+            }
+            catch
+            {
+                return;
+            }
+            if (PixToneProtocol.TryParseSpectrum(d, out var levels))
+            {
+                _bands = levels;
+                _bandsAt = DateTime.UtcNow;
+                continue;
+            }
+            if (!PixToneProtocol.TryParseKey(d, out var key, out var seq, out var arg, out var gen)) continue;
+            var now = DateTime.UtcNow;
+            if (seq == lastSeq && now - lastAt < TimeSpan.FromSeconds(3)) continue;
+            lastSeq = seq;
+            lastAt = now;
+            Console.WriteLine($"[PIXTONE] panel {key}{(key == PanelKey.Seek ? $" {arg / 10.0:0.#}%" : "")}");
+            try
+            {
+                PanelKeyPressed?.Invoke(key, arg, gen);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[PIXTONE] panel key: " + ex.Message);
             }
         }
     }
@@ -427,6 +702,7 @@ public sealed class PixToneOutputService
         if (!IsSelected || string.IsNullOrWhiteSpace(Host)) return;
         if (string.IsNullOrWhiteSpace(source))
         {
+            _shownCover = null;
             SendCoverClear();
             return;
         }
@@ -439,6 +715,7 @@ public sealed class PixToneOutputService
                 if (gen != _coverGen || encoded == null) return;
                 var rgb = ToCoverRgb565(encoded);
                 if (gen != _coverGen || rgb == null) return;
+                _shownCover = rgb;
                 SendCover(host, rgb);
             }
             catch (Exception ex)
@@ -549,6 +826,7 @@ public sealed class PixToneOutputService
         public bool WallPreview { get; set; }
         public int PreviewFps { get; set; } = 20;
         public int PreviewWidth { get; set; }
+        public bool PreviewFill { get; set; }
     }
 
     /// <summary>Berlin local time. The NAS image is UTC unless TZ is set, and the idle clock must follow the wall.</summary>

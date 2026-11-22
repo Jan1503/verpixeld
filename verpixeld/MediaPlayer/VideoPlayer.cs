@@ -78,7 +78,18 @@ public class VideoPlayer : IDisposable
 
     public bool IsLooping { get; private set; }
 
-    public string? CurrentVideo => _currentVideoPath != null ? Path.GetFileName(_currentVideoPath) : null;
+    public string? CurrentVideo => _currentVideoPath != null ? DisplayName(_currentVideoPath) : null;
+
+    /// <summary>File name for the UI: a network address is shown decoded ("Film Name.mkv", not "Film%20Name.mkv").</summary>
+    private static string DisplayName(string source)
+    {
+        var name = Path.GetFileName(source);
+        if (!MediaProbeService.IsUrl(source)) return name;
+        var q = name.IndexOf('?');
+        if (q >= 0) name = name[..q];
+        try { return Uri.UnescapeDataString(name); }
+        catch { return name; }
+    }
 
     /// <summary>Title shown on the audio board. YouTube passes the real title; files use tags or the filename.</summary>
     public void SetBoardTitle(string? title)
@@ -120,11 +131,45 @@ public class VideoPlayer : IDisposable
     /// <summary>
     ///     Current playback position (time-based, works for video and audio)
     /// </summary>
+    // The position clock waits after a start or a seek until the first frame (or the first
+    // board audio) of the new run: FFmpeg needs a moment to open, seek and buffer, and counting
+    // that time made the progress bar run ahead and then jump.
+    private volatile bool _clockHeld;
+    private DateTime _heldSince;
+    private int _seekSeq;
+    private volatile bool _seekRestart;
+
+    /// <summary>Audio track for the next file that starts (a favorite's saved track); used once.</summary>
+    public int? NextAudioTrack { get; set; }
+    private readonly SemaphoreSlim _seekGate = new(1, 1);
+
+    private void HoldClock(TimeSpan at)
+    {
+        _seekPosition = at;
+        _pausedDuration = TimeSpan.Zero;
+        _heldSince = DateTime.UtcNow;
+        _clockHeld = true;
+    }
+
+    private void StartClock()
+    {
+        if (!_clockHeld) return;
+        _playbackStartTime = DateTime.UtcNow;
+        _pausedDuration = TimeSpan.Zero;
+        _clockHeld = false;
+    }
+
     public TimeSpan Position
     {
         get
         {
             if (!IsPlaying) return TimeSpan.Zero;
+            if (_clockHeld)
+            {
+                // Never stuck: after 10 s the clock runs anyway.
+                if (DateTime.UtcNow - _heldSince < TimeSpan.FromSeconds(10)) return _seekPosition;
+                StartClock();
+            }
 
             var elapsed = DateTime.UtcNow - _playbackStartTime - _pausedDuration;
             if (IsPaused) elapsed -= DateTime.UtcNow - _pauseStartTime;
@@ -159,6 +204,27 @@ public class VideoPlayer : IDisposable
 
     /// <summary>0-based audio stream (<c>0:a:N</c>). 0 is the first audio track in the file.</summary>
     public int AudioStreamIndex { get; set; }
+
+    /// <summary>
+    ///     The canvas the video drew into is gone: keep playing into another one. FFmpeg restarts at
+    ///     the current position with the new size, like a seek.
+    /// </summary>
+    public async Task MoveToCanvasAsync(Canvas canvas)
+    {
+        if (!IsPlaying || _currentCanvas == null) return;
+        _targetWidth = canvas.Width;
+        _targetHeight = canvas.Height;
+        _currentCanvas = canvas;
+        _canvasDisposed = false;
+        await SeekAsync(Position);
+    }
+
+    /// <summary>Size FFmpeg scales to (the canvas size when playback started).</summary>
+    public int TargetWidth => _targetWidth;
+    public int TargetHeight => _targetHeight;
+
+    /// <summary>Path or address of what is playing (for the audio track list).</summary>
+    public string? CurrentSource => _currentVideoPath;
 
     private string AudioMap => $"-map 0:a:{Math.Clamp(AudioStreamIndex, 0, 63)}? ";
 
@@ -223,6 +289,11 @@ public class VideoPlayer : IDisposable
             if (string.IsNullOrWhiteSpace(_boardTitle)) PublishBoardTitle();
         });
 
+        // A different film starts on its first audio track (or a favorite's saved one);
+        // a seek or track switch keeps the choice.
+        if (!string.Equals(_currentVideoPath, videoSource, StringComparison.Ordinal))
+            AudioStreamIndex = NextAudioTrack ?? 0;
+        NextAudioTrack = null;
         _currentVideoPath = videoSource;
         Fps = info.Fps;
         _duration = info.Duration;
@@ -238,9 +309,8 @@ public class VideoPlayer : IDisposable
         _targetHeight = canvas.Height;
         Console.WriteLine($"[VIDEO] Target canvas: {canvas.Name} ({_targetWidth}x{_targetHeight})");
 
-        // Initialize time-based position tracking
-        _playbackStartTime = DateTime.UtcNow;
-        _pausedDuration = TimeSpan.Zero;
+        // Position tracking: the clock starts with the first frame or the first audio
+        HoldClock(TimeSpan.Zero);
 
         // Store for seeking
         _currentCanvas = canvas;
@@ -320,9 +390,8 @@ public class VideoPlayer : IDisposable
         _currentCanvas = null;
         _currentPlayAudio = true;
 
-        // Initialize time-based position tracking
-        _playbackStartTime = DateTime.UtcNow;
-        _pausedDuration = TimeSpan.Zero;
+        // Position tracking: the clock starts with the first frame or the first audio
+        HoldClock(TimeSpan.Zero);
 
         _cts = new CancellationTokenSource();
 
@@ -380,6 +449,9 @@ public class VideoPlayer : IDisposable
             info.Duration = knownDuration.Value;
         }
 
+        if (!string.Equals(_currentVideoPath, videoUrl, StringComparison.Ordinal))
+            AudioStreamIndex = NextAudioTrack ?? 0;
+        NextAudioTrack = null;
         _currentVideoPath = videoUrl;
         _currentAudioUrl = audioUrl; // Store for seeking
         Fps = info.Fps > 0 ? info.Fps : 30;
@@ -395,9 +467,8 @@ public class VideoPlayer : IDisposable
         _targetWidth = canvas.Width;
         _targetHeight = canvas.Height;
 
-        // Initialize time-based position tracking
-        _playbackStartTime = DateTime.UtcNow;
-        _pausedDuration = TimeSpan.Zero;
+        // Position tracking: the clock starts with the first frame or the first audio
+        HoldClock(TimeSpan.Zero);
 
         _currentCanvas = canvas;
         _currentPlayAudio = playAudio;
@@ -529,8 +600,7 @@ public class VideoPlayer : IDisposable
             // Track when playback started (will be reset when audio starts)
             var playbackStart = DateTime.UtcNow;
 
-            // Reset timing for this playback attempt
-            _playbackStartTime = DateTime.UtcNow - startPosition;
+            // Timing for this attempt starts with its first frame (StartClock in DrawFrame).
             startPosition = TimeSpan.Zero;
 
             // Audio will be started after first video frame is received
@@ -721,8 +791,12 @@ public class VideoPlayer : IDisposable
 
         } while (IsLooping && !ct.IsCancellationRequested && !_canvasDisposed);
 
-        IsPlaying = false;
-        OnPlaybackStopped?.Invoke();
+        // A seek cancels this run on purpose and starts the next one: that is not the end.
+        if (!_seekRestart)
+        {
+            IsPlaying = false;
+            OnPlaybackStopped?.Invoke();
+        }
     }
 
     /// <summary>
@@ -762,6 +836,7 @@ public class VideoPlayer : IDisposable
                     OnError?.Invoke("Failed to start PixTone audio");
                     break;
                 }
+                _ = _vap1.WaitForAudioStartAsync(TimeSpan.FromSeconds(8), ct).ContinueWith(_ => StartClock());
             }
             else
             {
@@ -795,6 +870,7 @@ public class VideoPlayer : IDisposable
                 OnError?.Invoke("Failed to start FFmpeg");
                 break;
             }
+            StartClock();
 
             var ffmpegProc = _ffmpegProcess;
             _ = Task.Run(async () =>
@@ -858,8 +934,12 @@ public class VideoPlayer : IDisposable
             }
         } while (IsLooping && !ct.IsCancellationRequested);
 
-        IsPlaying = false;
-        OnPlaybackStopped?.Invoke();
+        // A seek cancels this run on purpose and starts the next one: that is not the end.
+        if (!_seekRestart)
+        {
+            IsPlaying = false;
+            OnPlaybackStopped?.Invoke();
+        }
     }
 
     /// <summary>
@@ -876,11 +956,30 @@ public class VideoPlayer : IDisposable
 
         // Clamp position to valid range
         if (position < TimeSpan.Zero) position = TimeSpan.Zero;
-        if (position > _duration) position = _duration - TimeSpan.FromSeconds(1);
+        if (_duration > TimeSpan.Zero && position > _duration) position = _duration - TimeSpan.FromSeconds(1);
+        if (position < TimeSpan.Zero) position = TimeSpan.Zero;
 
-        Console.WriteLine($"[MEDIA] Seeking to {position:mm\\:ss}");
+        // The bar shows the target from now on; quick clicks queue and only the last one runs.
+        var mine = Interlocked.Increment(ref _seekSeq);
+        HoldClock(position);
+        await _seekGate.WaitAsync();
+        try
+        {
+            if (mine != Volatile.Read(ref _seekSeq) || !IsPlaying || _currentVideoPath == null) return;
+            await SeekCoreAsync(position);
+        }
+        finally
+        {
+            _seekGate.Release();
+        }
+    }
 
-        // Stop current playback
+    private async Task SeekCoreAsync(TimeSpan position)
+    {
+        Console.WriteLine($"[MEDIA] Seeking to {position:hh\\:mm\\:ss}");
+
+        // Stop current playback (its end does not count as "playback stopped")
+        _seekRestart = true;
         _cts?.Cancel();
         StopProcesses();
 
@@ -898,10 +997,9 @@ public class VideoPlayer : IDisposable
                 Console.WriteLine($"[VIDEO] Seek: Previous playback task error: {ex.Message}");
             }
 
-        // Restart from new position with fresh timing
-        _seekPosition = position;
-        _playbackStartTime = DateTime.UtcNow;
-        _pausedDuration = TimeSpan.Zero;
+        // Restart from new position; the clock starts with the first frame or the first audio
+        HoldClock(position);
+        _seekRestart = false;
         IsPlaying = true; // Must set this before starting new task (old task sets it to false on cancel)
         IsPaused = false;
         _cts = new CancellationTokenSource();
@@ -1450,8 +1548,12 @@ public class VideoPlayer : IDisposable
             _pausedDuration = TimeSpan.Zero;
         } while (IsLooping && !ct.IsCancellationRequested && !_canvasDisposed);
 
-        IsPlaying = false;
-        OnPlaybackStopped?.Invoke();
+        // A seek cancels this run on purpose and starts the next one: that is not the end.
+        if (!_seekRestart)
+        {
+            IsPlaying = false;
+            OnPlaybackStopped?.Invoke();
+        }
     }
 
     private static void SignalProcess(Process? proc, string signal)
@@ -1480,6 +1582,7 @@ public class VideoPlayer : IDisposable
 
     private void DrawFrame(Canvas canvas, byte[] bgra)
     {
+        StartClock();
         // Check if canvas is still valid
         if (canvas == null || _canvasDisposed) return;
 

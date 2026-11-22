@@ -274,7 +274,7 @@ function syncBoardVolume(sink) {
   const mute = document.getElementById('pixtone-mute');
   if (slider && document.activeElement !== slider) slider.value = board.volume;
   if (label) label.textContent = board.volume + '%';
-  if (mute) mute.textContent = board.isMuted ? 'Unmute' : 'Mute';
+  if (mute) mute.checked = !!board.isMuted;
   const wall = document.getElementById('pixtone-wall');
   if (wall && document.activeElement !== wall) wall.checked = !!audioSystemStatus.wallPreview;
   const fps = document.getElementById('pixtone-fps');
@@ -283,6 +283,8 @@ function syncBoardVolume(sink) {
   const width = document.getElementById('pixtone-width');
   if (width && document.activeElement !== width && audioSystemStatus.previewWidth)
     width.value = String(audioSystemStatus.previewWidth);
+  const fill = document.getElementById('pixtone-fill');
+  if (fill && document.activeElement !== fill) fill.checked = !!audioSystemStatus.previewFill;
 }
 
 function setBoardVolume(value) {
@@ -317,6 +319,14 @@ async function setPreviewFps(fps) {
     await api.post('/api/audio/pixtone/preview-fps?fps=' + encodeURIComponent(fps));
   } catch (error) {
     console.error('Failed to set preview fps:', error);
+  }
+}
+
+async function setPreviewFill(on) {
+  try {
+    await api.post('/api/audio/pixtone/preview-fill?on=' + (on ? 'true' : 'false'));
+  } catch (error) {
+    console.error('Failed to set preview fill:', error);
   }
 }
 

@@ -213,28 +213,7 @@ public static class NetworkShareEndpoints
                 loop ?? true
             );
             
-            // Extract thumbnail in background (don't wait for it)
-            string? thumbnail = null;
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    Console.WriteLine($"[NETWORK] Extracting thumbnail for: {Path.GetFileName(decodedPath)}");
-                    thumbnail = await MediaProbeService.ExtractThumbnailAsync(videoUrl);
-                    if (thumbnail != null)
-                    {
-                        Console.WriteLine($"[NETWORK] Thumbnail extracted: {thumbnail.Length} chars");
-                        // Update history entry with thumbnail
-                        favoritesService?.UpdateHistoryThumbnail(videoUrl, thumbnail);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[NETWORK] Thumbnail extraction failed: {ex.Message}");
-                }
-            });
-            
-            // Record in play history (thumbnail may be added later)
+            // Record in play history; the picture follows in the background (SMB reads take a while).
             favoritesService?.AddToHistory(new PlayHistoryItem
             {
                 Type = MediaItemType.NetworkVideo,
@@ -245,6 +224,9 @@ public static class NetworkShareEndpoints
                 NetworkFilePath = decodedPath,
                 NetworkProtocol = "smb"
             });
+            if (favoritesService != null)
+                FavoritesEndpoints.EnsureThumbnail(favoritesService, MediaItemType.NetworkVideo,
+                    $"{share.Id}:{decodedPath}", videoUrl);
 
             return Results.Json(new
             {
@@ -302,7 +284,7 @@ public static class NetworkShareEndpoints
                 loop ?? false
             );
             
-            // Record in play history
+            // Record in play history; an embedded cover follows in the background.
             favoritesService?.AddToHistory(new PlayHistoryItem
             {
                 Type = MediaItemType.NetworkAudio,
@@ -313,6 +295,9 @@ public static class NetworkShareEndpoints
                 NetworkFilePath = decodedPath,
                 NetworkProtocol = "smb"
             });
+            if (favoritesService != null)
+                FavoritesEndpoints.EnsureThumbnail(favoritesService, MediaItemType.NetworkAudio,
+                    $"{share.Id}:{decodedPath}", audioUrl);
 
             return Results.Json(new
             {

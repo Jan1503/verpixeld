@@ -195,6 +195,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<RadioBrowserService>();
         services.AddSingleton<NetworkShareService>();
         services.AddSingleton<FavoritesService>();
+        services.AddSingleton<RadioService>();
+        services.AddSingleton<SleepTimerService>();
+        services.AddSingleton<AlarmService>();
+        services.AddSingleton<SongLogService>();
+        services.AddSingleton<MediaPlayer.Audio.PanelBridgeService>();
 
         services.AddSingleton(sp =>
         {
@@ -244,6 +249,26 @@ public static class ServiceCollectionExtensions
                 });
             ha.WallDevice = device;
             return device;
+        });
+
+        services.AddSingleton(sp =>
+        {
+            var httpPort = configuration.GetSection(WebServerOptions.SectionName).GetValue("HttpPort", 5000);
+            return new HaAudioDevice(
+                sp.GetRequiredService<HomeAssistantService>(),
+                sp.GetRequiredService<MediaPlayer.Audio.PixToneOutputService>(),
+                sp.GetRequiredService<MediaPlayerService>(),
+                sp.GetRequiredService<RadioService>(),
+                sp.GetRequiredService<SleepTimerService>(),
+                sp.GetRequiredService<AlarmService>(),
+                sp.GetRequiredService<SongLogService>(),
+                sp.GetRequiredService<MediaPlayer.Audio.IAudioVisualizerService>(),
+                sp.GetRequiredService<MediaPlayer.Audio.PanelBridgeService>(),
+                () =>
+                {
+                    var ip = StartupService.GetLocalIPAddress();
+                    return ip == null ? null : $"http://{ip}:{httpPort}";
+                });
         });
 
         services.AddSingleton<HostOrchestrator>();

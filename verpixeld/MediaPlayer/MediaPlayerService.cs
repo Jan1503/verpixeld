@@ -1,6 +1,7 @@
 using CanvasManagement;
 using SkiaSharp;
 using verpixeld.Configuration;
+using PixTone;
 using verpixeld.MediaPlayer.Audio;
 
 namespace verpixeld.MediaPlayer;
@@ -56,6 +57,8 @@ public class MediaPlayerService : IDisposable
         _videoPlayer.OnFirstFrame += OnFirstFrame;
         _videoPlayer.OnError += OnVideoError;
         _canvasManager.DisplayResized += OnDisplayResized;
+        LoadLayerRect();
+        _ = Task.Run(WatchCanvasAsync);
 
         Console.WriteLine($"[MEDIA] Initialized for {width}x{height} display");
         Console.WriteLine($"[MEDIA] FFmpeg available: {FFmpegAvailable}");
@@ -97,7 +100,8 @@ public class MediaPlayerService : IDisposable
     public bool HasAudioPlaylist => _audioPlaylist.Count > 0;
 
     // Playlist properties
-    public IReadOnlyList<string> AudioPlaylist => _audioPlaylist.AsReadOnly();
+    /// <summary>File names of the playlist (the folder of the track that was started).</summary>
+    public IReadOnlyList<string> AudioPlaylist => _audioPlaylist.Select(Path.GetFileName).ToList()!;
     public int CurrentPlaylistIndex { get; private set; } = -1;
 
     public bool AutoAdvance { get; set; } = true;
@@ -113,6 +117,8 @@ public class MediaPlayerService : IDisposable
     // Radio stream state
     public bool IsRadioPlaying { get; private set; }
     public string? RadioStationName { get; private set; }
+    /// <summary>Stream address of the radio station that is playing, for the now-playing reader.</summary>
+    public string? RadioStreamUrl { get; private set; }
 
     // Auto-play favorites properties
     public bool AutoPlayFavorites { get; private set; }
@@ -170,8 +176,8 @@ public class MediaPlayerService : IDisposable
     public bool IsMuted => _audio.IsMuted;
 
     /// <summary>
-    ///     Target canvas for video playback. "MediaPlayer" (or empty) is the full-wall overlay.
-    ///     Any other name, including Main, is that canvas.
+    ///     Target canvas for video playback. Empty (the default) or "MediaPlayer" is the media
+    ///     player's own full-wall layer above the layout. Any other name, including Main, is that canvas.
     /// </summary>
     public string? TargetCanvasName { get; set; }
 
@@ -201,6 +207,99 @@ public class MediaPlayerService : IDisposable
     {
         get => _videoPlayer.AudioStreamIndex;
         set => _videoPlayer.AudioStreamIndex = Math.Clamp(value, 0, 63);
+    }
+
+    /// <summary>Full path or address of what is playing (for favorites and the track list).</summary>
+    public string? CurrentSource => _videoPlayer.CurrentSource;
+
+    // How to start the last thing again (Play on a stopped player): any source, not just a library file.
+    private Func<Task>? _replay;
+
+    public bool CanReplay => _replay != null;
+
+    /// <summary>Starts what played last, from the beginning, with the same audio track.</summary>
+    public async Task<bool> ReplayAsync()
+    {
+        var replay = _replay;
+        if (replay == null) return false;
+        PrepareAudioTrack(AudioStreamIndex);
+        await replay();
+        return true;
+    }
+
+    /// <summary>
+    ///     Studio moved or resized the media layer. The layer is the media player's own canvas (the
+    ///     layout manager does not know it), so it is rebuilt here; a playing video follows within a second.
+    /// </summary>
+    public void ResizeLayer(int x, int y, int width, int height)
+    {
+        var name = MediaPlaybackTarget.OverlayName;
+        var old = _canvasManager.GetCanvasByName(name);
+        if (old == null)
+        {
+            _layerRect = null;
+            RememberRect(x, y, width, height);
+            return;
+        }
+        if (old.Width == width && old.Height == height)
+        {
+            _canvasManager.MoveCanvas(old, x, y);
+            RememberRect(x, y, width, height);
+            return;
+        }
+        var zOrder = old.ZOrder;
+        var opacity = old.Opacity;
+        var brightness = old.Brightness;
+        var hidden = old.IsHidden;
+        var transparent = old.TransparentBackground;
+        var created = _canvasManager.GetCanvas(x, y, width, height, zOrder, name + "~");
+        _canvasManager.RemoveCanvas(old);
+        _canvasManager.RenameCanvas(created, name);
+        created.Opacity = opacity;
+        created.Brightness = brightness;
+        created.TransparentBackground = transparent;
+        if (hidden) created.Hide();
+        else created.Show();
+        if (ReferenceEquals(_mediaCanvas, old)) _mediaCanvas = created;
+        RememberRect(x, y, width, height);
+    }
+
+    private void RememberRect(int x, int y, int width, int height)
+    {
+        var r = (x, y, width, height);
+        if (_layerRect == r) return;
+        _layerRect = r;
+        try
+        {
+            var root = AppSettingsStore.Load();
+            var section = AppSettingsStore.Section(root, "MediaLayer");
+            AppSettingsStore.Set(section, "X", System.Text.Json.Nodes.JsonValue.Create(x));
+            AppSettingsStore.Set(section, "Y", System.Text.Json.Nodes.JsonValue.Create(y));
+            AppSettingsStore.Set(section, "Width", System.Text.Json.Nodes.JsonValue.Create(width));
+            AppSettingsStore.Set(section, "Height", System.Text.Json.Nodes.JsonValue.Create(height));
+            AppSettingsStore.Save(root);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[MEDIA] Could not save the media layer: " + ex.Message);
+        }
+        Console.WriteLine($"[MEDIA] Media layer at {x},{y} {width}x{height}");
+    }
+
+    private string? _tracksFor;
+    private IReadOnlyList<AudioTrackChoice> _tracks = Array.Empty<AudioTrackChoice>();
+
+    /// <summary>Audio tracks of what is playing now (local file, share or stream), probed once per file.</summary>
+    public async Task<IReadOnlyList<AudioTrackChoice>> CurrentAudioTracksAsync()
+    {
+        var source = _videoPlayer.CurrentSource;
+        if (string.IsNullOrWhiteSpace(source) || !IsRunning) return Array.Empty<AudioTrackChoice>();
+        if (source == _tracksFor) return _tracks;
+        var tracks = await MediaProbeService.ListAudioTracksAsync(source);
+        _tracksFor = source;
+        _tracks = tracks;
+        Console.WriteLine($"[MEDIA] {tracks.Count} audio tracks");
+        return tracks;
     }
 
     /// <summary>Switch audio stream. Restarts the current file at the same position when one is playing.</summary>
@@ -281,6 +380,7 @@ public class MediaPlayerService : IDisposable
     /// </summary>
     public async Task PlayVideoAsync(string videoPath, bool loop = true)
     {
+        _replay = () => PlayVideoAsync(videoPath, loop);
         if (!File.Exists(videoPath))
         {
             Console.WriteLine($"[MEDIA] Video not found: {videoPath}");
@@ -311,6 +411,7 @@ public class MediaPlayerService : IDisposable
     public async Task PlayNetworkVideoAsync(string url, string shareName, string filePath, string protocol,
         bool loop = true)
     {
+        _replay = () => PlayNetworkVideoAsync(url, shareName, filePath, protocol, loop);
         // Store network video info, clear audio/YouTube state
         NetworkShareName = shareName;
         NetworkFilePath = filePath;
@@ -335,6 +436,7 @@ public class MediaPlayerService : IDisposable
     /// <param name="audioOnly">If true, play audio only without showing video on display</param>
     public async Task<bool> PlayYouTubeVideoAsync(string youtubeUrl, bool loop = false, bool audioOnly = false)
     {
+        _replay = () => PlayYouTubeVideoAsync(youtubeUrl, loop, audioOnly);
         LastPlaybackError = null;
         
         if (!YtDlpAvailable)
@@ -414,7 +516,9 @@ public class MediaPlayerService : IDisposable
         await StopAsync(userInitiated: false, keepOverlay: true);
 
         ResetStartGate();
+        var previousCanvas = _mediaCanvas;
         _mediaCanvas = GetOrCreateTargetCanvas();
+        ReleasePreviousCanvas(previousCanvas);
         HideOwnedOverlayUntilReady(keepLastFrame: true);
 
         CurrentYouTubeInfo = playbackInfo;
@@ -490,7 +594,9 @@ public class MediaPlayerService : IDisposable
         ResetStartGate();
         _isRunning = true;
 
+        var previousCanvas = _mediaCanvas;
         _mediaCanvas = GetOrCreateTargetCanvas();
+        ReleasePreviousCanvas(previousCanvas);
         HideOwnedOverlayUntilReady(keepLastFrame: true);
 
         Console.WriteLine($"[MEDIA] Using canvas: {_mediaCanvas.Name} ({_mediaCanvas.Width}x{_mediaCanvas.Height})");
@@ -514,6 +620,9 @@ public class MediaPlayerService : IDisposable
     // (e.g. a Studio content/rotation step) — bypassing the "MediaPlayer" overlay creation.
     private Canvas? _forcedCanvas;
 
+    // The video plays into a canvas a caller handed over (Studio step): its life is the caller's.
+    private bool _canvasFromCaller;
+
     /// <summary>
     ///     Plays a video into a specific existing canvas (e.g. a Studio canvas), rather than creating the
     ///     dedicated full-screen "MediaPlayer" overlay. The canvas is not owned/removed by the service.
@@ -531,9 +640,10 @@ public class MediaPlayerService : IDisposable
     private Canvas GetOrCreateTargetCanvas()
     {
         // A caller forced an exact canvas (Studio content/rotation) — render into it directly.
+        _canvasFromCaller = _forcedCanvas != null;
         if (_forcedCanvas != null) return _forcedCanvas;
 
-        var wanted = string.IsNullOrWhiteSpace(TargetCanvasName) ? "Main" : TargetCanvasName.Trim();
+        var wanted = string.IsNullOrWhiteSpace(TargetCanvasName) ? MediaPlaybackTarget.OverlayName : TargetCanvasName.Trim();
         if (!MediaPlaybackTarget.UsesOwnedOverlay(wanted))
         {
             var existingCanvas = _canvasManager.GetCanvasesByZOrder()
@@ -557,23 +667,23 @@ public class MediaPlayerService : IDisposable
     /// </summary>
     private Canvas FullWallOverlay()
     {
-        var w = _canvasManager.Width;
-        var h = _canvasManager.Height;
+        var (x, y, w, h) = LayerRect();
         var name = MediaPlaybackTarget.OverlayName;
         var existing = _canvasManager.GetCanvasByName(name);
-        if (existing != null && existing.Width == w && existing.Height == h && existing.XPos == 0 && existing.YPos == 0)
+        if (existing != null && existing.Width == w && existing.Height == h)
         {
+            if (existing.XPos != x || existing.YPos != y) _canvasManager.MoveCanvas(existing, x, y);
             existing.Hide();
             return existing;
         }
 
         if (existing != null)
         {
-            Console.WriteLine($"[MEDIA] Replacing {existing.Width}x{existing.Height} overlay with {w}x{h}");
+            Console.WriteLine($"[MEDIA] Replacing {existing.Width}x{existing.Height} media layer with {w}x{h}");
             _canvasManager.RemoveCanvas(existing);
         }
 
-        var created = _canvasManager.GetCanvas(0, 0, w, h, 200, name);
+        var created = _canvasManager.GetCanvas(x, y, w, h, 200, name);
         created.Hide();
         return created;
     }
@@ -614,6 +724,7 @@ public class MediaPlayerService : IDisposable
         IsAudioPlayback = false;
         IsRadioPlaying = false;
         RadioStationName = null;
+        RadioStreamUrl = null;
         CurrentAudio = null;
         NetworkShareName = null;
         NetworkFilePath = null;
@@ -627,8 +738,9 @@ public class MediaPlayerService : IDisposable
     ///     Play an internet radio stream (direct HTTP audio stream URL).
     ///     Starts almost instantly — no yt-dlp extraction needed.
     /// </summary>
-    public async Task PlayRadioStreamAsync(string streamUrl, string stationName)
+    public async Task PlayRadioStreamAsync(string streamUrl, string stationName, string? coverUrl = null)
     {
+        _replay = () => PlayRadioStreamAsync(streamUrl, stationName, coverUrl);
         Console.WriteLine($"[MEDIA] Starting radio stream: \"{stationName}\" → {streamUrl}");
 
         // Stop any current playback first
@@ -641,6 +753,7 @@ public class MediaPlayerService : IDisposable
 
         IsRadioPlaying = true;
         RadioStationName = stationName;
+        RadioStreamUrl = streamUrl;
         _isRunning = true;
 
         // Clear previous state
@@ -653,7 +766,7 @@ public class MediaPlayerService : IDisposable
 
         // Play directly via the video player's audio-only path (handles HTTP streams with reconnect)
         _videoPlayer.SetBoardTitle(stationName);
-        _videoPlayer.SetBoardCover(null);
+        _videoPlayer.SetBoardCover(string.IsNullOrWhiteSpace(coverUrl) ? null : coverUrl);
         await _videoPlayer.PlayAudioOnlyAsync(streamUrl, loop: false);
     }
 
@@ -664,6 +777,7 @@ public class MediaPlayerService : IDisposable
     {
         IsRadioPlaying = false;
         RadioStationName = null;
+        RadioStreamUrl = null;
     }
 
     /// <summary>
@@ -671,16 +785,111 @@ public class MediaPlayerService : IDisposable
     /// </summary>
     public async Task NotifyCanvasRemovedAsync(string canvasName)
     {
-        // Check if we're playing to this canvas
-        if (_mediaCanvas != null && _mediaCanvas.Name == canvasName)
+        if (TargetCanvasName == canvasName) TargetCanvasName = null;
+        if (_mediaCanvas != null && _mediaCanvas.Name == canvasName && !IsOwnedOverlay(_mediaCanvas))
         {
-            Console.WriteLine($"[MEDIA] Target canvas '{canvasName}' was removed - stopping playback");
-            await StopAsync();
+            if (_canvasFromCaller)
+            {
+                Console.WriteLine($"[MEDIA] Canvas '{canvasName}' was removed - stopping playback");
+                await StopAsync();
+            }
+            else
+            {
+                await MoveToOwnLayerAsync($"Canvas '{canvasName}' was removed");
+            }
         }
-        else if (TargetCanvasName == canvasName)
+    }
+
+    /// <summary>
+    ///     Every second while a video plays: is its canvas still on the wall? A layout load, a new
+    ///     Main or a deleted canvas used to leave the film running without a picture. Now the video
+    ///     moves to the media player's own layer at the same position (or that layer comes back).
+    /// </summary>
+    private async Task WatchCanvasAsync()
+    {
+        while (true)
         {
-            Console.WriteLine($"[MEDIA] Target canvas '{canvasName}' was removed - stopping playback");
-            await StopAsync();
+            await Task.Delay(1000).ConfigureAwait(false);
+            try
+            {
+                var canvas = _mediaCanvas;
+                if (canvas == null || _canvasFromCaller || !_videoPlayer.IsPlaying) continue;
+                var current = _canvasManager.GetCanvasByName(canvas.Name);
+                if (ReferenceEquals(current, canvas))
+                {
+                    // Moved in Studio: remember where. Resized in place: scale the video to it.
+                    if (IsOwnedOverlay(canvas) && !canvas.IsHidden) RememberLayer(canvas);
+                    if (canvas.Width != _videoPlayer.TargetWidth || canvas.Height != _videoPlayer.TargetHeight)
+                        await _videoPlayer.MoveToCanvasAsync(canvas);
+                    continue;
+                }
+                if (current != null && IsOwnedOverlay(canvas))
+                {
+                    // Studio resizes by building a new canvas with the same name: follow it.
+                    Console.WriteLine($"[MEDIA] Media layer resized in Studio to {current.Width}x{current.Height}");
+                    RememberLayer(current);
+                    _mediaCanvas = current;
+                    current.Show();
+                    await _videoPlayer.MoveToCanvasAsync(current);
+                    continue;
+                }
+                await MoveToOwnLayerAsync(IsOwnedOverlay(canvas)
+                    ? "The media layer was removed"
+                    : $"Canvas '{canvas.Name}' is gone");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[MEDIA] canvas watch: " + ex.Message);
+            }
+        }
+    }
+
+    private readonly SemaphoreSlim _moveGate = new(1, 1);
+
+    // Where the media layer sits on the wall. Studio can move and resize it; verpixeld keeps
+    // that (appsettings "MediaLayer") and uses the full wall when nothing is set or it no longer fits.
+    private (int X, int Y, int W, int H)? _layerRect;
+
+    private sealed class MediaLayerOptions
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+    }
+
+    private void LoadLayerRect()
+    {
+        var o = AppSettingsStore.Get<MediaLayerOptions>("MediaLayer");
+        if (o.Width > 0 && o.Height > 0) _layerRect = (o.X, o.Y, o.Width, o.Height);
+    }
+
+    private (int X, int Y, int W, int H) LayerRect()
+    {
+        var w = _canvasManager.Width;
+        var h = _canvasManager.Height;
+        if (_layerRect is { } r && r.W >= 8 && r.H >= 8 && r.X >= 0 && r.Y >= 0 && r.X + r.W <= w && r.Y + r.H <= h)
+            return r;
+        return (0, 0, w, h);
+    }
+
+    private void RememberLayer(Canvas c) => RememberRect(c.XPos, c.YPos, c.Width, c.Height);
+
+    private async Task MoveToOwnLayerAsync(string why)
+    {
+        if (!await _moveGate.WaitAsync(0)) return;
+        try
+        {
+            TargetCanvasName = null;
+            var overlay = FullWallOverlay();
+            _mediaCanvas = overlay;
+            overlay.Show();
+            Console.WriteLine($"[MEDIA] {why}: the video continues on its own layer");
+            await _videoPlayer.MoveToCanvasAsync(overlay);
+        }
+        finally
+        {
+            _moveGate.Release();
         }
     }
 
@@ -727,8 +936,19 @@ public class MediaPlayerService : IDisposable
             return;
         }
 
-        await _videoPlayer.SeekPercentAsync(percent);
+        Interlocked.Exchange(ref _autoPlayAdvancing, 1);
+        try
+        {
+            await _videoPlayer.SeekPercentAsync(percent);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _autoPlayAdvancing, 0);
+        }
     }
+
+    /// <summary>The next video that starts uses this audio track (a favorite's saved choice).</summary>
+    public void PrepareAudioTrack(int? track) => _videoPlayer.NextAudioTrack = track is >= 0 and < 64 ? track : null;
 
     /// <summary>
     ///     Get video info
@@ -785,6 +1005,7 @@ public class MediaPlayerService : IDisposable
     /// </summary>
     public async Task PlayAudioAsync(string audioPath, bool loop = false)
     {
+        _replay = () => PlayAudioAsync(audioPath, loop);
         if (!File.Exists(audioPath))
         {
             Console.WriteLine($"[MEDIA] Audio not found: {audioPath}");
@@ -809,7 +1030,7 @@ public class MediaPlayerService : IDisposable
         LastPlayedYouTubeTitle = null;
 
         // Build playlist from the current audio folder, starting with this file
-        BuildPlaylistFromFile(CurrentAudio);
+        BuildPlaylistFromFile(audioPath);
 
         Console.WriteLine($"[MEDIA] Playing audio: {CurrentAudio} ({CurrentPlaylistIndex + 1}/{_audioPlaylist.Count})");
 
@@ -827,6 +1048,7 @@ public class MediaPlayerService : IDisposable
     /// </summary>
     public async Task PlayNetworkAudioAsync(string url, string shareName, string filePath, bool loop = false)
     {
+        _replay = () => PlayNetworkAudioAsync(url, shareName, filePath, loop);
         // Stop any current playback
         await StopAsync();
 
@@ -858,6 +1080,36 @@ public class MediaPlayerService : IDisposable
 
     private bool IsOwnedOverlay(Canvas? canvas) =>
         canvas != null && canvas.Name == "MediaPlayer" && _forcedCanvas == null;
+
+    /// <summary>
+    ///     The last video stays on its canvas during a switch so the wall does not flash black. When
+    ///     the next video plays on a different canvas, that old frame must go: the media layer sits
+    ///     above everything and would hide the new video, and any other canvas would keep a frozen picture.
+    /// </summary>
+    private void ReleasePreviousCanvas(Canvas? previous)
+    {
+        if (previous == null || ReferenceEquals(previous, _mediaCanvas)) return;
+        try
+        {
+            if (previous.Name == MediaPlaybackTarget.OverlayName &&
+                ReferenceEquals(_canvasManager.GetCanvasByName(previous.Name), previous))
+            {
+                previous.Clear();
+                previous.Hide();
+                _canvasManager.RemoveCanvas(previous);
+                Console.WriteLine("[MEDIA] Previous media layer removed (new video plays elsewhere)");
+            }
+            else if (!_canvasFromCaller)
+            {
+                previous.Clear();
+                Console.WriteLine($"[MEDIA] Cleared the last frame on '{previous.Name}'");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MEDIA] Previous canvas: {ex.Message}");
+        }
+    }
 
     private void HideOwnedOverlayUntilReady(bool keepLastFrame = false)
     {
@@ -1001,11 +1253,27 @@ public class MediaPlayerService : IDisposable
     }
 
     /// <summary>
-    ///     Build playlist from available audio files, starting with the specified file
+    ///     The playlist is the folder the started track is in (an album, a mix), as full paths,
+    ///     sorted by name; shuffle keeps the started track first.
     /// </summary>
     private void BuildPlaylistFromFile(string startFile)
     {
-        var allFiles = GetAvailableAudioFiles().ToList();
+        var dir = Path.GetDirectoryName(startFile);
+        var allFiles = new List<string>();
+        try
+        {
+            if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                allFiles = Directory.EnumerateFiles(dir)
+                    .Where(f => MediaLibrary.AudioExtensions.Contains(Path.GetExtension(f).ToLowerInvariant()))
+                    .OrderBy(f => Path.GetFileName(f), StringComparer.CurrentCultureIgnoreCase)
+                    .Take(MediaLibrary.MaxFiles)
+                    .ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MEDIA] Playlist folder: {ex.Message}");
+        }
+        if (!allFiles.Contains(startFile)) allFiles.Insert(0, startFile);
 
         if (ShuffleMode)
         {
@@ -1068,14 +1336,15 @@ public class MediaPlayerService : IDisposable
             }
         }
 
-        var nextFile = _audioPlaylist[nextIndex];
-        var filePath = Path.Combine(AppPaths.AudioDir, nextFile);
+        var filePath = _audioPlaylist[nextIndex];
+        var nextFile = Path.GetFileName(filePath);
 
         Console.WriteLine($"[MEDIA] Playing next track: {nextFile} (index {nextIndex})");
 
         // Update index before playing to avoid re-triggering
         CurrentPlaylistIndex = nextIndex;
         CurrentAudio = nextFile;
+        LastPlayedAudio = nextFile;
 
         // Stop current and play next
         await _videoPlayer.StopAsync();
@@ -1126,14 +1395,15 @@ public class MediaPlayerService : IDisposable
             }
         }
 
-        var prevFile = _audioPlaylist[prevIndex];
-        var filePath = Path.Combine(AppPaths.AudioDir, prevFile);
+        var filePath = _audioPlaylist[prevIndex];
+        var prevFile = Path.GetFileName(filePath);
 
         Console.WriteLine($"[MEDIA] Playing previous track: {prevFile} (index {prevIndex})");
 
         // Update index before playing
         CurrentPlaylistIndex = prevIndex;
         CurrentAudio = prevFile;
+        LastPlayedAudio = prevFile;
 
         // Stop current and play previous
         await _videoPlayer.StopAsync();

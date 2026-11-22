@@ -13,6 +13,17 @@ public interface IAudioVisualizerService : IDisposable
     AudioVisualizerService.VisualizationMode Mode { get; set; }
 
     /// <summary>
+    ///     Band levels (0–1, low to high) from another device, the audio board. When this is set
+    ///     and returns true from <see cref="ExternalAvailable" />, the visualizer needs no local audio.
+    /// </summary>
+    Func<float[]?>? ExternalBands { get; set; }
+
+    Func<bool>? ExternalAvailable { get; set; }
+
+    /// <summary>True while running on <see cref="ExternalBands" />.</summary>
+    bool UsingExternal { get; }
+
+    /// <summary>
     ///     Sensitivity multiplier for visualization
     /// </summary>
     double Sensitivity { get; set; }

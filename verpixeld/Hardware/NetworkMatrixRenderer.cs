@@ -11,8 +11,7 @@ namespace verpixeld.Hardware;
 ///     (bit-plane packing, geometry, colour LUT, per-column seam correction, paced UDP) lives in the
 ///     reusable <see cref="PixPlane.PanelStreamer"/> library; this class only adapts verpixeld's config +
 ///     SKBitmap frames to it, and keeps the hot-reloadable <c>seam_correction.json</c> convenience.
-///     Pack + paced UDP run on a dedicated sender thread (latest-wins) so the compositor is not
-///     blocked by TargetMbps sleeps.
+///     The compositor only hands off the latest frame. Each panel packs and sends on its own thread.
 /// </summary>
 public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
 {
@@ -23,6 +22,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     private long _frameCounter;
 
     private readonly List<PanelStreamer> _streamers = [];
+    private readonly List<PanelPump> _pumps = [];
     private readonly List<NetworkPanelTarget> _openTargets = [];
     private byte[][] _crops = [];
     private PanelColorSettings _color;
@@ -146,8 +146,12 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         {
             try
             {
-                _streamers.Add(NewStreamer(target));
+                var streamer = NewStreamer(target);
+                _streamers.Add(streamer);
                 _openTargets.Add(target);
+                var pump = new PanelPump(streamer, target);
+                pump.Start();
+                _pumps.Add(pump);
             }
             catch (Exception ex)
             {
@@ -158,7 +162,9 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
 
     private void CloseStreamersUnlocked()
     {
-        foreach (var s in _streamers) s.Dispose();
+        foreach (var pump in _pumps) pump.Stop();
+        foreach (var pump in _pumps) pump.Join();
+        _pumps.Clear();
         _streamers.Clear();
         _openTargets.Clear();
     }
@@ -311,7 +317,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
 
             if (_stopSender) return;
 
-            PanelStreamer[] batch = [];
+            PanelPump[] pumps = [];
             NetworkPanelTarget[] targets = [];
             byte[]? work = null;
             var stride = 0;
@@ -334,9 +340,9 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
                     stride = _pendingStride;
                     frameW = Width;
                     frameH = Height;
-                    batch = _streamers.ToArray();
+                    pumps = _pumps.ToArray();
                     targets = _openTargets.ToArray();
-                    EnsureCrops(batch.Length);
+                    EnsureCrops(pumps.Length);
                     _hasPending = false;
                     _sending = true;
                 }
@@ -349,37 +355,19 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
                     _frameReady.Reset();
             }
 
-            if (batch.Length != 0 && work != null)
+            if (pumps.Length != 0 && work != null)
             {
                 try
                 {
                     var crops = _crops;
-                    if (targets.Length == batch.Length && crops.Length >= batch.Length)
+                    if (targets.Length == pumps.Length && crops.Length >= pumps.Length)
                     {
-                        if (batch.Length == 1)
+                        for (var i = 0; i < pumps.Length; i++)
                         {
-                            try { SendCrop(batch[0], targets[0], work, stride, frameW, frameH, crops[0]); }
-                            catch (ObjectDisposedException) { }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"[NET] send to panel 1 failed: {ex.Message}");
-                            }
+                            CropBgra(work, stride, frameW, frameH, targets[i].X, targets[i].Y, crops[i]);
+                            pumps[i].Post(crops[i]);
                         }
-                        else
-                            Parallel.For(0, batch.Length, i =>
-                            {
-                                try { SendCrop(batch[i], targets[i], work, stride, frameW, frameH, crops[i]); }
-                                catch (ObjectDisposedException) { }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine($"[NET] send to panel {i + 1} failed: {ex.Message}");
-                                }
-                            });
                     }
-                }
-                catch (ObjectDisposedException)
-                {
-                    // Reconfigure/dispose raced a send that already held the instance.
                 }
                 finally
                 {
@@ -400,13 +388,6 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         var bytes = NetworkWall.PanelWidth * NetworkWall.PanelHeight * 4;
         for (var i = 0; i < count; i++)
             _crops[i] = new byte[bytes];
-    }
-
-    private static void SendCrop(PanelStreamer streamer, NetworkPanelTarget target, byte[] frame,
-        int stride, int frameW, int frameH, byte[] crop)
-    {
-        CropBgra(frame, stride, frameW, frameH, target.X, target.Y, crop);
-        streamer.SendFrameBgra(crop, NetworkWall.PanelWidth * 4);
     }
 
     private static void CropBgra(byte[] src, int srcStride, int srcW, int srcH, int originX, int originY, byte[] dst)
@@ -671,6 +652,76 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     }
 
     public void Shutdown() { Dispose(); Console.WriteLine("[NET] renderer shut down"); }
+
+    /// <summary>Latest frame for one panel, sent on its own thread.</summary>
+    private sealed class PanelPump
+    {
+        private readonly object _gate = new();
+        private byte[] _inbox = [];
+        private bool _has;
+        private volatile bool _stop;
+        private Thread? _thread;
+
+        public PanelPump(PanelStreamer streamer, NetworkPanelTarget target)
+        {
+            Streamer = streamer;
+            Target = target;
+        }
+
+        public PanelStreamer Streamer { get; }
+        public NetworkPanelTarget Target { get; }
+
+        public void Start()
+        {
+            _thread = new Thread(Loop)
+            {
+                IsBackground = true,
+                Name = "pixplane-" + Target.Host
+            };
+            _thread.Start();
+        }
+
+        public void Post(byte[] crop)
+        {
+            lock (_gate)
+            {
+                if (_inbox.Length != crop.Length) _inbox = new byte[crop.Length];
+                Buffer.BlockCopy(crop, 0, _inbox, 0, crop.Length);
+                _has = true;
+                Monitor.Pulse(_gate);
+            }
+        }
+
+        public void Stop()
+        {
+            _stop = true;
+            lock (_gate) Monitor.PulseAll(_gate);
+            try { Streamer.Dispose(); }
+            catch (Exception) { }
+        }
+
+        public void Join() => _thread?.Join(1500);
+
+        private void Loop()
+        {
+            var local = new byte[NetworkWall.PanelWidth * NetworkWall.PanelHeight * 4];
+            while (!_stop)
+            {
+                lock (_gate)
+                {
+                    while (!_has && !_stop) Monitor.Wait(_gate);
+                    if (_stop) return;
+                    if (local.Length != _inbox.Length) local = new byte[_inbox.Length];
+                    Buffer.BlockCopy(_inbox, 0, local, 0, _inbox.Length);
+                    _has = false;
+                }
+
+                try { Streamer.SendFrameBgra(local, NetworkWall.PanelWidth * 4); }
+                catch (Exception) { }
+            }
+        }
+    }
+
     public void Dispose()
     {
         if (_correction != null) _correction.Changed -= OnCorrectionChanged;

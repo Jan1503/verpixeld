@@ -83,6 +83,10 @@ public class Program
         app.MapYouTubeEndpoints();
         app.MapFavoritesEndpoints();
         app.MapAudioEndpoints();
+        app.MapRadioEndpoints();
+        // The audio board panel works without a page open; start its bridge now.
+        app.Services.GetRequiredService<verpixeld.MediaPlayer.Audio.PanelBridgeService>();
+        app.Services.GetRequiredService<verpixeld.Services.HaAudioDevice>();
         app.MapVisualizerEndpoints();
         app.MapSettingsEndpoints();
         app.MapOutputSettingsEndpoints();
@@ -180,6 +184,7 @@ public class Program
         TryStop(() => sp.GetRequiredService<VoiceCommandService>().Stop());
         TryStop(() => sp.GetRequiredService<HomeAssistantService>().Stop());
         TryStop(() => sp.GetRequiredService<HaWallDevice>().Dispose());
+        TryStop(() => sp.GetRequiredService<HaAudioDevice>().Dispose());
         TryStop(() => sp.GetRequiredService<HaToastService>().Dispose());
         TryStop(() => sp.GetRequiredService<ILayoutScheduleManager>().Stop());
         TryStop(() => sp.GetRequiredService<NightModeManager>().Dispose());

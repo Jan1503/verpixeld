@@ -69,6 +69,9 @@ public class AudioVisualizerService : IAudioVisualizerService
 
     // Visualization settings
     public VisualizationMode Mode { get; set; } = VisualizationMode.SpectrumBars;
+    public Func<float[]?>? ExternalBands { get; set; }
+    public Func<bool>? ExternalAvailable { get; set; }
+    public bool UsingExternal { get; private set; }
     public double Sensitivity { get; set; } = 1.0;
     public ColorScheme ColorMode { get; set; } = ColorScheme.Rainbow;
     public bool MirrorBars { get; set; } = false;
@@ -112,15 +115,29 @@ public class AudioVisualizerService : IAudioVisualizerService
             await StopAsync();
         }
 
-        if (!CanvasManagement.Interfaces.AudioPlayback.HasPlaybackDevice())
-        {
-            Console.WriteLine("[VISUALIZER] No playback device — not opening a Pulse monitor");
-            return false;
-        }
-
         _canvasDisposed = false;
         _targetCanvas = canvas;
         TargetCanvasName = canvasName;
+
+        // The audio board's spectrum, when there is one: no local audio needed.
+        if (ExternalBands != null && ExternalAvailable?.Invoke() == true)
+        {
+            UsingExternal = true;
+            _cts = new CancellationTokenSource();
+            _renderTask = Task.Run(() => RenderLoopAsync(_cts.Token));
+            IsRunning = true;
+            Console.WriteLine($"[VISUALIZER] Started on the audio board's spectrum → {canvasName}");
+            return true;
+        }
+        UsingExternal = false;
+
+        if (!CanvasManagement.Interfaces.AudioPlayback.HasPlaybackDevice())
+        {
+            Console.WriteLine("[VISUALIZER] No playback device — not opening a Pulse monitor");
+            _targetCanvas = null;
+            TargetCanvasName = null;
+            return false;
+        }
 
         // Find the monitor source for the default sink
         var monitorSource = await GetMonitorSourceAsync();
@@ -204,6 +221,7 @@ public class AudioVisualizerService : IAudioVisualizerService
             }
 
         IsRunning = false;
+        UsingExternal = false;
         TargetCanvasName = null;
         _targetCanvas = null;
         _canvasDisposed = false;
@@ -409,6 +427,27 @@ public class AudioVisualizerService : IAudioVisualizerService
     /// </summary>
     private void AnalyzeAudio()
     {
+        if (UsingExternal)
+        {
+            var ext = ExternalBands?.Invoke();
+            for (var band = 0; band < NumBands; band++)
+            {
+                double v = 0;
+                if (ext is { Length: > 0 })
+                {
+                    // Stretch the board's bands over ours, linearly.
+                    var pos = (double)band * (ext.Length - 1) / Math.Max(1, NumBands - 1);
+                    var i0 = (int)pos;
+                    var i1 = Math.Min(ext.Length - 1, i0 + 1);
+                    var t = pos - i0;
+                    v = ext[i0] * (1 - t) + ext[i1] * t;
+                }
+                _bandValues[band] = v * Sensitivity;
+                _smoothedBands[band] = _smoothedBands[band] * SmoothingFactor + _bandValues[band] * (1 - SmoothingFactor);
+            }
+            return;
+        }
+
         // Copy buffer and apply window function
         lock (_bufferLock)
         {
@@ -884,7 +923,7 @@ public class AudioVisualizerService : IAudioVisualizerService
             ColorScheme = ColorMode.ToString(),
             Sensitivity = Sensitivity,
             Smoothing = SmoothingFactor,
-            Available = CanvasManagement.Interfaces.AudioPlayback.HasPlaybackDevice()
+            Available = CanvasManagement.Interfaces.AudioPlayback.HasPlaybackDevice() || ExternalAvailable?.Invoke() == true
         };
     }
 

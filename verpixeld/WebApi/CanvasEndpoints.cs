@@ -171,6 +171,15 @@ public static class CanvasEndpoints
 
                 var sizeChanged = width != canvas.Width || height != canvas.Height;
 
+                // The media layer belongs to the media player, not to the layout: it rebuilds it.
+                if (layoutManager.GetCanvas(canvasName) == null &&
+                    string.Equals(canvasName, verpixeld.MediaPlayer.MediaPlaybackTarget.OverlayName, StringComparison.OrdinalIgnoreCase))
+                {
+                    app.Services.GetRequiredService<verpixeld.MediaPlayer.MediaPlayerService>()
+                        .ResizeLayer(x, y, width, height);
+                    return Results.Json(new ApiResponse<object>(true, new { x, y, width, height }));
+                }
+
                 if (sizeChanged)
                 {
                     if (contentManager == null)

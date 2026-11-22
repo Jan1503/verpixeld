@@ -59,8 +59,9 @@ public static class VisualizerEndpoints
         {
             try
             {
-                if (!CanvasManagement.Interfaces.AudioPlayback.HasPlaybackDevice())
-                    return ApiResponse.Fail("No audio output on this host. The visualizer stays off.");
+                if (!CanvasManagement.Interfaces.AudioPlayback.HasPlaybackDevice() &&
+                    visualizerService.ExternalAvailable?.Invoke() != true)
+                    return ApiResponse.Fail("No audio output on this host and no audio board. The visualizer stays off.");
 
                 if (string.IsNullOrWhiteSpace(request.CanvasId))
                     return ApiResponse.Fail("Canvas name is required");

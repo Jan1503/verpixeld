@@ -22,6 +22,7 @@ public static class FavoritesEndpoints
             mediaService.AudioSyncOffsetMs = (int)item.AvSyncOffset;
             if (!string.IsNullOrEmpty(item.ScaleFilter))
                 mediaService.ScaleFilter = item.ScaleFilter;
+            mediaService.PrepareAudioTrack(favoritesService.GetFavorite(item.FavoriteId)?.AudioTrack);
         }
 
         switch (item.Type)
@@ -38,8 +39,8 @@ public static class FavoritesEndpoints
             case "local-video":
                 if (!string.IsNullOrEmpty(item.FilePath))
                 {
-                    var videoPath = Path.Combine(AppPaths.VideosDir, item.FilePath);
-                    if (File.Exists(videoPath))
+                    var videoPath = MediaLibrary.FindLocal(item.FilePath, video: true);
+                    if (videoPath != null)
                         await mediaService.PlayVideoAsync(videoPath);
                 }
                 break;
@@ -47,8 +48,8 @@ public static class FavoritesEndpoints
             case "local-audio":
                 if (!string.IsNullOrEmpty(item.FilePath))
                 {
-                    var audioPath = Path.Combine(AppPaths.AudioDir, item.FilePath);
-                    if (File.Exists(audioPath))
+                    var audioPath = MediaLibrary.FindLocal(item.FilePath, video: false);
+                    if (audioPath != null)
                         await mediaService.PlayAudioAsync(audioPath);
                 }
                 break;
@@ -89,6 +90,30 @@ public static class FavoritesEndpoints
 
         // Mark as played in favorites
         favoritesService.MarkFavoritePlayed(item.FavoriteId);
+    }
+
+    /// <summary>
+    ///     Makes a picture for history and favorites in the background when they have none:
+    ///     a frame of a video, or the cover inside an audio file.
+    /// </summary>
+    internal static void EnsureThumbnail(FavoritesService favorites, MediaItemType type, string sourceId, string? source)
+    {
+        if (type == MediaItemType.YouTube || string.IsNullOrWhiteSpace(sourceId) || string.IsNullOrWhiteSpace(source))
+            return;
+        if (favorites.HasThumbnail(type, sourceId)) return;
+        var audio = type is MediaItemType.LocalAudio or MediaItemType.NetworkAudio;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var thumb = await MediaProbeService.ExtractThumbnailAsync(source, 120, 80, audio ? 0 : 5);
+                if (thumb != null) favorites.SetThumbnail(type, sourceId, thumb);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[HISTORY] Thumbnail: {ex.Message}");
+            }
+        });
     }
 
     private static string? ResolveNetworkUrl(FavoriteItem favorite, NetworkShareService shares)
@@ -190,7 +215,7 @@ public static class FavoritesEndpoints
                     {
                         Type = MediaItemType.LocalAudio,
                         Name = name ?? mediaService.CurrentAudio,
-                        LocalPath = mediaService.CurrentAudio,
+                        LocalPath = MediaLibrary.ToRelative(mediaService.CurrentSource, video: false) ?? mediaService.CurrentAudio,
                         AvSyncOffset = 0
                     };
                 }
@@ -224,6 +249,7 @@ public static class FavoritesEndpoints
                         NetworkShareName = mediaService.NetworkShareName,
                         NetworkFilePath = mediaService.NetworkFilePath,
                         NetworkProtocol = mediaService.NetworkProtocol,
+                        AudioTrack = mediaService.AudioStreamIndex,
                         AvSyncOffset = mediaService.AudioSyncOffsetMs,
                         ScaleFilter = mediaService.ScaleFilter
                     };
@@ -235,7 +261,8 @@ public static class FavoritesEndpoints
                     {
                         Type = MediaItemType.LocalVideo,
                         Name = name ?? mediaService.CurrentVideo,
-                        LocalPath = mediaService.CurrentVideo,
+                        LocalPath = MediaLibrary.ToRelative(mediaService.CurrentSource, video: true) ?? mediaService.CurrentVideo,
+                        AudioTrack = mediaService.AudioStreamIndex,
                         AvSyncOffset = mediaService.AudioSyncOffsetMs,
                         ScaleFilter = mediaService.ScaleFilter
                     };
@@ -264,7 +291,7 @@ public static class FavoritesEndpoints
                     {
                         Type = MediaItemType.NetworkAudio,
                         Name = name ?? mediaService.LastPlayedAudio,
-                        NetworkUrl = mediaService.LastPlayedAudioUrl,
+                        NetworkUrl = MediaPath.Redact(mediaService.LastPlayedAudioUrl),
                         AvSyncOffset = 0
                     };
                 }
@@ -290,7 +317,8 @@ public static class FavoritesEndpoints
             }
 
             var added = favoritesService.AddFavorite(item);
-            
+            EnsureThumbnail(favoritesService, added.Type, added.GetSourceIdentifier(), mediaService.CurrentSource);
+
             return Results.Json(new
             {
                 success = true,
@@ -467,6 +495,7 @@ public static class FavoritesEndpoints
                 mediaService.AudioSyncOffsetMs = favorite.AvSyncOffset;
                 if (!string.IsNullOrEmpty(favorite.ScaleFilter))
                     mediaService.ScaleFilter = favorite.ScaleFilter;
+                mediaService.PrepareAudioTrack(favorite.AudioTrack);
             }
             
             bool success;
@@ -485,8 +514,8 @@ public static class FavoritesEndpoints
                     break;
 
                 case MediaItemType.LocalVideo:
-                    var videoPath = Path.Combine(AppPaths.VideosDir, favorite.LocalPath ?? "");
-                    if (!File.Exists(videoPath))
+                    var videoPath = MediaLibrary.FindLocal(favorite.LocalPath, video: true);
+                    if (videoPath == null)
                         return Results.Json(new { success = false, message = "Video file not found" });
                     
                     await mediaService.PlayVideoAsync(videoPath);
@@ -495,8 +524,8 @@ public static class FavoritesEndpoints
                     break;
 
                 case MediaItemType.LocalAudio:
-                    var audioPath = Path.Combine(AppPaths.AudioDir, favorite.LocalPath ?? "");
-                    if (!File.Exists(audioPath))
+                    var audioPath = MediaLibrary.FindLocal(favorite.LocalPath, video: false);
+                    if (audioPath == null)
                         return Results.Json(new { success = false, message = "Audio file not found" });
                     
                     await mediaService.PlayAudioAsync(audioPath);
@@ -542,6 +571,20 @@ public static class FavoritesEndpoints
             if (success)
             {
                 favoritesService.MarkFavoritePlayed(id);
+                favoritesService.AddToHistory(new PlayHistoryItem
+                {
+                    Type = favorite.Type,
+                    Name = favorite.Name,
+                    LocalPath = favorite.LocalPath,
+                    YouTubeUrl = favorite.YouTubeUrl,
+                    NetworkUrl = favorite.NetworkUrl,
+                    NetworkShareId = favorite.NetworkShareId,
+                    NetworkShareName = favorite.NetworkShareName,
+                    NetworkFilePath = favorite.NetworkFilePath,
+                    NetworkProtocol = favorite.NetworkProtocol,
+                    Thumbnail = favorite.Thumbnail
+                });
+                EnsureThumbnail(favoritesService, favorite.Type, favorite.GetSourceIdentifier(), mediaService.CurrentSource);
             }
 
             return Results.Json(new
@@ -627,8 +670,8 @@ public static class FavoritesEndpoints
                     break;
 
                 case MediaItemType.LocalVideo:
-                    var videoPath = Path.Combine(AppPaths.VideosDir, item.LocalPath ?? "");
-                    if (!File.Exists(videoPath))
+                    var videoPath = MediaLibrary.FindLocal(item.LocalPath, video: true);
+                    if (videoPath == null)
                         return Results.Json(new { success = false, message = "Video file not found" });
                     
                     await mediaService.PlayVideoAsync(videoPath);
@@ -637,8 +680,8 @@ public static class FavoritesEndpoints
                     break;
 
                 case MediaItemType.LocalAudio:
-                    var audioPath = Path.Combine(AppPaths.AudioDir, item.LocalPath ?? "");
-                    if (!File.Exists(audioPath))
+                    var audioPath = MediaLibrary.FindLocal(item.LocalPath, video: false);
+                    if (audioPath == null)
                         return Results.Json(new { success = false, message = "Audio file not found" });
                     
                     await mediaService.PlayAudioAsync(audioPath);
@@ -675,6 +718,24 @@ public static class FavoritesEndpoints
 
                 default:
                     return Results.Json(new { success = false, message = "Unknown media type" });
+            }
+
+            if (success)
+            {
+                favoritesService.AddToHistory(new PlayHistoryItem
+                {
+                    Type = item.Type,
+                    Name = item.Name,
+                    LocalPath = item.LocalPath,
+                    YouTubeUrl = item.YouTubeUrl,
+                    NetworkUrl = item.NetworkUrl,
+                    NetworkShareId = item.NetworkShareId,
+                    NetworkShareName = item.NetworkShareName,
+                    NetworkFilePath = item.NetworkFilePath,
+                    NetworkProtocol = item.NetworkProtocol,
+                    Thumbnail = item.Thumbnail
+                });
+                EnsureThumbnail(favoritesService, item.Type, item.GetSourceIdentifier(), mediaService.CurrentSource);
             }
 
             return Results.Json(new

@@ -16,6 +16,7 @@ public static class MediaPlayerEndpoints
         var mediaService = app.Services.GetRequiredService<MediaPlayerService>();
         var favoritesService = app.Services.GetRequiredService<FavoritesService>();
         var alertService = app.Services.GetRequiredService<AlertService>();
+        var board = app.Services.GetRequiredService<verpixeld.MediaPlayer.Audio.PixToneOutputService>();
 
         var group = app.MapGroup("/api/media");
 
@@ -32,14 +33,17 @@ public static class MediaPlayerEndpoints
                     isPaused = mediaService.IsPaused,
                     currentVideo = mediaService.CurrentVideo,
                     currentAudio = mediaService.CurrentAudio,
-                    isAudioPlayback = mediaService.IsAudioPlayback,
+                    isAudioPlayback = mediaService.IsAudioPlayback || mediaService.IsRadioPlaying,
+                    isRadioPlaying = mediaService.IsRadioPlaying,
+                    canReplay = mediaService.CanReplay,
+                    radioStationName = mediaService.RadioStationName,
                     videoPosition = mediaService.VideoPosition.TotalSeconds,
                     videoDuration = mediaService.VideoDuration.TotalSeconds,
                     videoFps = mediaService.VideoFps,
                     audioEnabled = mediaService.AudioEnabled,
                     audioAvailable = mediaService.AudioAvailable,
-                    isMuted = mediaService.IsMuted,
-                    volume = (int)(mediaService.Volume * 100),
+                    isMuted = board.IsSelected ? board.Muted : mediaService.IsMuted,
+                    volume = board.IsSelected ? board.Volume : (int)(mediaService.Volume * 100),
                     audioSyncOffsetMs = mediaService.AudioSyncOffsetMs,
                     modPlayerAvailable = mediaService.ModPlayerAvailable,
                     isModPlaying = mediaService.IsModPlaying,
@@ -111,13 +115,13 @@ public static class MediaPlayerEndpoints
             if (SystemOverlayCanvases.IsSystem(canvasName))
                 return Results.Json(new { success = false, error = $"'{canvasName}' is a host overlay and cannot take media" });
             mediaService.TargetCanvasName = canvasName;
-            Console.WriteLine($"[MEDIA] Target canvas set to: {canvasName ?? "Main"}");
+            Console.WriteLine($"[MEDIA] Target canvas set to: {canvasName ?? MediaPlaybackTarget.OverlayName}");
 
             return Results.Json(new
             {
                 success = true,
-                targetCanvasName = mediaService.TargetCanvasName ?? "Main",
-                message = $"Target canvas set to: {mediaService.TargetCanvasName ?? "Main"}"
+                targetCanvasName = mediaService.TargetCanvasName ?? MediaPlaybackTarget.OverlayName,
+                message = $"Target canvas set to: {mediaService.TargetCanvasName ?? MediaPlaybackTarget.OverlayName}"
             });
         });
 
@@ -127,6 +131,62 @@ public static class MediaPlayerEndpoints
             if (filePath == null)
                 return Results.Json(new { success = false, message = "Video not found" });
             var tracks = await MediaProbeService.ListAudioTracksAsync(filePath);
+            return Results.Json(new
+            {
+                success = true,
+                selected = mediaService.AudioStreamIndex,
+                tracks = tracks.Select(t => new { t.Index, t.Label, t.Codec, t.Channels, t.Language, t.Title })
+            });
+        });
+
+        // Play on a stopped player: start the last thing again, whatever its source.
+        group.MapPost("/replay", async () =>
+        {
+            if (mediaService.IsRunning) return Results.Json(new { success = true, message = "Already playing" });
+            if (!mediaService.CanReplay)
+                return Results.Json(new { success = false, message = "Nothing played yet. Select a file first." });
+            await mediaService.ReplayAsync();
+            return Results.Json(new
+            {
+                success = mediaService.IsRunning,
+                message = mediaService.IsRunning ? "Playing again" : (mediaService.LastPlaybackError ?? "Could not start it again")
+            });
+        });
+
+        // Picture of what plays now, for the player bar. Made once per file.
+        var thumbCache = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
+        group.MapGet("/current-thumbnail", async () =>
+        {
+            if (!mediaService.IsRunning) return Results.Json(new { success = true, thumbnail = (string?)null });
+            if (mediaService.IsRadioPlaying)
+            {
+                var radio = app.Services.GetService<RadioService>();
+                var station = radio?.Now.Station;
+                var cover = radio?.CachedCover(mediaService.RadioStreamUrl) ?? station?.Favicon;
+                return Results.Json(new { success = true, thumbnail = string.IsNullOrWhiteSpace(cover) ? null : cover });
+            }
+            var yt = mediaService.CurrentYouTubeInfo?.Thumbnail;
+            if (!string.IsNullOrWhiteSpace(yt)) return Results.Json(new { success = true, thumbnail = yt });
+            var source = mediaService.CurrentSource;
+            if (string.IsNullOrWhiteSpace(source)) return Results.Json(new { success = true, thumbnail = (string?)null });
+            if (!thumbCache.TryGetValue(source, out var thumb))
+            {
+                // A video frame 30 s in (past black intros); the embedded cover of an audio file.
+                thumb = await MediaProbeService.ExtractThumbnailAsync(source, 160, 90,
+                    mediaService.IsAudioPlayback ? 0 : 30);
+                if (thumb != null)
+                {
+                    if (thumbCache.Count > 100) thumbCache.Clear();
+                    thumbCache[source] = thumb;
+                }
+            }
+            return Results.Json(new { success = true, thumbnail = thumb });
+        });
+
+        // Audio tracks of whatever plays now: library, network share, favorite, history.
+        group.MapGet("/audio-tracks-current", async () =>
+        {
+            var tracks = await mediaService.CurrentAudioTracksAsync();
             return Results.Json(new
             {
                 success = true,
@@ -335,13 +395,24 @@ public static class MediaPlayerEndpoints
         // Toggle mute (this actually mutes system audio)
         group.MapPost("/audio/mute", () =>
         {
-            mediaService.ToggleMute();
+            // The audio board plays the sound when it is selected: mute it there.
+            bool muted;
+            if (board.IsSelected)
+            {
+                board.ToggleMute();
+                muted = board.Muted;
+            }
+            else
+            {
+                mediaService.ToggleMute();
+                muted = mediaService.IsMuted;
+            }
 
             return Results.Json(new
             {
                 success = true,
-                isMuted = mediaService.IsMuted,
-                message = mediaService.IsMuted ? "Audio muted" : "Audio unmuted"
+                isMuted = muted,
+                message = muted ? "Audio muted" : "Audio unmuted"
             });
         });
 
@@ -349,7 +420,8 @@ public static class MediaPlayerEndpoints
         group.MapPost("/audio/volume", (int volume) =>
         {
             var clampedVolume = Math.Clamp(volume, 0, 100);
-            mediaService.SetVolume(clampedVolume);
+            if (board.IsSelected) board.SetVolume(clampedVolume, false);
+            else mediaService.SetVolume(clampedVolume);
 
             return Results.Json(new
             {
@@ -366,8 +438,8 @@ public static class MediaPlayerEndpoints
             {
                 success = true,
                 audioAvailable = mediaService.AudioAvailable,
-                isMuted = mediaService.IsMuted,
-                volume = (int)(mediaService.Volume * 100),
+                isMuted = board.IsSelected ? board.Muted : mediaService.IsMuted,
+                volume = board.IsSelected ? board.Volume : (int)(mediaService.Volume * 100),
                 audioSyncOffsetMs = mediaService.AudioSyncOffsetMs
             });
         });
@@ -552,6 +624,7 @@ public static class MediaPlayerEndpoints
 
             var safeName = MediaPath.SanitizeFileName(file.FileName);
             var filePath = MediaPath.SafeUploadPath(AppPaths.VideosDir, safeName);
+            MediaLibrary.InvalidateListings();
 
             await using var stream = new FileStream(filePath, FileMode.Create);
             await file.CopyToAsync(stream);
@@ -675,6 +748,7 @@ public static class MediaPlayerEndpoints
 
             var safeName = MediaPath.SanitizeFileName(file.FileName);
             var filePath = MediaPath.SafeUploadPath(AppPaths.AudioDir, safeName);
+            MediaLibrary.InvalidateListings();
 
             await using var stream = new FileStream(filePath, FileMode.Create);
             await file.CopyToAsync(stream);
@@ -717,6 +791,8 @@ public static class MediaPlayerEndpoints
                 Name = filename,
                 LocalPath = filename
             });
+            if (favoritesService != null)
+                FavoritesEndpoints.EnsureThumbnail(favoritesService, MediaItemType.LocalAudio, filename, filePath);
 
             return Results.Json(new
             {

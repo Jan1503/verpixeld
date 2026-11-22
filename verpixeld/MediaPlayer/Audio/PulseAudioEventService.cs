@@ -20,9 +20,12 @@ public class PulseAudioEventService : BackgroundService
     // Event types we care about
     public event Action<string, string>? OnSinkChanged; // (sinkName, changeType)
 
-    public PulseAudioEventService(IAudioOutputService audioOutputService)
+    public PulseAudioEventService(IAudioOutputService audioOutputService, PixToneOutputService pixTone)
     {
         _audioOutputService = audioOutputService;
+        // A volume change on the audio board's panel goes to the web UI like a sink change.
+        pixTone.VolumeChanged += () =>
+            _ = BroadcastEventAsync("sink-change", "{\"type\":\"change\",\"object\":\"pixtone\"}");
     }
 
     /// <summary>

@@ -208,19 +208,7 @@ public class RadioBrowserService
 
                 var results = stations
                     .Where(s => !string.IsNullOrEmpty(s.UrlResolved) && s.LastCheckOk == 1)
-                    .Select(s => new RadioStation
-                    {
-                        Name = s.Name?.Trim() ?? "Unknown Station",
-                        StreamUrl = s.UrlResolved!,
-                        Tags = s.Tags ?? "",
-                        Country = s.Country ?? "",
-                        CountryCode = s.CountryCode ?? "",
-                        Codec = s.Codec ?? "",
-                        Bitrate = s.Bitrate,
-                        Favicon = s.Favicon ?? "",
-                        Votes = s.Votes,
-                        ClickCount = s.ClickCount
-                    })
+                    .Select(ToStation)
                     .ToList();
 
                 if (results.Count > 0)
@@ -238,6 +226,106 @@ public class RadioBrowserService
 
         return new List<RadioStation>();
     }
+
+    /// <summary>
+    ///     Free search for the radio page: name, tag and country code may each be empty.
+    ///     Order is clickcount, votes, clicktrend, name or bitrate. Broken stations are left out.
+    /// </summary>
+    public async Task<List<RadioStation>> SearchAsync(string? name, string? tag, string? countryCode,
+        string? order, int limit = 40, int offset = 0, CancellationToken ct = default)
+    {
+        var sort = order?.ToLowerInvariant() switch
+        {
+            "votes" => "votes",
+            "trend" or "clicktrend" => "clicktrend",
+            "name" => "name",
+            "bitrate" => "bitrate",
+            _ => "clickcount"
+        };
+        var reverse = sort == "name" ? "false" : "true";
+        var q = $"/json/stations/search?hidebroken=true&order={sort}&reverse={reverse}" +
+                $"&limit={Math.Clamp(limit, 1, 200)}&offset={Math.Max(0, offset)}";
+        if (!string.IsNullOrWhiteSpace(name)) q += "&name=" + Uri.EscapeDataString(name.Trim());
+        if (!string.IsNullOrWhiteSpace(tag)) q += "&tag=" + Uri.EscapeDataString(tag.Trim().ToLowerInvariant());
+        if (!string.IsNullOrWhiteSpace(countryCode)) q += "&countrycode=" + Uri.EscapeDataString(countryCode.Trim().ToUpperInvariant());
+        var list = await GetJsonAsync<List<RadioBrowserStation>>(q, ct) ?? new List<RadioBrowserStation>();
+        return list.Where(s => !string.IsNullOrEmpty(s.UrlResolved ?? s.Url)).Select(ToStation).ToList();
+    }
+
+    /// <summary>The most used tags, for the genre chips.</summary>
+    public async Task<List<(string Name, int Count)>> TopTagsAsync(int limit = 60, CancellationToken ct = default)
+    {
+        var list = await GetJsonAsync<List<RadioBrowserTag>>(
+            $"/json/tags?order=stationcount&reverse=true&hidebroken=true&limit={Math.Clamp(limit, 1, 300)}", ct);
+        return (list ?? new()).Where(t => !string.IsNullOrWhiteSpace(t.Name))
+            .Select(t => (t.Name!.Trim(), t.StationCount)).ToList();
+    }
+
+    /// <summary>Countries with stations, largest first.</summary>
+    public async Task<List<(string Code, string Name, int Count)>> CountriesAsync(CancellationToken ct = default)
+    {
+        var list = await GetJsonAsync<List<RadioBrowserCountry>>(
+            "/json/countries?order=stationcount&reverse=true&hidebroken=true", ct);
+        return (list ?? new())
+            .Where(c => !string.IsNullOrWhiteSpace(c.Code) && c.StationCount > 0)
+            .Select(c => (c.Code!.ToUpperInvariant(), c.Name ?? c.Code!, c.StationCount)).ToList();
+    }
+
+    /// <summary>Tells Radio Browser a station was played, as its API asks clients to do.</summary>
+    public async Task CountClickAsync(string? stationUuid)
+    {
+        if (string.IsNullOrWhiteSpace(stationUuid)) return;
+        try
+        {
+            await GetJsonAsync<JsonElement>($"/json/url/{Uri.EscapeDataString(stationUuid)}", CancellationToken.None);
+        }
+        catch
+        {
+            // Counting is a courtesy.
+        }
+    }
+
+    private async Task<T?> GetJsonAsync<T>(string pathAndQuery, CancellationToken ct)
+    {
+        Exception? last = null;
+        foreach (var server in ApiServers)
+        {
+            try
+            {
+                using var response = await _http.GetAsync(server + pathAndQuery, ct);
+                response.EnsureSuccessStatusCode();
+                var json = await response.Content.ReadAsStringAsync(ct);
+                return JsonSerializer.Deserialize<T>(json);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                last = ex;
+            }
+        }
+        Console.WriteLine($"[RADIO-BROWSER] {pathAndQuery}: {last?.Message}");
+        return default;
+    }
+
+    private static RadioStation ToStation(RadioBrowserStation s) => new()
+    {
+        Name = s.Name?.Trim() ?? "Unknown Station",
+        StreamUrl = s.UrlResolved ?? s.Url ?? "",
+        Tags = s.Tags ?? "",
+        Country = s.Country ?? "",
+        CountryCode = s.CountryCode ?? "",
+        Codec = s.Codec ?? "",
+        Bitrate = s.Bitrate,
+        Favicon = s.Favicon ?? "",
+        Votes = s.Votes,
+        ClickCount = s.ClickCount,
+        StationUuid = s.StationUuid ?? "",
+        Homepage = s.Homepage ?? "",
+        Language = s.Language ?? ""
+    };
 
     /// <summary>
     ///     Map a user-spoken genre to an appropriate Radio Browser tag.
@@ -284,6 +372,22 @@ public class RadioStation
     public string Favicon { get; set; } = "";
     public int Votes { get; set; }
     public int ClickCount { get; set; }
+    public string StationUuid { get; set; } = "";
+    public string Homepage { get; set; } = "";
+    public string Language { get; set; } = "";
+}
+
+internal class RadioBrowserTag
+{
+    [JsonPropertyName("name")] public string? Name { get; set; }
+    [JsonPropertyName("stationcount")] public int StationCount { get; set; }
+}
+
+internal class RadioBrowserCountry
+{
+    [JsonPropertyName("name")] public string? Name { get; set; }
+    [JsonPropertyName("iso_3166_1")] public string? Code { get; set; }
+    [JsonPropertyName("stationcount")] public int StationCount { get; set; }
 }
 
 /// <summary>
@@ -326,4 +430,13 @@ internal class RadioBrowserStation
 
     [JsonPropertyName("lastcheckok")]
     public int LastCheckOk { get; set; }
+
+    [JsonPropertyName("stationuuid")]
+    public string? StationUuid { get; set; }
+
+    [JsonPropertyName("homepage")]
+    public string? Homepage { get; set; }
+
+    [JsonPropertyName("language")]
+    public string? Language { get; set; }
 }
