@@ -610,6 +610,7 @@ public static class FavoritesEndpoints
                 history = favoritesService.History.Select((h, index) => new
                 {
                     index,
+                    key = HistoryKey(h),
                     h.Name,
                     type = h.Type.ToString(),
                     icon = h.GetIcon(),
@@ -635,8 +636,9 @@ public static class FavoritesEndpoints
         });
 
         // Remove history item
-        historyGroup.MapDelete("/{index:int}", (int index) =>
+        historyGroup.MapDelete("/{index:int}", (int index, string? key) =>
         {
+            index = ResolveHistoryIndex(favoritesService.History, index, key);
             var success = favoritesService.RemoveHistoryItem(index);
             return Results.Json(new 
             { 
@@ -646,10 +648,11 @@ public static class FavoritesEndpoints
         });
 
         // Play from history
-        historyGroup.MapPost("/{index:int}/play", async (int index) =>
+        historyGroup.MapPost("/{index:int}/play", async (int index, string? key) =>
         {
             var history = favoritesService.History;
-            
+            index = ResolveHistoryIndex(history, index, key);
+
             if (index < 0 || index >= history.Count)
                 return Results.Json(new { success = false, message = "History item not found" });
 
@@ -746,10 +749,11 @@ public static class FavoritesEndpoints
         });
 
         // Add history item to favorites
-        historyGroup.MapPost("/{index:int}/favorite", (int index, string? name) =>
+        historyGroup.MapPost("/{index:int}/favorite", (int index, string? name, string? key) =>
         {
             var history = favoritesService.History;
-            
+            index = ResolveHistoryIndex(history, index, key);
+
             if (index < 0 || index >= history.Count)
                 return Results.Json(new { success = false, message = "History item not found" });
 
@@ -766,4 +770,26 @@ public static class FavoritesEndpoints
             });
         });
     }
+
+    /// <summary>
+    ///     Stable key of a history entry (type + source). Playing an entry moves it to the top, so an
+    ///     index from a list the browser loaded earlier can point at a different entry by now.
+    /// </summary>
+    private static string HistoryKey(PlayHistoryItem h)
+    {
+        var bytes = System.Security.Cryptography.SHA1.HashData(
+            System.Text.Encoding.UTF8.GetBytes(h.Type + "|" + h.GetSourceIdentifier()));
+        return Convert.ToHexString(bytes, 0, 8);
+    }
+
+    /// <summary>Index of the entry with this key (-1 if gone); without a key the index as given.</summary>
+    private static int ResolveHistoryIndex(IReadOnlyList<PlayHistoryItem> history, int index, string? key)
+    {
+        if (string.IsNullOrEmpty(key)) return index;
+        if (index >= 0 && index < history.Count && HistoryKey(history[index]) == key) return index;
+        for (var i = 0; i < history.Count; i++)
+            if (HistoryKey(history[i]) == key) return i;
+        return -1;
+    }
+
 }

@@ -413,6 +413,7 @@ async function playHistoryItem(index) {
     try {
       await api.post('/api/youtube/play', { url: item.source, loop: false });
       removeItemLoading(el);
+      setTimeout(fetchHistory, 1000);   // the entry moved to the top: reload so the next click hits the right one
       window.toast?.success('History', `Playing: ${item.name}`);
       if (window.showMediaPlayerBar) window.showMediaPlayerBar();
     } catch (error) {
@@ -427,14 +428,16 @@ async function playHistoryItem(index) {
   showItemLoading(el);
   
   try {
-    const result = await api.post(`/api/history/${index}/play`);
+    const result = await api.post(`/api/history/${index}/play?key=${encodeURIComponent(item?.key || '')}`);
     removeItemLoading(el);
+    fetchHistory();   // the entry moved to the top: reload so the next click hits the right one
     window.toast?.success('History', result.message);
     if (window.showMediaPlayerBar) window.showMediaPlayerBar();
   } catch (error) {
     removeItemLoading(el);
     console.error('Failed to play history item:', error);
     window.toast?.error('History', error.message || 'Failed to play');
+    fetchHistory();
   }
 }
 
@@ -449,7 +452,7 @@ async function addHistoryToFavorites(index) {
   if (!name) return;
   
   try {
-    const result = await api.post(`/api/history/${index}/favorite?name=${encodeURIComponent(name)}`);
+    const result = await api.post(`/api/history/${index}/favorite?name=${encodeURIComponent(name)}&key=${encodeURIComponent(item.key || '')}`);
     window.toast?.success('Favorites', `Added: ${result.favorite.name}`);
     fetchFavorites();
   } catch (error) {
@@ -463,7 +466,8 @@ async function addHistoryToFavorites(index) {
  */
 async function removeHistoryItem(index) {
   try {
-    await api.del(`/api/history/${index}`);
+    const item = favoritesState.history[index];
+    await api.del(`/api/history/${index}?key=${encodeURIComponent(item?.key || '')}`);
     fetchHistory();
   } catch (error) {
     console.error('Failed to remove history item:', error);

@@ -707,6 +707,11 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
             var local = new byte[NetworkWall.PanelWidth * NetworkWall.PanelHeight * 4];
             while (!_stop)
             {
+                // wait for the panel's ack of the previous frame first, then take the newest frame:
+                // waiting after taking it sent a frame that was already up to 30 ms old
+                try { Streamer.WaitReady(); }
+                catch (Exception) { }
+
                 lock (_gate)
                 {
                     while (!_has && !_stop) Monitor.Wait(_gate);
