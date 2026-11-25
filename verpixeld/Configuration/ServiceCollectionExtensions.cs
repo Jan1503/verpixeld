@@ -115,11 +115,16 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton<ICanvasContentManager>(sp =>
-            new CanvasContentManager(
+        {
+            var mixer = sp.GetRequiredService<ExtensionAudioMixer>();
+            var ccm = new CanvasContentManager(
                 sp.GetRequiredService<IDisplayLayoutManager>(),
                 sp.GetRequiredService<CanvasManager>(),
                 sp.GetRequiredService<IExtensionDiscovery>(),
-                sp.GetRequiredService<ExtensionAudioMixer>()));
+                mixer);
+            mixer.RunningExtensions = ccm.RunningExtensions;
+            return ccm;
+        });
 
         services.AddSingleton<LayoutStorageManager>();
         services.AddSingleton(sp => new NightModeManager(sp.GetRequiredService<CanvasManager>()));

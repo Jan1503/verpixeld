@@ -35,6 +35,16 @@ public class CanvasContentManager(
     /// </summary>
     public int ActiveContentCount => _canvasContents.Count;
 
+    /// <summary>Extensions running now (display name, instance), for the audio panel's title.</summary>
+    public IReadOnlyList<(string Name, object? Instance)> RunningExtensions()
+    {
+        lock (_opLock)
+            return _canvasContents.Values
+                .Where(c => c.ContentType == ContentType.DynamicExtension && c.ExtensionInstance != null)
+                .Select(c => (c.ExtensionDisplayName ?? "", c.ExtensionInstance))
+                .ToList();
+    }
+
     /// <summary>
     ///     Assigns a dynamic extension to a specific canvas
     /// </summary>
