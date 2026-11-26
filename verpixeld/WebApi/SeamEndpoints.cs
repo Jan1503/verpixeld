@@ -46,10 +46,39 @@ public static class SeamEndpoints
                         ["14"] = new { columns = bits14.Select(ToDto) }
                     },
                     live = net != null,
+                    enabled = net?.SeamEnabled ?? store!.Enabled,
                     previewLevel = net?.SeamPreviewGrey ?? -1
                 });
             }
             catch (Exception ex) { return ApiResponse.Error(ex); }
+        });
+
+        // On/off without losing the tuned curves. Off sends a neutral curve to the panel.
+        app.MapPost("/api/settings/seam/enabled", async (HttpContext context) =>
+        {
+            try
+            {
+                using var reader = new StreamReader(context.Request.Body);
+                using var doc = JsonDocument.Parse(await reader.ReadToEndAsync());
+                var enabled = !doc.RootElement.TryGetProperty("enabled", out var el) || el.ValueKind != JsonValueKind.False;
+
+                var net = Current();
+                if (net != null) net.SetSeamEnabled(enabled);
+                else
+                {
+                    var store = SeamCorrectionStore.Load(DefaultSeamFile);
+                    store.Enabled = enabled;
+                    store.Save(DefaultSeamFile);
+                }
+
+                Console.WriteLine($"[API] Seam correction {(enabled ? "on" : "off")}, live={net != null}");
+                return ApiResponse.Ok(new { enabled, live = net != null });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[API] Error switching seam correction: {ex.Message}");
+                return ApiResponse.Error(ex);
+            }
         });
 
         app.MapPost("/api/settings/seam", async (HttpContext context) =>

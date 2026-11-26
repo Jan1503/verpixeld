@@ -21,6 +21,9 @@ public sealed class SeamCorrectionStore
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    /// <summary>Off sends a neutral curve to the panel; the tuned profiles stay in the file.</summary>
+    public bool Enabled { get; set; } = true;
+
     public List<SeamColumn> Profile8 { get; private set; } = IdentityColumns();
     public List<SeamColumn> Profile14 { get; private set; } = DefaultColumns();
 
@@ -49,6 +52,7 @@ public sealed class SeamCorrectionStore
             }
 
             var dto = JsonSerializer.Deserialize<SeamFileDto>(File.ReadAllText(path), JsonRead);
+            store.Enabled = dto?.Enabled ?? true;
             var legacy = dto?.Columns is { Count: > 0 } cols ? cols : null;
             var p8 = ReadProfile(dto, "8") ?? ReadProfile(dto, "bit8");
             var p14 = ReadProfile(dto, "14") ?? ReadProfile(dto, "bit14");
@@ -74,6 +78,7 @@ public sealed class SeamCorrectionStore
     {
         var dto = new SeamFileDto
         {
+            Enabled = Enabled,
             // Legacy readers (DeskCast, older hosts) still see a single columns array = 14-bit.
             Columns = Profile14.ToList(),
             Profiles = new Dictionary<string, SeamProfileDto>
@@ -85,14 +90,11 @@ public sealed class SeamCorrectionStore
         File.WriteAllText(path, JsonSerializer.Serialize(dto, JsonWrite));
     }
 
-    public static List<SeamColumn> DefaultColumns()
-    {
-        SeamColumn Col(int x) => new()
-        {
-            X = x, GainR = 0.85, GainG = 0.85, GainB = 0.85, LiftR = 0.004, LiftG = 0.004, LiftB = 0.004
-        };
-        return [Col(63), Col(127), Col(191), Col(255)];
-    }
+    /// <summary>
+    ///     14-bit fallback for a missing or empty profile. Neutral since panel firmware 1.12 fixed the
+    ///     seam columns in the driver; the old 0.85 gain dimmed them when a cleared curve was saved.
+    /// </summary>
+    public static List<SeamColumn> DefaultColumns() => IdentityColumns();
 
     /// <summary>Fresh 8-bit starting point: identity curve, no gain/lift.</summary>
     public static List<SeamColumn> IdentityColumns()
@@ -122,6 +124,7 @@ public sealed class SeamCorrectionStore
 
     private sealed class SeamFileDto
     {
+        public bool? Enabled { get; set; }
         public List<SeamColumn>? Columns { get; set; }
         public Dictionary<string, SeamProfileDto>? Profiles { get; set; }
     }

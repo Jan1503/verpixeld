@@ -41,6 +41,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     private int _calibrateBits;              // 0 = canvas-driven; 8 or 14 = Settings tab lock
     private List<SeamColumn> _seam8 = [];
     private List<SeamColumn> _seam14 = [];
+    private bool _seamEnabled = true;
     private volatile int _previewGrey = -1;  // -1 = off; 0..255 = solid grey on the wall (curve matching)
 
     public int Width { get; private set; }
@@ -183,7 +184,8 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     });
 
     private List<SeamColumn> ActiveSeam() =>
-        SeamCorrectionStore.NormalizeBits(_options.ColorBits) == SeamCorrectionStore.Bits14
+        !_seamEnabled ? []
+        : SeamCorrectionStore.NormalizeBits(_options.ColorBits) == SeamCorrectionStore.Bits14
             ? (_seam14.Count > 0 ? _seam14 : SeamCorrectionStore.DefaultColumns())
             : (_seam8.Count > 0 ? _seam8 : SeamCorrectionStore.IdentityColumns());
 
@@ -587,13 +589,33 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
             else
                 _seam8 = columns.ToList();
             if (SeamCorrectionStore.NormalizeBits(_options.ColorBits) == SeamCorrectionStore.NormalizeBits(b))
-                foreach (var s in _streamers) s.UpdateSeam(columns);
+                foreach (var s in _streamers) s.UpdateSeam(ActiveSeam());
         }
         if (persist)
         {
             WriteSeamFile();
             lock (_lock) _seamStamp = SafeStamp();
         }
+    }
+
+    /// <summary>False sends a neutral curve; the tuned profiles are kept for later.</summary>
+    public bool SeamEnabled
+    {
+        get { lock (_lock) { EnsureSeamLoaded(); return _seamEnabled; } }
+    }
+
+    public void SetSeamEnabled(bool enabled)
+    {
+        lock (_lock)
+        {
+            WaitSenderIdleUnlocked();
+            EnsureSeamLoaded();
+            _seamEnabled = enabled;
+            foreach (var s in _streamers) s.UpdateSeam(ActiveSeam());
+        }
+        WriteSeamFile();
+        lock (_lock) _seamStamp = SafeStamp();
+        Console.WriteLine($"[NET] seam correction {(enabled ? "on" : "off")}");
     }
 
     // ---- seam correction hot-reload (verpixeld convenience) ---------------------------------
@@ -625,6 +647,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         var store = SeamCorrectionStore.Load(_seamFile);
         _seam8 = store.Profile8;
         _seam14 = store.Profile14;
+        _seamEnabled = store.Enabled;
     }
 
     private void MaybeReloadSeam()
@@ -645,7 +668,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
 
     private void WriteSeamUnlocked()
     {
-        var store = new SeamCorrectionStore();
+        var store = new SeamCorrectionStore { Enabled = _seamEnabled };
         store.Set(8, _seam8.Count > 0 ? _seam8 : SeamCorrectionStore.IdentityColumns());
         store.Set(14, _seam14.Count > 0 ? _seam14 : SeamCorrectionStore.DefaultColumns());
         store.Save(_seamFile);

@@ -168,6 +168,13 @@ public sealed class PixToneOutputService
             UseShellExecute = false,
             CreateNoWindow = true
         };
+        // Remember the title: the 15 s repeat and the restart resend use _shownTitle, and a stale
+        // one (the previous film) would overwrite what this decoder just sent.
+        if (!string.IsNullOrWhiteSpace(title))
+        {
+            _shownTitle = title;
+            _nextTitle = DateTime.UtcNow.AddSeconds(15);
+        }
         _audioStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var started = _audioStarted;
         var proc = Process.Start(psi);

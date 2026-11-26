@@ -1234,7 +1234,20 @@ function updateSeamTabUi() {
     : `Panel locked to ${seamActiveBits}-bit while this tab is open. Leaving Settings returns to canvas depth.`;
 }
 
+async function toggleSeamEnabled(on) {
+  try {
+    await api.post('/api/settings/seam/enabled', { enabled: !!on });
+    window.toast?.success('Seam', on ? 'Seam correction on' : 'Seam correction off (neutral)');
+  } catch (error) {
+    const box = document.getElementById('seam-enabled');
+    if (box) box.checked = !on;
+    window.toast?.error('Seam', error.message || 'Failed to switch seam correction');
+  }
+}
+
 function applySeamPayload(v) {
+  const box = document.getElementById('seam-enabled');
+  if (box && typeof v.enabled === 'boolean') box.checked = v.enabled;
   const cols = profileColumns(v, seamActiveBits);
   renderSeamRows(cols);
   renderSeamKnots((cols[0] && cols[0].knots) || []);
@@ -1511,6 +1524,7 @@ window.saveSpiSettings = saveSpiSettings;
 window.saveHomeAssistant = saveHomeAssistant;
 window.testHaToast = testHaToast;
 window.loadSeam = loadSeam;
+window.toggleSeamEnabled = toggleSeamEnabled;
 window.applySeam = applySeam;
 window.selectSeamBits = selectSeamBits;
 window.setSeamPreview = setSeamPreview;

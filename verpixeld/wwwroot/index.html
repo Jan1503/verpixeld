@@ -2247,6 +2247,11 @@
               <div id="net-panel-list" class="net-panel-list"></div>
             </div>
 
+            <label class="draw-checkbox-label" style="margin-top: 1rem;" title="Off sends a neutral curve to the panel. The tuned curves stay saved.">
+              <input type="checkbox" id="seam-enabled" checked onchange="toggleSeamEnabled(this.checked)">
+              Seam correction on (off = neutral, curves stay saved)
+            </label>
+
             <details class="settings-disclosure" id="seam-advanced">
               <summary>Seam correction (calibration)</summary>
             <div class="settings-group" style="margin-top: 1rem;">
@@ -3212,7 +3217,7 @@
   <script src="/js/features/ai-art.js?v=20260829b"></script>
   <script src="/js/features/voice-commands.js?v=20260829d"></script>
   <script src="/js/features/live-preview.js?v=20261018a"></script>
-  <script src="/js/features/settings.js?v=20261019a"></script>
+  <script src="/js/features/settings.js?v=20261126a"></script>
   <script src="/js/core/init.js?v=20261018a"></script>
 </body>
 </html>
