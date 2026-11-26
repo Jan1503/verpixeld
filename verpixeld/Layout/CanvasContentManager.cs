@@ -82,7 +82,7 @@ public class CanvasContentManager(
 
                 _log.LogInformation("Extension instance type: {Value}", targetInstance.GetType().Name);
 
-                foreach (var (key, value) in config)
+                foreach (var (key, value) in ExtensionConfigOrder.For(targetInstance.GetType(), config))
                     try
                     {
                         var propertyInfo = targetInstance.GetType().GetProperty(key);
@@ -190,7 +190,7 @@ public class CanvasContentManager(
 
         _log.LogInformation("Extension instance type: {Value}", targetInstance.GetType().Name);
 
-        foreach (var (key, value) in config)
+        foreach (var (key, value) in ExtensionConfigOrder.For(targetInstance.GetType(), config))
             try
             {
                 var propertyInfo = targetInstance.GetType().GetProperty(key);

@@ -419,6 +419,7 @@ public class MediaPlayerService : IDisposable
         bool loop = true)
     {
         _replay = () => PlayNetworkVideoAsync(url, shareName, filePath, protocol, loop);
+        LastPlaybackError = null; // the caller reports this attempt's error, not an older one
         // Store network video info, clear audio/YouTube state
         NetworkShareName = shareName;
         NetworkFilePath = filePath;

@@ -1176,7 +1176,12 @@ public class VideoPlayer : IDisposable
                            videoPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
         var isFtpStream = videoPath.StartsWith("ftp://", StringComparison.OrdinalIgnoreCase);
         var isSmbStream = videoPath.StartsWith("smb://", StringComparison.OrdinalIgnoreCase);
-        var isNetworkStream = isHttpStream || isFtpStream || isSmbStream;
+        // Live camera streams: never paced with -re, RTSP over TCP (RTP over UDP rarely gets through NAT or a
+        // Docker bridge network; the camera alert uses the same options)
+        var isRtspStream = videoPath.StartsWith("rtsp://", StringComparison.OrdinalIgnoreCase) ||
+                           videoPath.StartsWith("rtsps://", StringComparison.OrdinalIgnoreCase);
+        var isRtmpStream = videoPath.StartsWith("rtmp://", StringComparison.OrdinalIgnoreCase);
+        var isNetworkStream = isHttpStream || isFtpStream || isSmbStream || isRtspStream || isRtmpStream;
 
         // Check for hardware acceleration
         var useHwAccel = FfmpegCapabilities.IsHwAccelAvailable();
@@ -1240,6 +1245,17 @@ public class VideoPlayer : IDisposable
                 {
                     networkOpts += "-probesize 5M ";
                     _log.LogInformation("SMB stream: HW={UseHwAccel}, fast_bilinear scaling", useHwAccel);
+                }
+                else if (isRtspStream)
+                {
+                    networkOpts += "-rtsp_transport tcp -timeout 10000000 -fflags +nobuffer -flags low_delay " +
+                                   "-analyzeduration 1000000 -probesize 1M ";
+                    _log.LogInformation("RTSP stream over TCP: HW={UseHwAccel}", useHwAccel);
+                }
+                else if (isRtmpStream)
+                {
+                    networkOpts += "-fflags +nobuffer -analyzeduration 1000000 -probesize 1M ";
+                    _log.LogInformation("RTMP stream: HW={UseHwAccel}", useHwAccel);
                 }
             }
             else if (useHwAccel)

@@ -225,8 +225,10 @@ public static class MediaProbeService
         {
             // Stream duration is often N/A on MKV/HEVC; format.duration has the real length.
             // Local files used to omit format=duration — GUI then showed 0:00 and seek was disabled.
+            // RTSP over TCP: RTP over UDP rarely gets through NAT or a Docker bridge network
+            var transport = videoSource.StartsWith("rtsp", StringComparison.OrdinalIgnoreCase) ? "-rtsp_transport tcp " : "";
             var ffprobeArgs = isUrl
-                ? $"-v error -timeout 10000000 -select_streams v:0 -show_entries stream=width,height,r_frame_rate,duration -show_entries format=duration -of csv=p=0 \"{videoSource}\""
+                ? $"-v error {transport}-timeout 10000000 -select_streams v:0 -show_entries stream=width,height,r_frame_rate,duration -show_entries format=duration -of csv=p=0 \"{videoSource}\""
                 : $"-v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,duration -show_entries format=duration -of csv=p=0 \"{videoSource}\"";
 
             Console.WriteLine($"[VIDEO] Probing: {(isUrl ? "network stream" : "local file")}");

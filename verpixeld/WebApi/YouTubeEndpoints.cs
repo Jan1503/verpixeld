@@ -148,7 +148,9 @@ public static class YouTubeEndpoints
             }
             else if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                      url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-                     url.StartsWith("rtsp://", StringComparison.OrdinalIgnoreCase))
+                     url.StartsWith("rtsp://", StringComparison.OrdinalIgnoreCase) ||
+                     url.StartsWith("rtsps://", StringComparison.OrdinalIgnoreCase) ||
+                     url.StartsWith("rtmp://", StringComparison.OrdinalIgnoreCase))
             {
                 // ── Generic stream path (camera, HLS, RTSP, etc.) ──
                 Log.LogInformation("Generic stream play request: {Url}", url);
@@ -170,6 +172,11 @@ public static class YouTubeEndpoints
                         displayName,
                         protocol,
                         request.Loop);
+
+                    // The player reports a stream it could not open (camera offline, wrong path, no access):
+                    // say so instead of "Playing stream" with nothing on the wall.
+                    if (!mediaService.IsRunning && mediaService.LastPlaybackError is { } streamError)
+                        return Results.Json(new { success = false, message = $"Stream could not be opened: {streamError}" });
 
                     // Record in play history
                     favoritesService?.AddToHistory(new PlayHistoryItem

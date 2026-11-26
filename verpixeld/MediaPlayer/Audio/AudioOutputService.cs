@@ -30,7 +30,7 @@ public class AudioOutputService(ILogger<AudioOutputService> log) : IAudioOutputS
     private bool _hasLoggedPulseMode;
 
     // Cache whether FFmpeg has PulseAudio support
-    private bool? _ffmpegHasPulseSupport;
+    private HashSet<string>? _ffmpegMuxers;
 
     private readonly object _lock = new();
 
@@ -179,35 +179,36 @@ public class AudioOutputService(ILogger<AudioOutputService> log) : IAudioOutputS
         }
     }
 
-    private bool IsFFmpegPulseSupported()
-    {
-        if (_ffmpegHasPulseSupport.HasValue)
-            return _ffmpegHasPulseSupport.Value;
+    /// <summary>FFmpeg can write to PulseAudio (it is built with --enable-libpulse).</summary>
+    private bool IsFFmpegPulseSupported() => FFmpegMuxers().Contains("pulse");
 
+    /// <summary>
+    ///     FFmpeg can write to ALSA. A self-built FFmpeg without the ALSA headers has no such output, and
+    ///     "-f alsa default" then fails the whole process, video included ("Requested output format 'alsa' is
+    ///     not known").
+    /// </summary>
+    private bool IsFFmpegAlsaSupported() => FFmpegMuxers().Contains("alsa");
+
+    /// <summary>The output formats of the installed FFmpeg (read once).</summary>
+    private HashSet<string> FFmpegMuxers()
+    {
+        if (_ffmpegMuxers != null) return _ffmpegMuxers;
+        var muxers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            var psi = new ProcessStartInfo("ffmpeg", "-formats")
+            var psi = new ProcessStartInfo("ffmpeg", "-hide_banner -formats")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
-
             using var proc = Process.Start(psi);
             if (proc != null)
             {
                 var output = proc.StandardOutput.ReadToEnd();
                 proc.WaitForExit(5000);
-
-                _ffmpegHasPulseSupport = output.Contains(" pulse ");
-
-                if (_ffmpegHasPulseSupport.Value)
-                    _log.LogInformation("FFmpeg has PulseAudio output support");
-                else
-                    _log.LogInformation("FFmpeg has no PulseAudio muxer (will use ALSA only if a sound card exists)");
-
-                return _ffmpegHasPulseSupport.Value;
+                muxers = ParseMuxers(output);
             }
         }
         catch (Exception ex)
@@ -215,8 +216,26 @@ public class AudioOutputService(ILogger<AudioOutputService> log) : IAudioOutputS
             _log.LogError("Error checking FFmpeg capabilities: {Message}", ex.Message);
         }
 
-        _ffmpegHasPulseSupport = false;
-        return false;
+        _log.LogInformation("FFmpeg audio outputs: pulse {Pulse}, alsa {Alsa}",
+            muxers.Contains("pulse") ? "yes" : "no", muxers.Contains("alsa") ? "yes" : "no");
+        return _ffmpegMuxers = muxers;
+    }
+
+    /// <summary>
+    ///     Muxer names from "ffmpeg -formats": lines like " E  alsa   ALSA audio output" or
+    ///     " DE matroska,webm  Matroska / WebM" (the E in the flags marks a muxer).
+    /// </summary>
+    internal static HashSet<string> ParseMuxers(string formatsOutput)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in formatsOutput.Split('\n'))
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(line, @"^\s*[D ]E[d ]?\s+(\S+)");
+            if (!m.Success) continue;
+            foreach (var name in m.Groups[1].Value.Split(','))
+                result.Add(name.Trim());
+        }
+        return result;
     }
 
     public string GetFFmpegAudioOutput()
@@ -256,8 +275,13 @@ public class AudioOutputService(ILogger<AudioOutputService> log) : IAudioOutputS
 
         if (AlsaPlaybackAvailable())
         {
-            _log.LogInformation("Using ALSA default");
-            return "-f alsa default";
+            if (IsFFmpegAlsaSupported())
+            {
+                _log.LogInformation("Using ALSA default");
+                return "-f alsa default";
+            }
+            _log.LogWarning("A sound card exists but FFmpeg was built without ALSA output — video only");
+            return "";
         }
 
         _log.LogInformation("No PulseAudio or ALSA playback device — video only");

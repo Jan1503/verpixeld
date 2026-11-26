@@ -84,7 +84,7 @@ if (Test-Path $filterDir) {
 
 $vlc = if ($SkipVlc) { "0" } else { "1" }
 Write-Host "Building $Image (VLC=$vlc)..."
-docker build --pull --build-arg "VLC=$vlc" -t $Image -f (Join-Path $PSScriptRoot "Dockerfile") $PSScriptRoot
+docker build --pull --build-arg "VLC=$vlc" --build-arg "YTDLP_REFRESH=$(Get-Date -Format yyyy-MM-dd)" -t $Image -f (Join-Path $PSScriptRoot "Dockerfile") $PSScriptRoot
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 if ($Tar) {

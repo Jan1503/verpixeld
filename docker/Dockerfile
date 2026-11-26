@@ -7,6 +7,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       build-essential yasm nasm pkg-config wget ca-certificates xz-utils \
       libsmbclient-dev libgnutls28-dev \
+      libasound2-dev libpulse-dev \
  && rm -rf /var/lib/apt/lists/*
 
 # Pinned source. First image build is slow; later builds hit this layer cache.
@@ -20,9 +21,11 @@ RUN wget -q "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/${FFMPEG_TAG}.ta
       --enable-version3 \
       --enable-libsmbclient \
       --enable-gnutls \
+      --enable-libpulse \
       --disable-doc \
       --disable-ffplay \
       --disable-debug \
+ && grep -q '^#define CONFIG_ALSA_OUTDEV 1' config.h \
  && make -j"$(nproc)" \
  && make install \
  && rm -rf /tmp/ffmpeg /tmp/ffmpeg.tar.gz
@@ -40,6 +43,7 @@ RUN apt-get update \
       ca-certificates curl \
       fonts-dejavu-core \
       libsmbclient libgnutls30t64 \
+      libasound2t64 libpulse0 \
       smbclient \
       python3 python3-pip \
       tzdata \
@@ -51,14 +55,32 @@ RUN apt-get update \
  && ldconfig \
  && ln -snf /usr/share/zoneinfo/Europe/Berlin /etc/localtime \
  && echo Europe/Berlin > /etc/timezone \
- && pip3 install --no-cache-dir --break-system-packages yt-dlp \
  && rm -rf /var/lib/apt/lists/* \
  && ffmpeg -hide_banner -version \
  && ffmpeg -hide_banner -protocols 2>&1 | grep -E '^[[:space:]]*smb[[:space:]]*$' \
- && yt-dlp --version \
+ && ffmpeg -hide_banner -formats 2>/dev/null | grep -E '^[[:space:]]*D?E.?[[:space:]]+alsa' \
  && smbclient -V \
  && if [ "$VLC" = "1" ]; then test -e /usr/lib/x86_64-linux-gnu/libvlc.so; \
       find /usr/lib -name 'libalsa_plugin.so' -delete; fi
+
+# yt-dlp changes with YouTube, so it gets its own layer that every image build refreshes (build.ps1
+# passes the date as YTDLP_REFRESH; a cached layer used to keep the version of the first build).
+# YouTube needs a JavaScript runtime for its challenges: Deno (yt-dlp's default, >= 2.3) plus the
+# yt-dlp-ejs scripts from the "default" extra.
+ARG DENO_VERSION=v2.9.8
+ARG YTDLP_REFRESH=unset
+RUN echo "yt-dlp refresh: ${YTDLP_REFRESH}" \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends unzip \
+ && curl -fsSL "https://github.com/denoland/deno/releases/download/${DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip" -o /tmp/deno.zip \
+ && unzip -q /tmp/deno.zip -d /usr/local/bin \
+ && chmod +x /usr/local/bin/deno \
+ && rm -f /tmp/deno.zip \
+ && apt-get purge -y unzip && apt-get autoremove -y \
+ && rm -rf /var/lib/apt/lists/* \
+ && pip3 install --no-cache-dir --break-system-packages -U "yt-dlp[default]" \
+ && deno --version \
+ && yt-dlp --version
 
 WORKDIR /app
 COPY publish/ ./
