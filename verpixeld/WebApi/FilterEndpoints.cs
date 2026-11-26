@@ -7,8 +7,12 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class FilterEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapFilterEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(FilterEndpoints));
         var ctx = app.Services.GetRequiredService<EndpointContext>();
         var canvasManager = ctx.CanvasManager;
         var filterDiscovery = ctx.FilterDiscovery;
@@ -68,7 +72,7 @@ public static class FilterEndpoints
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"ERROR processing filter {info?.Name}: {ex.Message}");
+                        Log.LogError("processing filter {Name}: {Message}", info?.Name, ex.Message);
                     }
 
                 return Results.Json(new ApiResponse<object[]>(true, results.ToArray()));

@@ -8,8 +8,12 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class ExtensionEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapExtensionEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ExtensionEndpoints));
         var ctx = app.Services.GetRequiredService<EndpointContext>();
         var extensionDiscovery = ctx.ExtensionDiscovery;
 
@@ -26,7 +30,7 @@ public static class ExtensionEndpoints
                 }
                 catch (Exception discoveryEx)
                 {
-                    Console.WriteLine($"ERROR in ExtensionDiscovery: {discoveryEx.Message}");
+                    Log.LogError("in ExtensionDiscovery: {Message}", discoveryEx.Message);
                     return Results.Json(new ApiResponse<object[]>(true, Array.Empty<object>()));
                 }
 
@@ -96,14 +100,14 @@ public static class ExtensionEndpoints
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"ERROR processing extension {info?.Name}: {ex.Message}");
+                        Log.LogError("processing extension {Name}: {Message}", info?.Name, ex.Message);
                     }
 
                 return Results.Json(new ApiResponse<object[]>(true, results.ToArray()));
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR: Extension discovery failed: {ex.Message}");
+                Log.LogError("Extension discovery failed: {Message}", ex.Message);
                 return Results.Json(new ApiResponse<object[]>(false, Error: "Extension discovery failed"));
             }
         });

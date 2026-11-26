@@ -14,10 +14,15 @@ namespace verpixeld.WebApi;
 ///     with a single GET of the full settings tree and PUT endpoints that apply immediately when the
 ///     running backend can take them (and persist without wiping sibling appsettings.json sections).
 /// </summary>
+[LogTag("SETTINGS")]
 public static class OutputSettingsEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapOutputSettingsEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(OutputSettingsEndpoints));
         var output = app.Services.GetRequiredService<OutputRuntime>();
         var canvasManager = app.Services.GetRequiredService<CanvasManager>();
         var homeAssistant = app.Services.GetRequiredService<HomeAssistantService>();
@@ -50,7 +55,7 @@ public static class OutputSettingsEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SETTINGS] output switch: {ex.Message}");
+                Log.LogWarning("output switch: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });

@@ -8,11 +8,15 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class GeoEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     private static readonly HttpClient Http = CreateClient();
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
     public static void MapGeoEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(GeoEndpoints));
         app.MapGet("/api/geo/search", async (string? q) =>
         {
             var query = (q ?? "").Trim();
@@ -44,7 +48,7 @@ public static class GeoEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[GEO] search failed: {ex.Message}");
+                Log.LogError("search failed: {Message}", ex.Message);
                 return Results.Json(new ApiResponse<object>(false, Error: "Place search failed"));
             }
         });

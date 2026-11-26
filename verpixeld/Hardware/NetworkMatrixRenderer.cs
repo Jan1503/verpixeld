@@ -13,8 +13,11 @@ namespace verpixeld.Hardware;
 ///     SKBitmap frames to it, and keeps the hot-reloadable <c>seam_correction.json</c> convenience.
 ///     The compositor only hands off the latest frame. Each panel packs and sends on its own thread.
 /// </summary>
+[LogTag("NET")]
 public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
 {
+    private readonly ILogger<NetworkMatrixRenderer> _log;
+
     private readonly NetworkOptions _options;
     private readonly ImageCorrectionService? _correction;
     private readonly string _seamFile;
@@ -70,9 +73,9 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
     /// </summary>
     public int SeamCalibrateBits => _calibrateBits;
 
-    public NetworkMatrixRenderer(int wallWidth, int wallHeight, NetworkOptions options,
-        ImageCorrectionService? correction = null)
+    public NetworkMatrixRenderer(int wallWidth, int wallHeight, NetworkOptions options, ILogger<NetworkMatrixRenderer> log, ImageCorrectionService? correction = null)
     {
+        _log = log;
         Width = wallWidth;
         Height = wallHeight;
         _options = options;
@@ -125,8 +128,8 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
             StartSenderUnlocked();
         }
 
-        Console.WriteLine($"[NET] UDP -> {DescribeTargets()}, {Width}x{Height} {_options.ColorBits}-bit, " +
-                          $"paced to {_options.TargetMbps:0.#} Mbit/s each (pack/send off render thread).");
+        _log.LogInformation("UDP -> {Targets}, {Width}x{Height} {ColorBits}-bit, paced to {Mbps:0.#} Mbit/s each (pack/send off render thread).",
+            DescribeTargets(), Width, Height, _options.ColorBits, _options.TargetMbps);
     }
 
     private string DescribeTargets()
@@ -156,7 +159,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[NET] skip {target.Host}:{target.Port}: {ex.Message}");
+                _log.LogWarning("skip {Host}:{Port}: {Message}", target.Host, target.Port, ex.Message);
             }
         }
     }
@@ -227,8 +230,8 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
                 _seamStamp = SafeStamp();
             }
         }
-        Console.WriteLine($"[NET] reconfigured -> {DescribeTargets()}, {_options.ColorBits}-bit, " +
-                          $"paced to {_options.TargetMbps:0.#} Mbit/s each.");
+        _log.LogInformation("Reconfigured -> {Targets}, {ColorBits}-bit, paced to {Mbps:0.#} Mbit/s each.",
+            DescribeTargets(), _options.ColorBits, _options.TargetMbps);
     }
 
     public void Reconfigure(string host, int port, double targetMbps, int colorBits)
@@ -447,7 +450,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
                 CloseStreamersUnlocked();
             }
 
-            Console.WriteLine($"[NET] live colour depth {previous}-bit -> {bits}-bit on {hosts.Count} panel(s)...");
+            _log.LogInformation("live colour depth {Previous}-bit -> {Bits}-bit on {Count} panel(s)...", previous, bits, hosts.Count);
             var switched = new List<string>();
             var failed = new List<string>();
             foreach (var host in hosts)
@@ -460,7 +463,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
                 catch (Exception ex)
                 {
                     failed.Add(host);
-                    Console.WriteLine($"[NET] livemode on {host} failed: {ex.Message}");
+                    _log.LogError("livemode on {Host} failed: {Message}", host, ex.Message);
                 }
             }
 
@@ -469,7 +472,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
                 foreach (var host in switched)
                 {
                     try { await PanelControl.SetColorModeLiveAsync(host, previous).ConfigureAwait(false); }
-                    catch (Exception ex) { Console.WriteLine($"[NET] could not revert {host} to {previous}-bit: {ex.Message}"); }
+                    catch (Exception ex) { _log.LogWarning("could not revert {Host} to {Previous}-bit: {Message}", host, previous, ex.Message); }
                 }
                 throw new InvalidOperationException(
                     "livemode failed on " + string.Join(", ", failed));
@@ -482,11 +485,11 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
                 OpenStreamersUnlocked();
                 _seamStamp = SafeStamp();
             }
-            Console.WriteLine($"[NET] live colour depth now {bits}-bit");
+            _log.LogInformation("live colour depth now {Bits}-bit", bits);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[NET] live colour switch failed: {ex.Message}");
+            _log.LogError("live colour switch failed: {Message}", ex.Message);
             lock (_lock)
             {
                 if (_streamers.Count == 0)
@@ -615,7 +618,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         }
         WriteSeamFile();
         lock (_lock) _seamStamp = SafeStamp();
-        Console.WriteLine($"[NET] seam correction {(enabled ? "on" : "off")}");
+        _log.LogInformation("seam correction {Value}", (enabled ? "on" : "off"));
     }
 
     // ---- seam correction hot-reload (verpixeld convenience) ---------------------------------
@@ -640,7 +643,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
             _seam8 = SeamCorrectionStore.IdentityColumns();
             _seam14 = SeamCorrectionStore.DefaultColumns();
             WriteSeamUnlocked();
-            Console.WriteLine($"[NET] wrote seam-correction template to {_seamFile}");
+            _log.LogInformation("wrote seam-correction template to {SeamFile}", _seamFile);
             return;
         }
 
@@ -657,13 +660,13 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         _seamStamp = stamp;
         LoadSeamUnlocked();
         foreach (var s in _streamers) s.UpdateSeam(ActiveSeam());
-        Console.WriteLine($"[NET] seam correction reloaded from {_seamFile}");
+        _log.LogInformation("seam correction reloaded from {SeamFile}", _seamFile);
     }
 
     private void WriteSeamFile()
     {
         lock (_lock) WriteSeamUnlocked();
-        Console.WriteLine($"[NET] seam written to {_seamFile} (8-bit {_seam8.Count} / 14-bit {_seam14.Count} columns)");
+        _log.LogInformation("seam written to {SeamFile} (8-bit {Count} / 14-bit {Count2} columns)", _seamFile, _seam8.Count, _seam14.Count);
     }
 
     private void WriteSeamUnlocked()
@@ -674,7 +677,7 @@ public sealed class NetworkMatrixRenderer : IMatrixRenderer, IDisposable
         store.Save(_seamFile);
     }
 
-    public void Shutdown() { Dispose(); Console.WriteLine("[NET] renderer shut down"); }
+    public void Shutdown() { Dispose(); _log.LogInformation("renderer shut down"); }
 
     /// <summary>Latest frame for one panel, sent on its own thread.</summary>
     private sealed class PanelPump

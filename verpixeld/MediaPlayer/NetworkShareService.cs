@@ -95,8 +95,11 @@ public class CachedBrowseResult
 /// <summary>
 ///     Service for managing SMB network shares with encrypted credential storage
 /// </summary>
+[LogTag("NETWORK")]
 public class NetworkShareService
 {
+    private readonly ILogger<NetworkShareService> _log;
+
     // Directory cache: key = "shareId:path"
     private readonly Dictionary<string, CachedBrowseResult> _browseCache = new();
     private readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(5);
@@ -105,8 +108,9 @@ public class NetworkShareService
     private readonly byte[] _encryptionKey;
     private List<NetworkShare> _shares = new();
 
-    public NetworkShareService()
+    public NetworkShareService(ILogger<NetworkShareService> log)
     {
+        _log = log;
         _configPath = AppPaths.NetworkSharesConfig;
 
         // Generate or load encryption key (machine-specific)
@@ -153,7 +157,7 @@ public class NetworkShareService
         _shares.Add(share);
         SaveShares();
 
-        Console.WriteLine($"[NETWORK] Added share: {share.Name} (smb://{share.Server}/{share.SharePath})");
+        _log.LogInformation("Added share: {Name} (smb://{Server}/{SharePath})", share.Name, share.Server, share.SharePath);
         return share;
     }
 
@@ -181,7 +185,7 @@ public class NetworkShareService
         }
 
         SaveShares();
-        Console.WriteLine($"[NETWORK] Updated share: {share.Name}");
+        _log.LogInformation("Updated share: {Name}", share.Name);
         return true;
     }
 
@@ -196,7 +200,7 @@ public class NetworkShareService
         _shares.Remove(share);
         SaveShares();
 
-        Console.WriteLine($"[NETWORK] Removed share: {share.Name}");
+        _log.LogInformation("Removed share: {Name}", share.Name);
         return true;
     }
 
@@ -293,15 +297,14 @@ public class NetworkShareService
             {
                 if (_browseCache.TryGetValue(cacheKey, out var cached) && !cached.IsExpired(_cacheExpiration))
                 {
-                    Console.WriteLine(
-                        $"[NETWORK] Cache hit: {subPath} (cached {(int)(DateTime.UtcNow - cached.CachedAt).TotalSeconds}s ago)");
+                    _log.LogInformation("Cache hit: {SubPath} (cached {Value}s ago)", subPath, (int)(DateTime.UtcNow - cached.CachedAt).TotalSeconds);
                     return cached.Result with { FromCache = true };
                 }
             }
         }
         else
         {
-            Console.WriteLine($"[NETWORK] Force refresh: {subPath}");
+            _log.LogInformation("Force refresh: {SubPath}", subPath);
         }
 
         var result = await BrowseSmbDirectoryAsync(share, subPath);
@@ -326,13 +329,13 @@ public class NetworkShareService
             {
                 var count = _browseCache.Count;
                 _browseCache.Clear();
-                Console.WriteLine($"[NETWORK] Cleared {count} cached directories");
+                _log.LogInformation("Cleared {Count} cached directories", count);
             }
             else
             {
                 var keysToRemove = _browseCache.Keys.Where(k => k.StartsWith($"{shareId}:")).ToList();
                 foreach (var key in keysToRemove) _browseCache.Remove(key);
-                Console.WriteLine($"[NETWORK] Cleared {keysToRemove.Count} cached directories for share {shareId}");
+                _log.LogInformation("Cleared {Count} cached directories for share {ShareId}", keysToRemove.Count, shareId);
             }
         }
     }
@@ -367,7 +370,7 @@ public class NetworkShareService
             // Build smbclient command to list directory
             var lsPath = string.IsNullOrEmpty(subPath) ? "" : subPath.Replace("/", "\\");
             var displayPath = $"{uncPath}/{subPath}".Replace("//", "/");
-            Console.WriteLine($"[NETWORK] Browsing: {displayPath}");
+            _log.LogInformation("Browsing: {DisplayPath}", displayPath);
 
             var psi = new ProcessStartInfo("smbclient");
             psi.ArgumentList.Add(uncPath);
@@ -402,7 +405,7 @@ public class NetworkShareService
                     trimmed.Contains("NT_STATUS"))
                 {
                     if (trimmed.StartsWith("Try ") || trimmed.Contains("NT_STATUS"))
-                        Console.WriteLine($"[NETWORK] Could not parse line: {trimmed}");
+                        _log.LogInformation("Could not parse line: {Trimmed}", trimmed);
                     continue;
                 }
 
@@ -447,12 +450,11 @@ public class NetworkShareService
             result.Videos = result.Videos.OrderBy(v => v.Name).ToList();
             result.AudioFiles = result.AudioFiles.OrderBy(a => a.Name).ToList();
 
-            Console.WriteLine(
-                $"[NETWORK] Found {result.Directories.Count} directories, {result.Videos.Count} videos, {result.AudioFiles.Count} audio files");
+            _log.LogInformation("Found {Count} directories, {Count2} videos, {Count3} audio files", result.Directories.Count, result.Videos.Count, result.AudioFiles.Count);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[NETWORK] Error browsing SMB: {ex.Message}");
+            _log.LogError("Error browsing SMB: {Message}", ex.Message);
         }
 
         return result;
@@ -490,12 +492,12 @@ public class NetworkShareService
             {
                 var json = File.ReadAllText(_configPath);
                 _shares = JsonSerializer.Deserialize<List<NetworkShare>>(json) ?? new List<NetworkShare>();
-                Console.WriteLine($"[NETWORK] Loaded {_shares.Count} network shares");
+                _log.LogInformation("Loaded {Count} network shares", _shares.Count);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[NETWORK] Error loading shares: {ex.Message}");
+            _log.LogError("Error loading shares: {Message}", ex.Message);
             _shares = new List<NetworkShare>();
         }
     }
@@ -509,7 +511,7 @@ public class NetworkShareService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[NETWORK] Error saving shares: {ex.Message}");
+            _log.LogError("Error saving shares: {Message}", ex.Message);
         }
     }
 

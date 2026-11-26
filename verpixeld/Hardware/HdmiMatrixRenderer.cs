@@ -18,8 +18,11 @@ namespace verpixeld.Hardware;
 ///     - The compositor hands us a BGRA8888 SKBitmap. A 32bpp XRGB/BGRX framebuffer (the common Pi format)
 ///       therefore takes a near-direct byte copy; 16bpp RGB565 is converted per pixel.
 /// </summary>
+[LogTag("HDMI")]
 public sealed class HdmiMatrixRenderer : IMatrixRenderer, IDisposable
 {
+    private readonly ILogger<HdmiMatrixRenderer> _log;
+
     private string _device;
     private int _offsetX;
     private int _offsetY;
@@ -50,8 +53,9 @@ public sealed class HdmiMatrixRenderer : IMatrixRenderer, IDisposable
     [DllImport("libc", SetLastError = true)]
     private static extern int munmap(IntPtr addr, nuint length);
 
-    public HdmiMatrixRenderer(int wallWidth, int wallHeight, HdmiOptions options)
+    public HdmiMatrixRenderer(int wallWidth, int wallHeight, HdmiOptions options, ILogger<HdmiMatrixRenderer> log)
     {
+        _log = log;
         Width = wallWidth;
         Height = wallHeight;
         _device = string.IsNullOrWhiteSpace(options.FramebufferDevice) ? "/dev/fb0" : options.FramebufferDevice;
@@ -127,10 +131,8 @@ public sealed class HdmiMatrixRenderer : IMatrixRenderer, IDisposable
             throw new InvalidOperationException($"mmap({_device}) failed (errno {err}).");
         }
 
-        Console.WriteLine(
-            $"[HDMI] Framebuffer {_device}: {_fbWidth}x{_fbHeight} @ {_bytesPerPixel * 8}bpp, stride={_stride}B (mmap)");
-        Console.WriteLine(
-            $"[HDMI] Wall region: {Width}x{Height} (scale {_scale}) at offset ({_offsetX},{_offsetY})");
+        _log.LogInformation("Framebuffer {Device}: {FbWidth}x{FbHeight} @ {Value}bpp, stride={Stride}B (mmap)", _device, _fbWidth, _fbHeight, _bytesPerPixel * 8, _stride);
+        _log.LogInformation("Wall region: {Width}x{Height} (scale {Scale}) at offset ({OffsetX},{OffsetY})", Width, Height, _scale, _offsetX, _offsetY);
 
         var scaledW = Width * _scale;
         var scaledH = Height * _scale;
@@ -195,7 +197,7 @@ public sealed class HdmiMatrixRenderer : IMatrixRenderer, IDisposable
     public void Shutdown()
     {
         Dispose();
-        Console.WriteLine("[HDMI] Framebuffer renderer shut down");
+        _log.LogInformation("Framebuffer renderer shut down");
     }
 
     public void Dispose()

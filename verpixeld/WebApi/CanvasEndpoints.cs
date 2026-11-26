@@ -9,10 +9,15 @@ namespace verpixeld.WebApi;
 /// <summary>
 ///     Canvas stacking and management API endpoints
 /// </summary>
+[LogTag("API")]
 public static class CanvasEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapCanvasEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(CanvasEndpoints));
         var ctx = app.Services.GetRequiredService<EndpointContext>();
         var mediaService = app.Services.GetRequiredService<MediaPlayerService>();
         var canvasManager = ctx.CanvasManager;
@@ -390,7 +395,7 @@ public static class CanvasEndpoints
                 catch (Exception ex)
                 {
                     // Remove the canvas anyway; the player notices its canvas is gone.
-                    Console.WriteLine($"[CANVAS] Stopping media on '{canvasName}' before removal failed: {ex.Message}");
+                    Log.LogError("[CANVAS] Stopping media on '{CanvasName}' before removal failed: {Message}", canvasName, ex.Message);
                 }
 
                 ctx.RotationService.Forget(canvasName);
@@ -507,7 +512,7 @@ public static class CanvasEndpoints
                     ctx.RotationService.ImportConfig(name, cloned);
                 }
 
-                Console.WriteLine($"[API] Duplicated '{canvasName}' → '{name}' ({copy.Width}x{copy.Height} @ {x},{y})");
+                Log.LogInformation("Duplicated '{CanvasName}' → '{Name}' ({Width}x{Height} @ {X},{Y})", canvasName, name, copy.Width, copy.Height, x, y);
                 return Results.Json(new ApiResponse<object>(true, new
                 {
                     name,
@@ -520,7 +525,7 @@ public static class CanvasEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Duplicate '{canvasName}' failed: {ex.Message}");
+                Log.LogError("Duplicate '{CanvasName}' failed: {Message}", canvasName, ex.Message);
                 return Results.Json(new ApiResponse<object>(false, Error: ex.Message));
             }
         });

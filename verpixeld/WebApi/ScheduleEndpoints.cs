@@ -7,10 +7,15 @@ namespace verpixeld.WebApi;
 /// <summary>
 ///     Layout scheduler API endpoints - Time-based automatic layout switching
 /// </summary>
+[LogTag("API")]
 public static class ScheduleEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapScheduleEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ScheduleEndpoints));
         var ctx = app.Services.GetRequiredService<EndpointContext>();
 
         // Get all schedules
@@ -82,7 +87,7 @@ public static class ScheduleEndpoints
                 {
                     // Activate the schedule if it's enabled
                     ctx.ScheduleManager.ActivateSchedule(schedule.Name);
-                    Console.WriteLine($"[API] Auto-activated enabled schedule '{schedule.Name}'");
+                    Log.LogInformation("Auto-activated enabled schedule '{Name}'", schedule.Name);
                 }
                 else
                 {
@@ -91,7 +96,7 @@ public static class ScheduleEndpoints
                     if (activeSchedule != null && activeSchedule.Name == schedule.Name)
                     {
                         ctx.ScheduleManager.ClearActiveSchedule();
-                        Console.WriteLine($"[API] Deactivated schedule '{schedule.Name}' (was disabled)");
+                        Log.LogInformation("Deactivated schedule '{Name}' (was disabled)", schedule.Name);
 
                         // Try to activate another enabled schedule
                         ctx.ScheduleManager.AutoActivateIfNeeded();

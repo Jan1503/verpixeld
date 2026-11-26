@@ -6,10 +6,16 @@ namespace verpixeld.WebApi;
 /// <summary>
 /// API endpoints for YouTube video playback
 /// </summary>
+[LogTag("STREAM-API")]
 public static class YouTubeEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapYouTubeEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(YouTubeEndpoints));
+        var ytLog = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger<YouTubeService>();
         var mediaService = app.Services.GetRequiredService<MediaPlayerService>();
         var favoritesService = app.Services.GetRequiredService<FavoritesService>();
 
@@ -44,7 +50,7 @@ public static class YouTubeEndpoints
                 return Results.Json(new { success = false, message = "Not a valid YouTube URL" });
             }
 
-            var ytService = new YouTubeService();
+            var ytService = new YouTubeService(ytLog);
             var info = await ytService.GetVideoInfoAsync(request.Url);
 
             if (info == null)
@@ -101,7 +107,7 @@ public static class YouTubeEndpoints
                     return Results.Json(new { success = false, message = "yt-dlp not available. Install with: pip install yt-dlp" });
                 }
 
-                Console.WriteLine($"[STREAM-API] YouTube play request: {url}");
+                Log.LogInformation("YouTube play request: {Url}", url);
 
                 var success = await mediaService.PlayYouTubeVideoAsync(url, request.Loop);
 
@@ -146,7 +152,7 @@ public static class YouTubeEndpoints
                      url.StartsWith("rtsp://", StringComparison.OrdinalIgnoreCase))
             {
                 // ── Generic stream path (camera, HLS, RTSP, etc.) ──
-                Console.WriteLine($"[STREAM-API] Generic stream play request: {url}");
+                Log.LogInformation("Generic stream play request: {Url}", url);
 
                 try
                 {
@@ -187,7 +193,7 @@ public static class YouTubeEndpoints
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[STREAM-API] Stream play error: {ex.Message}");
+                    Log.LogError("Stream play error: {Message}", ex.Message);
                     return Results.Json(new { success = false, message = $"Failed to play stream: {ex.Message}" });
                 }
             }
@@ -210,7 +216,7 @@ public static class YouTubeEndpoints
                 return Results.Json(new { success = false, message = "yt-dlp not available" });
             }
 
-            var ytService = new YouTubeService();
+            var ytService = new YouTubeService(ytLog);
             var info = await ytService.GetVideoInfoAsync(request.Url);
 
             if (info == null)

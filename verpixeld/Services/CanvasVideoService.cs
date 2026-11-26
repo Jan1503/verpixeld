@@ -10,8 +10,11 @@ namespace verpixeld.Services;
 ///     <see cref="MediaPlayerService" /> (one playback + media bar + audio), this runs one FFmpeg pipeline
 ///     per canvas (video-only, looping), so several canvases can play different videos at the same time.
 /// </summary>
+[LogTag("CVID")]
 public class CanvasVideoService : IDisposable
 {
+    private readonly ILogger<CanvasVideoService> _log;
+
     private readonly CanvasManager _cm;
     private readonly PixToneOutputService _vap1;
     private readonly object _lock = new();
@@ -20,8 +23,9 @@ public class CanvasVideoService : IDisposable
     private CancellationTokenSource? _audioCts;
     private string? _audioCanvas;
 
-    public CanvasVideoService(CanvasManager cm, PixToneOutputService vap1)
+    public CanvasVideoService(CanvasManager cm, PixToneOutputService vap1, ILogger<CanvasVideoService> log)
     {
+        _log = log;
         _cm = cm;
         _vap1 = vap1;
     }
@@ -39,13 +43,13 @@ public class CanvasVideoService : IDisposable
     {
         if (!MediaPlayerService.FFmpegAvailable)
         {
-            Console.WriteLine("[CVID] FFmpeg not available");
+            _log.LogInformation("FFmpeg not available");
             return false;
         }
 
         if (!File.Exists(filePath))
         {
-            Console.WriteLine($"[CVID] File not found: {filePath}");
+            _log.LogInformation("File not found: {FilePath}", filePath);
             return false;
         }
 
@@ -69,7 +73,7 @@ public class CanvasVideoService : IDisposable
 
         streamer.Start(args, canvas, displayFps: 20, logPrefix: "[CVID]");
         StartAudio(canvas.Name, filePath, loop);
-        Console.WriteLine($"[CVID] Playing {Path.GetFileName(filePath)} on '{canvas.Name}' ({w}x{h})");
+        _log.LogInformation("Playing {Value} on '{Name}' ({W}x{H})", Path.GetFileName(filePath), canvas.Name, w, h);
         return true;
     }
 
@@ -86,7 +90,7 @@ public class CanvasVideoService : IDisposable
         if (string.Equals(_audioCanvas, canvasName, StringComparison.OrdinalIgnoreCase))
             StopAudio();
         try { _cm.GetCanvasByName(canvasName)?.Clear(); } catch { /* ignore */ }
-        Console.WriteLine($"[CVID] Stopped on '{canvasName}'");
+        _log.LogInformation("Stopped on '{CanvasName}'", canvasName);
     }
 
     public void StopAll()
@@ -120,7 +124,7 @@ public class CanvasVideoService : IDisposable
         StopAudio();
         if (!_vap1.IsSelected)
         {
-            Console.WriteLine("[CVID] No audio board selected — video only");
+            _log.LogInformation("No audio board selected — video only");
             return;
         }
 
@@ -132,12 +136,12 @@ public class CanvasVideoService : IDisposable
         {
             _audioCts.Dispose();
             _audioCts = null;
-            Console.WriteLine("[CVID] Audio decoder did not start");
+            _log.LogInformation("Audio decoder did not start");
             return;
         }
 
         _audioCanvas = canvasName;
-        Console.WriteLine($"[CVID] Audio {_vap1.Host} for '{canvasName}'");
+        _log.LogInformation("Audio {Host} for '{CanvasName}'", _vap1.Host, canvasName);
     }
 
     private void StopAudio()

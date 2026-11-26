@@ -12,6 +12,8 @@ namespace verpixeld.MediaPlayer;
 /// </summary>
 public class VideoPlayer : IDisposable
 {
+    private readonly ILogger<VideoPlayer> _log;
+
     // Number of frames to buffer before displaying (to let ALSA audio buffer fill)
     // Adjust this if audio/video is out of sync
     private const int PreBufferFrames = 5;
@@ -61,8 +63,9 @@ public class VideoPlayer : IDisposable
     private int _targetWidth;
     private int _firstFrameNotified;
 
-    public VideoPlayer(int width, int height, IAudioOutputService audioOutputService, Audio.PixToneOutputService vap1)
+    public VideoPlayer(int width, int height, IAudioOutputService audioOutputService, Audio.PixToneOutputService vap1, ILogger<VideoPlayer> log)
     {
+        _log = log;
         _defaultWidth = width;
         _defaultHeight = height;
         _targetWidth = width;
@@ -259,13 +262,13 @@ public class VideoPlayer : IDisposable
         {
             if (!FfmpegCapabilities.IsFFmpegSmbSupported())
             {
-                Console.WriteLine("[VIDEO] FFmpeg SMB support not available!");
-                Console.WriteLine("[VIDEO] Compile FFmpeg with --enable-libsmbclient");
+                _log.LogInformation("FFmpeg SMB support not available!");
+                _log.LogInformation("Compile FFmpeg with --enable-libsmbclient");
                 OnError?.Invoke("FFmpeg SMB support required. Compile FFmpeg with --enable-libsmbclient.");
                 return;
             }
 
-            Console.WriteLine("[VIDEO] Using FFmpeg native SMB (seeking supported)");
+            _log.LogInformation("Using FFmpeg native SMB (seeking supported)");
         }
 
         if (!isUrl && !File.Exists(videoSource))
@@ -307,7 +310,7 @@ public class VideoPlayer : IDisposable
         // Use canvas dimensions for scaling (allows overlay canvases to work)
         _targetWidth = canvas.Width;
         _targetHeight = canvas.Height;
-        Console.WriteLine($"[VIDEO] Target canvas: {canvas.Name} ({_targetWidth}x{_targetHeight})");
+        _log.LogInformation("Target canvas: {Name} ({TargetWidth}x{TargetHeight})", canvas.Name, _targetWidth, _targetHeight);
 
         // Position tracking: the clock starts with the first frame or the first audio
         HoldClock(TimeSpan.Zero);
@@ -319,8 +322,7 @@ public class VideoPlayer : IDisposable
         _cts = new CancellationTokenSource();
 
         var sourceType = isUrl ? "Network" : "Local";
-        Console.WriteLine(
-            $"[VIDEO] Playing ({sourceType}): {info.FileName} ({info.Width}x{info.Height} @ {info.Fps:F2}fps, {info.Duration:mm\\:ss})");
+        _log.LogInformation("Playing ({SourceType}): {FileName} ({Width}x{Height} @ {Fps:F2}fps, {Duration:mm\\:ss})", sourceType, info.FileName, info.Width, info.Height, info.Fps, info.Duration);
 
         // Start synchronized video+audio playback
         _playbackTask = PlayVideoWithSyncedAudioAsync(videoSource, canvas, playAudio, TimeSpan.Zero, _cts.Token);
@@ -353,7 +355,7 @@ public class VideoPlayer : IDisposable
             {
                 // For network streams (e.g. internet radio), ffprobe may fail because
                 // the stream is infinite or uses an unsupported container. Play anyway.
-                Console.WriteLine("[AUDIO] Probe failed for stream — playing without duration info (live/radio stream)");
+                _log.LogError("[AUDIO] Probe failed for stream — playing without duration info (live/radio stream)");
                 info = new VideoInfo
                 {
                     Path = audioSource,
@@ -395,7 +397,7 @@ public class VideoPlayer : IDisposable
 
         _cts = new CancellationTokenSource();
 
-        Console.WriteLine($"[AUDIO] Playing: {Path.GetFileName(audioSource)} ({info.Duration:mm\\:ss})");
+        _log.LogInformation("[AUDIO] Playing: {Value} ({Duration:mm\\:ss})", Path.GetFileName(audioSource), info.Duration);
 
         // Start audio-only playback
         _playbackTask = PlayAudioOnlyInternalAsync(audioSource, TimeSpan.Zero, _cts.Token);
@@ -416,7 +418,7 @@ public class VideoPlayer : IDisposable
         if (duration > TimeSpan.Zero)
         {
             _duration = duration;
-            Console.WriteLine($"[VIDEO] Duration set externally: {duration:mm\\:ss}");
+            _log.LogInformation("Duration set externally: {Duration:mm\\:ss}", duration);
         }
     }
 
@@ -424,14 +426,14 @@ public class VideoPlayer : IDisposable
     {
         if (IsPlaying) await StopAsync();
 
-        Console.WriteLine("[VIDEO] Playing adaptive stream (video + audio URLs)");
+        _log.LogInformation("Playing adaptive stream (video + audio URLs)");
 
         // Get video info from the video URL
         var info = await MediaProbeService.GetVideoInfoAsync(videoUrl);
         if (info == null)
         {
             // Try with minimal info - YouTube URLs might timeout for probe
-            Console.WriteLine("[VIDEO] Could not probe video URL, using defaults");
+            _log.LogInformation("Could not probe video URL, using defaults");
             info = new VideoInfo
             {
                 Path = videoUrl,
@@ -475,7 +477,7 @@ public class VideoPlayer : IDisposable
 
         _cts = new CancellationTokenSource();
 
-        Console.WriteLine($"[VIDEO] Adaptive stream: {info.Width}x{info.Height} -> {_targetWidth}x{_targetHeight}");
+        _log.LogInformation("Adaptive stream: {Width}x{Height} -> {TargetWidth}x{TargetHeight}", info.Width, info.Height, _targetWidth, _targetHeight);
 
         // Start adaptive stream playback
         _playbackTask = PlayAdaptiveStreamInternalAsync(videoUrl, audioUrl, canvas, playAudio, TimeSpan.Zero, _cts.Token);
@@ -515,7 +517,7 @@ public class VideoPlayer : IDisposable
             if (playAudio && _vap1.IsSelected)
             {
                 vap1Input = $"{seekArg}{networkOpts}-i \"{audioUrl}\" {AudioMap}-vn";
-                Console.WriteLine($"[VIDEO] Adaptive: PixTone {_vap1.Host}");
+                _log.LogInformation("Adaptive: PixTone {Host}", _vap1.Host);
             }
             else if (playAudio)
             {
@@ -523,17 +525,17 @@ public class VideoPlayer : IDisposable
                 if (string.IsNullOrWhiteSpace(ffmpegAudio))
                 {
                     playAudio = false;
-                    Console.WriteLine("[VIDEO] Adaptive: no audio device, video only");
+                    _log.LogInformation("Adaptive: no audio device, video only");
                 }
                 else if (!string.IsNullOrEmpty(defaultSink) && defaultSink != "auto_null")
                 {
                     audioOutput = defaultSink;
-                    Console.WriteLine($"[VIDEO] Adaptive: Using PulseAudio sink: {defaultSink}");
+                    _log.LogInformation("Adaptive: Using PulseAudio sink: {DefaultSink}", defaultSink);
                 }
                 else
                 {
                     audioOutput = "default";
-                    Console.WriteLine("[VIDEO] Adaptive: Using default PulseAudio");
+                    _log.LogInformation("Adaptive: Using default PulseAudio");
                 }
             }
 
@@ -546,7 +548,7 @@ public class VideoPlayer : IDisposable
                         $"{seekArg}{networkOpts}-i \"{videoUrl}\" " +
                         $"-vf \"{videoFilter}\" -f rawvideo -pix_fmt {FfmpegRawVideo.PixFmt} -an pipe:1";
 
-            Console.WriteLine($"[VIDEO] FFmpeg video command (truncated): ffmpeg {MediaPath.Redact(videoFfmpegArgs.Substring(0, Math.Min(200, videoFfmpegArgs.Length)))}...");
+            _log.LogInformation("FFmpeg video command (truncated): ffmpeg {Value}...", MediaPath.Redact(videoFfmpegArgs.Substring(0, Math.Min(200, videoFfmpegArgs.Length))));
             
             // Audio command prepared but NOT started yet - will start after first video frame
             string? audioFfmpegArgs = null;
@@ -556,7 +558,7 @@ public class VideoPlayer : IDisposable
                             $"{seekArg}{networkOpts}-i \"{audioUrl}\" " +
                             $"-vn {AudioMap}-c:a pcm_s16le -ar 48000 -ac 2 -f pulse \"{audioOutput}\"";
                 
-                Console.WriteLine($"[VIDEO] FFmpeg audio command (will start after first frame): ffmpeg {MediaPath.Redact(audioFfmpegArgs.Substring(0, Math.Min(150, audioFfmpegArgs.Length)))}...");
+                _log.LogInformation("FFmpeg audio command (will start after first frame): ffmpeg {Value}...", MediaPath.Redact(audioFfmpegArgs.Substring(0, Math.Min(150, audioFfmpegArgs.Length))));
             }
 
             // Start video process
@@ -583,7 +585,7 @@ public class VideoPlayer : IDisposable
                 var stderr = await proc.StandardError.ReadToEndAsync();
                 if (!string.IsNullOrWhiteSpace(stderr))
                 {
-                    Console.WriteLine($"[VIDEO] FFmpeg stderr: {stderr.Substring(0, Math.Min(500, stderr.Length))}");
+                    _log.LogInformation("FFmpeg stderr: {Value}", stderr.Substring(0, Math.Min(500, stderr.Length)));
                     if (stderr.Contains("403") || stderr.Contains("429") ||
                         stderr.Contains("HTTP error") || stderr.Contains("Server returned"))
                         OnError?.Invoke(stderr.Length > 200 ? stderr[..200] : stderr);
@@ -637,7 +639,7 @@ public class VideoPlayer : IDisposable
                     {
                         if (frameCount == 0)
                         {
-                            Console.WriteLine($"[VIDEO] Adaptive: No frames received (read {bytesRead} of {frameSize} bytes)");
+                            _log.LogInformation("Adaptive: No frames received (read {BytesRead} of {FrameSize} bytes)", bytesRead, frameSize);
                             // Wait for stderr to get the error message
                             var stderr = await stderrTask;
                             if (!string.IsNullOrEmpty(stderr))
@@ -653,20 +655,20 @@ public class VideoPlayer : IDisposable
                     // Start audio when first video frame arrives
                     if (frameCount == 1 && !audioStarted && vap1Input != null)
                     {
-                        Console.WriteLine("[VIDEO] Adaptive: First video frame received, starting PixTone...");
+                        _log.LogInformation("Adaptive: First video frame received, starting PixTone...");
                         _audioProcess = _vap1.StartDecoder(vap1Input, BoardTitle(), ct);
                         audioStarted = _audioProcess != null;
                         var audioBufferDelayMs = 500 - _audioSyncOffsetMs;
                         if (audioStarted && audioBufferDelayMs > 0)
                         {
-                            Console.WriteLine($"[VIDEO] Adaptive: Waiting {audioBufferDelayMs}ms for audio to buffer...");
+                            _log.LogInformation("Adaptive: Waiting {AudioBufferDelayMs}ms for audio to buffer...", audioBufferDelayMs);
                             await Task.Delay(audioBufferDelayMs, ct);
                         }
                         playbackStart = DateTime.UtcNow;
                     }
                     else if (frameCount == 1 && !audioStarted && audioFfmpegArgs != null)
                     {
-                        Console.WriteLine("[VIDEO] Adaptive: First video frame received, starting audio...");
+                        _log.LogInformation("Adaptive: First video frame received, starting audio...");
                         
                         var audioPsi = new ProcessStartInfo("ffmpeg", audioFfmpegArgs)
                         {
@@ -680,7 +682,7 @@ public class VideoPlayer : IDisposable
                         _audioProcess = Process.Start(audioPsi);
                         if (_audioProcess != null)
                         {
-                            Console.WriteLine($"[VIDEO] Audio process started (PID: {_audioProcess.Id})");
+                            _log.LogInformation("Audio process started (PID: {Id})", _audioProcess.Id);
                         }
                         audioStarted = true;
                         
@@ -690,24 +692,24 @@ public class VideoPlayer : IDisposable
                         var audioBufferDelayMs = 500 - _audioSyncOffsetMs; // Negative offset = more delay
                         if (audioBufferDelayMs > 0)
                         {
-                            Console.WriteLine($"[VIDEO] Adaptive: Waiting {audioBufferDelayMs}ms for audio to buffer...");
+                            _log.LogInformation("Adaptive: Waiting {AudioBufferDelayMs}ms for audio to buffer...", audioBufferDelayMs);
                             await Task.Delay(audioBufferDelayMs, ct);
                         }
                         
                         // NOW start video timing (after audio has buffered)
                         playbackStart = DateTime.UtcNow;
-                        Console.WriteLine("[VIDEO] Adaptive: Starting video display");
+                        _log.LogInformation("Adaptive: Starting video display");
                     }
                     else if (frameCount == 1)
                     {
-                        Console.WriteLine("[VIDEO] Adaptive: First frame displayed (no audio)");
+                        _log.LogInformation("Adaptive: First frame displayed (no audio)");
                     }
                     else if (frameCount % 300 == 0) // Every 10 seconds at 30fps
                     {
                         var elapsed = DateTime.UtcNow - playbackStart;
                         var expectedPos = TimeSpan.FromSeconds(frameCount / Fps);
                         var drift = (elapsed - expectedPos).TotalMilliseconds;
-                        Console.WriteLine($"[VIDEO] Adaptive: {frameCount} frames, elapsed={elapsed.TotalSeconds:F1}s, expected={expectedPos.TotalSeconds:F1}s, drift={drift:+0;-0}ms");
+                        _log.LogInformation("Adaptive: {FrameCount} frames, elapsed={TotalSeconds:F1}s, expected={TotalSeconds2:F1}s, drift={Drift:+0;-0}ms", frameCount, elapsed.TotalSeconds, expectedPos.TotalSeconds, drift);
                     }
 
                     // Render to canvas
@@ -720,7 +722,7 @@ public class VideoPlayer : IDisposable
                         }
                         catch (ObjectDisposedException)
                         {
-                            Console.WriteLine("[VIDEO] Canvas disposed during adaptive playback");
+                            _log.LogInformation("Canvas disposed during adaptive playback");
                             _canvasDisposed = true;
                             break;
                         }
@@ -742,7 +744,7 @@ public class VideoPlayer : IDisposable
                     // If behind schedule, display immediately to catch up
                 }
                 
-                Console.WriteLine($"[VIDEO] Adaptive: Playback ended after {frameCount} frames");
+                _log.LogInformation("Adaptive: Playback ended after {FrameCount} frames", frameCount);
             }
             catch (OperationCanceledException)
             {
@@ -750,7 +752,7 @@ public class VideoPlayer : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[VIDEO] Adaptive playback error: {ex.Message}");
+                _log.LogError("Adaptive playback error: {Message}", ex.Message);
             }
             finally
             {
@@ -774,7 +776,7 @@ public class VideoPlayer : IDisposable
                     if (_audioProcess != null && !_audioProcess.HasExited)
                     {
                         _audioProcess.Kill();
-                        Console.WriteLine("[VIDEO] Audio process stopped");
+                        _log.LogInformation("Audio process stopped");
                     }
                 }
                 catch
@@ -787,7 +789,7 @@ public class VideoPlayer : IDisposable
             // Check if we should loop
             if (!IsLooping || ct.IsCancellationRequested || _canvasDisposed) break;
 
-            Console.WriteLine("[VIDEO] Looping adaptive stream...");
+            _log.LogInformation("Looping adaptive stream...");
 
         } while (IsLooping && !ct.IsCancellationRequested && !_canvasDisposed);
 
@@ -829,7 +831,7 @@ public class VideoPlayer : IDisposable
             {
                 var vap1Args =
                     $"-hide_banner -loglevel error -nostats {seekArg}{networkOpts}{realtimeFlag}-i \"{audioPath}\" {AudioMap}-vn";
-                Console.WriteLine($"[PIXTONE] FFmpeg args: {MediaPath.Redact(vap1Args)}");
+                _log.LogInformation("[PIXTONE] FFmpeg args: {Value}", MediaPath.Redact(vap1Args));
                 _ffmpegProcess = _vap1.StartDecoder(vap1Args, BoardTitle(), ct);
                 if (_ffmpegProcess == null)
                 {
@@ -843,7 +845,7 @@ public class VideoPlayer : IDisposable
             var audioOutput = _audioOutputService.GetFFmpegAudioOutput();
             if (string.IsNullOrWhiteSpace(audioOutput))
             {
-                Console.WriteLine("[AUDIO] No audio output device — cannot play audio-only here");
+                _log.LogInformation("[AUDIO] No audio output device — cannot play audio-only here");
                 OnError?.Invoke("No audio output device (Pulse/ALSA)");
                 break;
             }
@@ -853,7 +855,7 @@ public class VideoPlayer : IDisposable
             var ffmpegArgs =
                 $"-hide_banner -loglevel error -nostats {seekArg}{networkOpts}{realtimeFlag}-i \"{audioPath}\" {AudioMap}-vn {audioOutput}";
 
-            Console.WriteLine($"[AUDIO] FFmpeg args: {MediaPath.Redact(ffmpegArgs)}");
+            _log.LogInformation("[AUDIO] FFmpeg args: {Value}", MediaPath.Redact(ffmpegArgs));
 
             var psi = new ProcessStartInfo("ffmpeg", ffmpegArgs)
             {
@@ -882,7 +884,7 @@ public class VideoPlayer : IDisposable
                         if (line.Contains("Error", StringComparison.OrdinalIgnoreCase) ||
                             line.Contains("Failed", StringComparison.OrdinalIgnoreCase) ||
                             line.Contains("pulse", StringComparison.OrdinalIgnoreCase))
-                            Console.WriteLine($"[FFMPEG] {line}");
+                            _log.LogInformation("[FFMPEG] {Line}", line);
                 }
                 catch
                 {
@@ -907,7 +909,7 @@ public class VideoPlayer : IDisposable
                     // Playback finished
                     if (IsLooping)
                     {
-                        Console.WriteLine("[AUDIO] Loop: restarting");
+                        _log.LogInformation("[AUDIO] Loop: restarting");
                         startPosition = TimeSpan.Zero;
                         _playbackStartTime = DateTime.UtcNow;
                         _pausedDuration = TimeSpan.Zero;
@@ -924,7 +926,7 @@ public class VideoPlayer : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[AUDIO] Playback error: {ex.Message}");
+                _log.LogError("[AUDIO] Playback error: {Message}", ex.Message);
                 OnError?.Invoke(ex.Message);
                 break;
             }
@@ -950,7 +952,7 @@ public class VideoPlayer : IDisposable
     {
         if (!IsPlaying || _currentVideoPath == null)
         {
-            Console.WriteLine("[MEDIA] Cannot seek - not playing");
+            _log.LogInformation("[MEDIA] Cannot seek - not playing");
             return;
         }
 
@@ -976,7 +978,7 @@ public class VideoPlayer : IDisposable
 
     private async Task SeekCoreAsync(TimeSpan position)
     {
-        Console.WriteLine($"[MEDIA] Seeking to {position:hh\\:mm\\:ss}");
+        _log.LogInformation("[MEDIA] Seeking to {Position:hh\\:mm\\:ss}", position);
 
         // Stop current playback (its end does not count as "playback stopped")
         _seekRestart = true;
@@ -994,7 +996,7 @@ public class VideoPlayer : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[VIDEO] Seek: Previous playback task error: {ex.Message}");
+                _log.LogError("Seek: Previous playback task error: {Message}", ex.Message);
             }
 
         // Stop() may have cleared the source while we waited for the old task.
@@ -1044,7 +1046,7 @@ public class VideoPlayer : IDisposable
     {
         if (!IsPlaying) return;
 
-        Console.WriteLine("[VIDEO] Stopping playback...");
+        _log.LogInformation("Stopping playback...");
 
         _cts?.Cancel();
 
@@ -1068,7 +1070,7 @@ public class VideoPlayer : IDisposable
         Metadata = null;
 
         OnPlaybackStopped?.Invoke();
-        Console.WriteLine("[VIDEO] Playback stopped");
+        _log.LogInformation("Playback stopped");
     }
 
     /// <summary>
@@ -1090,7 +1092,7 @@ public class VideoPlayer : IDisposable
         }
 
         IsPaused = !IsPaused;
-        Console.WriteLine($"[VIDEO] {(IsPaused ? "Paused" : "Resumed")}");
+        _log.LogInformation("{Value}", (IsPaused ? "Paused" : "Resumed"));
     }
 
     /// <summary>
@@ -1108,7 +1110,7 @@ public class VideoPlayer : IDisposable
                         CreateNoWindow = true
                     });
                     killProc?.WaitForExit(1000);
-                    Console.WriteLine($"[VIDEO] Paused FFmpeg process (PID: {_ffmpegProcess.Id})");
+                    _log.LogInformation("Paused FFmpeg process (PID: {Id})", _ffmpegProcess.Id);
                 }
                 if (_audioProcess != null && !_audioProcess.HasExited)
                 {
@@ -1122,7 +1124,7 @@ public class VideoPlayer : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VIDEO] Failed to pause process: {ex.Message}");
+            _log.LogError("Failed to pause process: {Message}", ex.Message);
         }
     }
 
@@ -1141,7 +1143,7 @@ public class VideoPlayer : IDisposable
                         CreateNoWindow = true
                     });
                     killProc?.WaitForExit(1000);
-                    Console.WriteLine($"[VIDEO] Resumed FFmpeg process (PID: {_ffmpegProcess.Id})");
+                    _log.LogInformation("Resumed FFmpeg process (PID: {Id})", _ffmpegProcess.Id);
                 }
                 if (_audioProcess != null && !_audioProcess.HasExited)
                 {
@@ -1155,7 +1157,7 @@ public class VideoPlayer : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VIDEO] Failed to resume process: {ex.Message}");
+            _log.LogError("Failed to resume process: {Message}", ex.Message);
         }
     }
 
@@ -1227,22 +1229,22 @@ public class VideoPlayer : IDisposable
                 {
                     // HTTP-specific: reconnection and larger probing
                     networkOpts += "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 5M ";
-                    Console.WriteLine($"[VIDEO] HTTP stream: HW={useHwAccel}, fast_bilinear scaling");
+                    _log.LogInformation("HTTP stream: HW={UseHwAccel}, fast_bilinear scaling", useHwAccel);
                 }
                 else if (isFtpStream)
                 {
                     networkOpts += "-probesize 5M ";
-                    Console.WriteLine($"[VIDEO] FTP stream: HW={useHwAccel}, fast_bilinear scaling");
+                    _log.LogInformation("FTP stream: HW={UseHwAccel}, fast_bilinear scaling", useHwAccel);
                 }
                 else if (isSmbStream)
                 {
                     networkOpts += "-probesize 5M ";
-                    Console.WriteLine($"[VIDEO] SMB stream: HW={useHwAccel}, fast_bilinear scaling");
+                    _log.LogInformation("SMB stream: HW={UseHwAccel}, fast_bilinear scaling", useHwAccel);
                 }
             }
             else if (useHwAccel)
             {
-                Console.WriteLine("[VIDEO] Local file with hardware decoding");
+                _log.LogInformation("Local file with hardware decoding");
             }
 
             string ffmpegArgs;
@@ -1293,18 +1295,17 @@ public class VideoPlayer : IDisposable
                     : "[VIDEO] PixTone failed — video only");
             }
             else if (playAudio && !emitAudio)
-                Console.WriteLine("[VIDEO] No audio device — decoding video only");
+                _log.LogInformation("No audio device — decoding video only");
 
             var audioFilter = "";
             if (totalAudioDelayMs > 0 && emitAudio)
             {
                 audioFilter = $"-af \"adelay={totalAudioDelayMs}:all=1\" ";
-                Console.WriteLine(
-                    $"[VIDEO] Audio sync: delaying audio by {totalAudioDelayMs}ms (slider {_audioSyncOffsetMs}ms)");
+                _log.LogInformation("Audio sync: delaying audio by {TotalAudioDelayMs}ms (slider {AudioSyncOffsetMs}ms)", totalAudioDelayMs, _audioSyncOffsetMs);
             }
             else if (totalAudioDelayMs < 0 && emitAudio)
             {
-                Console.WriteLine($"[VIDEO] Audio sync: delaying video by {-totalAudioDelayMs}ms (user adjustment)");
+                _log.LogInformation("Audio sync: delaying video by {Value}ms (user adjustment)", -totalAudioDelayMs);
             }
 
             if (emitAudio)
@@ -1333,9 +1334,8 @@ public class VideoPlayer : IDisposable
 
             var seekInfo = startPosition > TimeSpan.Zero ? $" from {startPosition:mm\\:ss}" : "";
             var streamInfo = isNetworkStream ? " (network stream)" : "";
-            Console.WriteLine(
-                $"[VIDEO] Starting FFmpeg{seekInfo}{streamInfo}: {(emitAudio ? "audio+video" : "video only")}");
-            Console.WriteLine($"[VIDEO] FFmpeg args: {MediaPath.Redact(ffmpegArgs)}");
+            _log.LogInformation("Starting FFmpeg{SeekInfo}{StreamInfo}: {Value}", seekInfo, streamInfo, (emitAudio ? "audio+video" : "video only"));
+            _log.LogInformation("FFmpeg args: {Value}", MediaPath.Redact(ffmpegArgs));
 
             _ffmpegProcess = Process.Start(psi);
             if (_ffmpegProcess == null)
@@ -1359,7 +1359,7 @@ public class VideoPlayer : IDisposable
                             line.Contains("Failed") || line.Contains("failed") ||
                             line.Contains("Invalid") || line.Contains("Unable") ||
                             line.Contains("Connection refused") || line.Contains("pulse"))
-                            Console.WriteLine($"[FFMPEG] {line}");
+                            _log.LogInformation("[FFMPEG] {Line}", line);
                         // Do not treat FFmpeg progress (`frame=  668 ... bitrate=...`) as HTTP 403/429.
                         if (line.Contains("frame=", StringComparison.Ordinal))
                             continue;
@@ -1400,7 +1400,7 @@ public class VideoPlayer : IDisposable
             {
                 var preBuffer = new Queue<byte[]>();
                 var preBufferStart = DateTime.UtcNow;
-                Console.WriteLine($"[VIDEO] Pre-buffering {preBufferCount} frames for smooth playback...");
+                _log.LogInformation("Pre-buffering {PreBufferCount} frames for smooth playback...", preBufferCount);
 
                 for (var i = 0; i < preBufferCount && !ct.IsCancellationRequested; i++)
                 {
@@ -1417,12 +1417,12 @@ public class VideoPlayer : IDisposable
                 }
 
                 var preBufferTime = (DateTime.UtcNow - preBufferStart).TotalMilliseconds;
-                Console.WriteLine($"[VIDEO] Pre-buffer complete in {preBufferTime:F0}ms ({preBuffer.Count} frames)");
+                _log.LogInformation("Pre-buffer complete in {PreBufferTime:F0}ms ({Count} frames)", preBufferTime, preBuffer.Count);
 
                 // If we got 0 frames, FFmpeg likely crashed - check if process exited
                 if (preBuffer.Count == 0 && _ffmpegProcess != null && _ffmpegProcess.HasExited)
                 {
-                    Console.WriteLine($"[VIDEO] FFmpeg exited with code {_ffmpegProcess.ExitCode} during pre-buffer");
+                    _log.LogInformation("FFmpeg exited with code {ExitCode} during pre-buffer", _ffmpegProcess.ExitCode);
                     OnError?.Invoke($"FFmpeg exited with code {_ffmpegProcess.ExitCode} before the first frame");
                     await Task.Delay(200);
                     if (!IsLooping) break;
@@ -1444,7 +1444,7 @@ public class VideoPlayer : IDisposable
             if (!vap1 && _audioSyncOffsetMs < 0 && !ct.IsCancellationRequested)
             {
                 var videoDelayMs = -_audioSyncOffsetMs;
-                Console.WriteLine($"[VIDEO] Audio sync: delaying video start by {videoDelayMs}ms (audio is behind)");
+                _log.LogInformation("Audio sync: delaying video start by {VideoDelayMs}ms (audio is behind)", videoDelayMs);
                 await Task.Delay(videoDelayMs, ct);
             }
 
@@ -1511,13 +1511,12 @@ public class VideoPlayer : IDisposable
                     var actualFps = frameCount / elapsed;
                     var avgReadMs = totalReadMs / frameCount;
                     var avgDrawMs = totalDrawMs / frameCount;
-                    Console.WriteLine(
-                        $"[VIDEO DIAG] {frameCount} frames in {elapsed:F1}s = {actualFps:F1} FPS (target: {Fps:F1})");
-                    Console.WriteLine($"[VIDEO DIAG] Avg read: {avgReadMs:F1}ms, Avg draw: {avgDrawMs:F1}ms");
+                    _log.LogInformation("[VIDEO DIAG] {FrameCount} frames in {Elapsed:F1}s = {ActualFps:F1} FPS (target: {Fps:F1})", frameCount, elapsed, actualFps, Fps);
+                    _log.LogInformation("[VIDEO DIAG] Avg read: {AvgReadMs:F1}ms, Avg draw: {AvgDrawMs:F1}ms", avgReadMs, avgDrawMs);
                     if (avgReadMs > 30)
-                        Console.WriteLine("[VIDEO DIAG] ⚠️ SLOW READ - FFmpeg decode/network is the bottleneck");
+                        _log.LogInformation("[VIDEO DIAG] ⚠️ SLOW READ - FFmpeg decode/network is the bottleneck");
                     if (avgDrawMs > 10)
-                        Console.WriteLine("[VIDEO DIAG] ⚠️ SLOW DRAW - Canvas rendering is the bottleneck");
+                        _log.LogInformation("[VIDEO DIAG] ⚠️ SLOW DRAW - Canvas rendering is the bottleneck");
                     lastDiagReport = DateTime.UtcNow;
                 }
 
@@ -1558,7 +1557,7 @@ public class VideoPlayer : IDisposable
         }
     }
 
-    private static void SignalProcess(Process? proc, string signal)
+    private void SignalProcess(Process? proc, string signal)
     {
         if (proc == null) return;
         try
@@ -1572,7 +1571,7 @@ public class VideoPlayer : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VIDEO] signal {signal}: {ex.Message}");
+            _log.LogWarning("signal {Signal}: {Message}", signal, ex.Message);
         }
     }
 
@@ -1604,7 +1603,7 @@ public class VideoPlayer : IDisposable
         catch (ObjectDisposedException)
         {
             // Canvas was disposed while we were trying to draw
-            Console.WriteLine("[VIDEO] Canvas disposed during draw - stopping playback");
+            _log.LogInformation("Canvas disposed during draw - stopping playback");
             _canvasDisposed = true;
             _cts?.Cancel();
         }
@@ -1637,7 +1636,7 @@ public class VideoPlayer : IDisposable
                 if (!_audioProcess.HasExited) 
                 {
                     _audioProcess.Kill();
-                    Console.WriteLine("[VIDEO] Stopped separate audio process");
+                    _log.LogInformation("Stopped separate audio process");
                 }
             }
             catch { /* best effort, nothing to recover */ }

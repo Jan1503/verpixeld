@@ -14,13 +14,18 @@ namespace verpixeld.WebApi;
 ///     Main coordinator for all display-related API endpoints.
 ///     Delegates to specialized endpoint files for better organization.
 /// </summary>
+[LogTag("LiveDraw")]
 public static class DisplayApiEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     /// <summary>
     ///     Maps layout/filter/system endpoints. Each mapper resolves <see cref="EndpointContext"/> from DI.
     /// </summary>
     public static void MapDisplayEndpointsWithContext(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(DisplayApiEndpoints));
         app.MapSystemEndpoints();
         app.MapDiagnosticsEndpoints();
         app.MapFilterEndpoints();
@@ -170,7 +175,7 @@ public static class SharedDrawingsStorage
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"WARNING: Could not save drawings: {ex.Message}");
+            Console.WriteLine($"[DRAWINGS] WARN Could not save drawings: {ex.Message}");
         }
     }
 
@@ -187,7 +192,7 @@ public static class SharedDrawingsStorage
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"WARNING: Could not load drawings: {ex.Message}");
+            Console.WriteLine($"[DRAWINGS] WARN Could not load drawings: {ex.Message}");
         }
     }
 }

@@ -12,8 +12,11 @@ namespace verpixeld.Services;
 ///     - The Speech SDK's AudioConfig.FromMicrophoneInput() also fails (same PA issues)
 ///     - parec connects to PulseAudio successfully and outputs raw PCM to stdout
 /// </summary>
+[LogTag("VOICE")]
 public class ParecAudioSession : IDisposable
 {
+    private readonly ILogger<ParecAudioSession> _log;
+
     public PushAudioInputStream PushStream { get; }
     public AudioConfig AudioConfig { get; }
 
@@ -37,8 +40,9 @@ public class ParecAudioSession : IDisposable
     /// <summary>Resume pushing audio to the stream (feed fresh audio to recognizer).</summary>
     public void ResumePush() => _pushing = true;
 
-    public ParecAudioSession(string? paSourceName)
+    public ParecAudioSession(string? paSourceName, ILogger<ParecAudioSession> log)
     {
+        _log = log;
         // Speech SDK expects: 16kHz, 16-bit, mono PCM
         var format = AudioStreamFormat.GetWaveFormatPCM(16000, 16, 1);
         PushStream = AudioInputStream.CreatePushStream(format);
@@ -56,11 +60,11 @@ public class ParecAudioSession : IDisposable
         if (!string.IsNullOrEmpty(paSourceName) && paSourceName != "default")
         {
             args.Insert(0, $"--device={paSourceName}");
-            Console.WriteLine($"[VOICE] Starting parec capture from PA source: {paSourceName}");
+            _log.LogInformation("Starting parec capture from PA source: {PaSourceName}", paSourceName);
         }
         else
         {
-            Console.WriteLine("[VOICE] Starting parec capture from default source");
+            _log.LogInformation("Starting parec capture from default source");
         }
 
         var psi = new ProcessStartInfo("parec")
@@ -73,7 +77,7 @@ public class ParecAudioSession : IDisposable
         foreach (var arg in args)
             psi.ArgumentList.Add(arg);
 
-        Console.WriteLine($"[VOICE] Running: parec {string.Join(" ", args)}");
+        _log.LogInformation("Running: parec {Value}", string.Join(" ", args));
 
         _parecProcess = Process.Start(psi);
         if (_parecProcess == null)
@@ -97,7 +101,7 @@ public class ParecAudioSession : IDisposable
             }
             catch (Exception ex) when (!_disposed)
             {
-                Console.WriteLine($"[VOICE] parec pump error: {ex.Message}");
+                _log.LogError("parec pump error: {Message}", ex.Message);
             }
             finally
             {
@@ -112,15 +116,15 @@ public class ParecAudioSession : IDisposable
             {
                 var stderr = await _parecProcess.StandardError.ReadToEndAsync();
                 if (!string.IsNullOrWhiteSpace(stderr))
-                    Console.WriteLine($"[VOICE] parec stderr: {stderr.Trim()}");
+                    _log.LogInformation("parec stderr: {Trim}", stderr.Trim());
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[VOICE] parec stderr read error: {ex.Message}");
+                _log.LogError("parec stderr read error: {Message}", ex.Message);
             }
         });
 
-        Console.WriteLine($"[VOICE] parec started (PID: {_parecProcess.Id})");
+        _log.LogInformation("parec started (PID: {Id})", _parecProcess.Id);
     }
 
     public void Dispose()
@@ -134,17 +138,17 @@ public class ParecAudioSession : IDisposable
             {
                 _parecProcess.Kill();
                 _parecProcess.WaitForExit(2000);
-                Console.WriteLine("[VOICE] parec stopped");
+                _log.LogInformation("parec stopped");
             }
             _parecProcess?.Dispose();
             _parecProcess = null;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VOICE] parec cleanup error: {ex.Message}");
+            _log.LogError("parec cleanup error: {Message}", ex.Message);
         }
 
-        try { PushStream.Close(); } catch (Exception ex) { Console.WriteLine($"[VOICE] PushStream close error: {ex.Message}"); }
-        try { AudioConfig.Dispose(); } catch (Exception ex) { Console.WriteLine($"[VOICE] AudioConfig dispose error: {ex.Message}"); }
+        try { PushStream.Close(); } catch (Exception ex) { _log.LogError("PushStream close error: {Message}", ex.Message); }
+        try { AudioConfig.Dispose(); } catch (Exception ex) { _log.LogError("AudioConfig dispose error: {Message}", ex.Message); }
     }
 }

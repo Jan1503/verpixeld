@@ -9,8 +9,11 @@ namespace verpixeld.Services;
 ///     - AI image overlay (generated image, z=250)
 ///     - Auto-clear timers for non-blocking feedback
 /// </summary>
+[LogTag("VOICE")]
 public class VoiceOverlayManager
 {
+    private readonly ILogger<VoiceOverlayManager> _log;
+
     private readonly CanvasManager _canvasManager;
 
     private int _width;
@@ -25,8 +28,9 @@ public class VoiceOverlayManager
     private Canvas? _activeImageOverlay;
     private CancellationTokenSource? _imageDisplayCts;
 
-    public VoiceOverlayManager(CanvasManager canvasManager)
+    public VoiceOverlayManager(CanvasManager canvasManager, ILogger<VoiceOverlayManager> log)
     {
+        _log = log;
         _canvasManager = canvasManager;
     }
 
@@ -144,7 +148,7 @@ public class VoiceOverlayManager
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VOICE] Feedback render error: {ex.Message}");
+            _log.LogError("Feedback render error: {Message}", ex.Message);
         }
     }
 
@@ -170,7 +174,7 @@ public class VoiceOverlayManager
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VOICE] Feedback cleanup error: {ex.Message}");
+            _log.LogError("Feedback cleanup error: {Message}", ex.Message);
         }
     }
 
@@ -204,7 +208,7 @@ public class VoiceOverlayManager
     /// </summary>
     public void CancelFeedbackAutoClear()
     {
-        try { _feedbackClearCts?.Cancel(); } catch (Exception ex) { Console.WriteLine($"[VOICE] Feedback auto-clear cancel error: {ex.Message}"); }
+        try { _feedbackClearCts?.Cancel(); } catch (Exception ex) { _log.LogError("Feedback auto-clear cancel error: {Message}", ex.Message); }
         _feedbackClearCts = null;
     }
 
@@ -224,7 +228,7 @@ public class VoiceOverlayManager
         imageOverlay.DrawBitmap(bitmap, 0, 0, bitmap.Width, bitmap.Height);
         _activeImageOverlay = imageOverlay;
 
-        Console.WriteLine($"[VOICE] Image displayed on overlay, auto-dismiss in {displayDurationSeconds}s (or on next command)");
+        _log.LogInformation("Image displayed on overlay, auto-dismiss in {DisplayDurationSeconds}s (or on next command)", displayDurationSeconds);
 
         _imageDisplayCts = new CancellationTokenSource();
         var displayCt = _imageDisplayCts.Token;
@@ -247,7 +251,7 @@ public class VoiceOverlayManager
     /// </summary>
     public void DismissImageOverlay()
     {
-        try { _imageDisplayCts?.Cancel(); } catch (Exception ex) { Console.WriteLine($"[VOICE] Image display CTS cancel error: {ex.Message}"); }
+        try { _imageDisplayCts?.Cancel(); } catch (Exception ex) { _log.LogError("Image display CTS cancel error: {Message}", ex.Message); }
         _imageDisplayCts = null;
 
         var overlay = _activeImageOverlay;
@@ -259,11 +263,11 @@ public class VoiceOverlayManager
                 overlay.Clear();
                 overlay.Hide();
                 _canvasManager.RemoveCanvas(overlay);
-                Console.WriteLine("[VOICE] Image overlay dismissed by new command");
+                _log.LogInformation("Image overlay dismissed by new command");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[VOICE] Overlay dismiss error: {ex.Message}");
+                _log.LogError("Overlay dismiss error: {Message}", ex.Message);
             }
         }
     }

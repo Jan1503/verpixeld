@@ -8,8 +8,11 @@ namespace verpixeld.MediaPlayer;
 /// YouTube video playback support using yt-dlp for URL extraction
 /// Supports format selection based on canvas dimensions to save bandwidth
 /// </summary>
-public class YouTubeService
+[LogTag("YOUTUBE")]
+public class YouTubeService(ILogger<YouTubeService> log)
 {
+    private readonly ILogger<YouTubeService> _log = log;
+
     private static bool? _ytDlpAvailable;
     private static readonly object _lock = new();
 
@@ -161,7 +164,7 @@ public class YouTubeService
     {
         if (!IsYtDlpAvailable())
         {
-            Console.WriteLine("[YOUTUBE] yt-dlp not available");
+            _log.LogInformation("yt-dlp not available");
             return null;
         }
 
@@ -183,7 +186,7 @@ public class YouTubeService
             AddYoutubeWorkaroundArgs(psi);
             psi.ArgumentList.Add(url);
 
-            Console.WriteLine($"[YOUTUBE] Getting video info: {url}");
+            _log.LogInformation("Getting video info: {Url}", url);
 
             using var proc = Process.Start(psi);
             if (proc == null)
@@ -198,7 +201,7 @@ public class YouTubeService
 
             if (completedTask == timeoutTask)
             {
-                Console.WriteLine("[YOUTUBE] yt-dlp timed out");
+                _log.LogInformation("yt-dlp timed out");
                 try { proc.Kill(); } catch { /* best effort, nothing to recover */ }
                 return null;
             }
@@ -208,7 +211,7 @@ public class YouTubeService
 
             if (proc.ExitCode != 0)
             {
-                Console.WriteLine($"[YOUTUBE] yt-dlp failed: {error}");
+                _log.LogError("yt-dlp failed: {Error}", error);
                 return null;
             }
 
@@ -249,12 +252,12 @@ public class YouTubeService
                 }
             }
 
-            Console.WriteLine($"[YOUTUBE] Found {info.Formats.Count} formats for: {info.Title} ({info.Duration:mm\\:ss})");
+            _log.LogInformation("Found {Count} formats for: {Title} ({Duration:mm\\:ss})", info.Formats.Count, info.Title, info.Duration);
             return info;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[YOUTUBE] Error getting video info: {ex.Message}");
+            _log.LogError("Error getting video info: {Message}", ex.Message);
             return null;
         }
     }
@@ -273,7 +276,7 @@ public class YouTubeService
         int targetHeight = Math.Max(canvasHeight, 144); // Minimum 144p
         int maxHeight = Math.Min(canvasHeight * 3, 720); // Cap at 720p or 3x canvas
         
-        Console.WriteLine($"[YOUTUBE] Selecting format for {canvasWidth}x{canvasHeight} canvas (target height: {targetHeight}-{maxHeight}p)");
+        _log.LogInformation("Selecting format for {CanvasWidth}x{CanvasHeight} canvas (target height: {TargetHeight}-{MaxHeight}p)", canvasWidth, canvasHeight, targetHeight, maxHeight);
 
         // First, try to find a combined stream (non-adaptive) that fits
         var combinedFormats = info.Formats
@@ -286,7 +289,7 @@ public class YouTubeService
         if (combinedFormats.Count > 0)
         {
             var best = combinedFormats.First();
-            Console.WriteLine($"[YOUTUBE] Selected combined format: {best.FormatId} ({best.Width}x{best.Height} @ {best.Tbr}kbps)");
+            _log.LogInformation("Selected combined format: {FormatId} ({Width}x{Height} @ {Tbr}kbps)", best.FormatId, best.Width, best.Height, best.Tbr);
             return best;
         }
 
@@ -301,7 +304,7 @@ public class YouTubeService
         if (videoFormats.Count > 0)
         {
             var best = videoFormats.First();
-            Console.WriteLine($"[YOUTUBE] Selected adaptive video format: {best.FormatId} ({best.Width}x{best.Height} @ {best.Vbr ?? best.Tbr}kbps)");
+            _log.LogInformation("Selected adaptive video format: {FormatId} ({Width}x{Height} @ {Value}kbps)", best.FormatId, best.Width, best.Height, best.Vbr ?? best.Tbr);
             return best;
         }
 
@@ -313,7 +316,7 @@ public class YouTubeService
 
         if (anyVideo != null)
         {
-            Console.WriteLine($"[YOUTUBE] Selected fallback format: {anyVideo.FormatId} ({anyVideo.Width}x{anyVideo.Height})");
+            _log.LogInformation("Selected fallback format: {FormatId} ({Width}x{Height})", anyVideo.FormatId, anyVideo.Width, anyVideo.Height);
         }
 
         return anyVideo;
@@ -343,7 +346,7 @@ public class YouTubeService
         var best = audioFormats.FirstOrDefault();
         if (best != null)
         {
-            Console.WriteLine($"[YOUTUBE] Selected audio format: {best.FormatId} ({best.ACodec} @ {best.Abr ?? best.Tbr}kbps)");
+            _log.LogInformation("Selected audio format: {FormatId} ({ACodec} @ {Value}kbps)", best.FormatId, best.ACodec, best.Abr ?? best.Tbr);
         }
 
         return best;
@@ -361,7 +364,7 @@ public class YouTubeService
         var videoFormat = SelectBestFormat(info, canvasWidth, canvasHeight);
         if (videoFormat == null)
         {
-            Console.WriteLine("[YOUTUBE] No suitable video format found");
+            _log.LogInformation("No suitable video format found");
             return null;
         }
 
@@ -402,7 +405,7 @@ public class YouTubeService
             psi.ArgumentList.Add(formatSelector);
             psi.ArgumentList.Add(youtubeUrl);
 
-            Console.WriteLine($"[YOUTUBE] Getting playback URL for format: {formatSelector}");
+            _log.LogInformation("Getting playback URL for format: {FormatSelector}", formatSelector);
 
             using var proc = Process.Start(psi);
             if (proc == null)
@@ -416,7 +419,7 @@ public class YouTubeService
 
             if (completedTask == timeoutTask)
             {
-                Console.WriteLine("[YOUTUBE] URL extraction timed out");
+                _log.LogInformation("URL extraction timed out");
                 try { proc.Kill(); } catch { /* best effort, nothing to recover */ }
                 return null;
             }
@@ -426,7 +429,7 @@ public class YouTubeService
 
             if (proc.ExitCode != 0)
             {
-                Console.WriteLine($"[YOUTUBE] URL extraction failed: {error}");
+                _log.LogError("URL extraction failed: {Error}", error);
                 return null;
             }
 
@@ -437,7 +440,7 @@ public class YouTubeService
                 // Single URL for combined stream
                 if (urls.Length >= 1)
                 {
-                    Console.WriteLine("[YOUTUBE] Got combined stream URL");
+                    _log.LogInformation("Got combined stream URL");
                     return (urls[0], urls[0]); // Same URL for both
                 }
             }
@@ -446,24 +449,24 @@ public class YouTubeService
                 // Two URLs for adaptive stream (video, then audio)
                 if (urls.Length >= 2)
                 {
-                    Console.WriteLine("[YOUTUBE] Got adaptive stream URLs (video + audio)");
+                    _log.LogInformation("Got adaptive stream URLs (video + audio)");
                     return (urls[0], urls[1]);
                 }
 
                 // The "/best" fallback may have resolved to a single combined stream.
                 if (urls.Length == 1)
                 {
-                    Console.WriteLine("[YOUTUBE] Fell back to a single combined stream URL");
+                    _log.LogInformation("Fell back to a single combined stream URL");
                     return (urls[0], urls[0]);
                 }
             }
 
-            Console.WriteLine($"[YOUTUBE] Unexpected URL count: {urls.Length}");
+            _log.LogInformation("Unexpected URL count: {Length}", urls.Length);
             return null;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[YOUTUBE] Error getting URLs: {ex.Message}");
+            _log.LogError("Error getting URLs: {Message}", ex.Message);
             return null;
         }
     }
@@ -560,12 +563,12 @@ public class YouTubeService
                 return null;
             }
 
-            Console.WriteLine($"[YOUTUBE] Ready to play: {result.Title} ({result.Width}x{result.Height}, {(result.IsAdaptive ? "adaptive" : "combined")})");
+            _log.LogInformation("Ready to play: {Title} ({Width}x{Height}, {Value})", result.Title, result.Width, result.Height, (result.IsAdaptive ? "adaptive" : "combined"));
             return result;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[YOUTUBE] Error: {ex.Message}");
+            _log.LogError("Error: {Message}", ex.Message);
             return null;
         }
     }
@@ -609,7 +612,7 @@ public class YouTubeService
             psi.ArgumentList.Add("bestaudio");
             psi.ArgumentList.Add(youtubeUrl);
 
-            Console.WriteLine($"[YOUTUBE] Getting audio-only URL for: {info.Title}");
+            _log.LogInformation("Getting audio-only URL for: {Title}", info.Title);
 
             using var proc = Process.Start(psi);
             if (proc == null) return null;
@@ -625,12 +628,12 @@ public class YouTubeService
             result.AudioUrl = url;
             result.VideoUrl = url; // Same URL for audio-only
 
-            Console.WriteLine($"[YOUTUBE] Audio-only ready: {result.Title}");
+            _log.LogInformation("Audio-only ready: {Title}", result.Title);
             return result;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[YOUTUBE] Audio-only error: {ex.Message}");
+            _log.LogError("Audio-only error: {Message}", ex.Message);
             return null;
         }
     }

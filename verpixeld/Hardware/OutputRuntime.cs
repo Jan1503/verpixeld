@@ -15,6 +15,7 @@ namespace verpixeld.Hardware;
 public sealed class OutputRuntime : IMatrixRenderer, IDisposable
 {
     private readonly ILogger<OutputRuntime> _log;
+    private readonly ILoggerFactory _loggers;
 
     private readonly object _lock = new();
     private IMatrixRenderer _inner = null!;
@@ -22,9 +23,10 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
     private bool _outputEnabled = true;
 
     public OutputRuntime(AppOptions app, MatrixOptions matrix, HdmiOptions hdmi, SpiOptions spi,
-        NetworkOptions network, ImageCorrectionService imageCorrection, ILogger<OutputRuntime> log)
+        NetworkOptions network, ImageCorrectionService imageCorrection, ILoggerFactory loggers)
     {
-        _log = log;
+        _loggers = loggers;
+        _log = loggers.CreateLogger<OutputRuntime>();
         App = app;
         Matrix = matrix;
         Hdmi = hdmi;
@@ -213,7 +215,7 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
         {
             // Drop frames onto a no-op so the old device can be released before the new one claims it.
             IMatrixRenderer old;
-            var placeholder = new SimulationMatrixRenderer(Width, Height);
+            var placeholder = new SimulationMatrixRenderer(Width, Height, _loggers.CreateLogger<SimulationMatrixRenderer>());
             placeholder.Initialize();
             lock (_lock)
             {
@@ -272,24 +274,24 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
         {
             "simulation" => new SimulationMatrixRenderer(
                 App.DisplayWidth > 0 ? App.DisplayWidth : ledW,
-                App.DisplayHeight > 0 ? App.DisplayHeight : ledH),
+                App.DisplayHeight > 0 ? App.DisplayHeight : ledH, _loggers.CreateLogger<SimulationMatrixRenderer>()),
             "hdmi" => new HdmiMatrixRenderer(
                 Hdmi.WallWidth > 0 ? Hdmi.WallWidth : ledW,
                 Hdmi.WallHeight > 0 ? Hdmi.WallHeight : ledH,
-                Hdmi),
+                Hdmi, _loggers.CreateLogger<HdmiMatrixRenderer>()),
             "spi" => new SpiMatrixRenderer(
                 Spi.WallWidth > 0 ? Spi.WallWidth : 256,
                 Spi.WallHeight > 0 ? Spi.WallHeight : 128,
-                Spi),
+                Spi, _loggers.CreateLogger<SpiMatrixRenderer>()),
             "network" => CreateNetworkRenderer(),
-            _ => new RgbMatrixRenderer(Matrix)
+            _ => new RgbMatrixRenderer(Matrix, _loggers.CreateLogger<RgbMatrixRenderer>())
         };
     }
 
     private NetworkMatrixRenderer CreateNetworkRenderer()
     {
         var size = NetworkWall.Measure(Network.StreamTargets());
-        return new NetworkMatrixRenderer(size.Width, size.Height, Network, ImageCorrection);
+        return new NetworkMatrixRenderer(size.Width, size.Height, Network, _loggers.CreateLogger<NetworkMatrixRenderer>(), ImageCorrection);
     }
 
     private void PersistMode(string mode)

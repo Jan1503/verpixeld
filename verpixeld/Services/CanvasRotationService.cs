@@ -17,6 +17,7 @@ namespace verpixeld.Services;
 public class CanvasRotationService
 {
     private readonly ILogger<CanvasRotationService> _log;
+    private readonly ILoggerFactory _loggers;
 
     private readonly Dictionary<string, bool> _advancing = new();
     private readonly Dictionary<string, CanvasRotationConfig> _configs = new(StringComparer.OrdinalIgnoreCase);
@@ -32,12 +33,13 @@ public class CanvasRotationService
     // Multi-instance, video-only player so several canvases can play different videos simultaneously.
     private readonly CanvasVideoService _video;
 
-    public CanvasRotationService(CanvasManager cm, ICanvasContentManager content, MediaPlayer.Audio.PixToneOutputService vap1, ILogger<CanvasRotationService> log)
+    public CanvasRotationService(CanvasManager cm, ICanvasContentManager content, MediaPlayer.Audio.PixToneOutputService vap1, ILoggerFactory loggers)
     {
-        _log = log;
+        _loggers = loggers;
+        _log = loggers.CreateLogger<CanvasRotationService>();
         _cm = cm;
         _content = content;
-        _video = new CanvasVideoService(cm, vap1);
+        _video = new CanvasVideoService(cm, vap1, _loggers.CreateLogger<CanvasVideoService>());
         Load();
     }
 

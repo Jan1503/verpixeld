@@ -6,13 +6,17 @@ namespace verpixeld.Hardware;
 ///     No-op matrix renderer for simulation mode.
 ///     Allows the full application pipeline to run without LED matrix hardware.
 /// </summary>
+[LogTag("SIM")]
 public class SimulationMatrixRenderer : IMatrixRenderer
 {
+    private readonly ILogger<SimulationMatrixRenderer> _log;
+
     public int Width { get; }
     public int Height { get; }
 
-    public SimulationMatrixRenderer(int width, int height)
+    public SimulationMatrixRenderer(int width, int height, ILogger<SimulationMatrixRenderer> log)
     {
+        _log = log;
         Width = width;
         Height = height;
     }
@@ -24,7 +28,7 @@ public class SimulationMatrixRenderer : IMatrixRenderer
         if (_initialized)
             return;
         _initialized = true;
-        Console.WriteLine($"[SIM] Simulation mode active — no hardware output ({Width}x{Height})");
+        _log.LogInformation("Simulation mode active — no hardware output ({Width}x{Height})", Width, Height);
     }
 
     public void RenderFrame(SKBitmap bitmap)
@@ -36,6 +40,6 @@ public class SimulationMatrixRenderer : IMatrixRenderer
 
     public void Shutdown()
     {
-        Console.WriteLine("[SIM] Simulation renderer shut down");
+        _log.LogInformation("Simulation renderer shut down");
     }
 }

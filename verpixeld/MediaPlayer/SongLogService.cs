@@ -16,8 +16,11 @@ public sealed class SongEntry
 ///     Songs heard on the radio (the stream titles, newest first) and songs remembered from the
 ///     panel or the web page. Both survive a restart.
 /// </summary>
+[LogTag("SONGS")]
 public sealed class SongLogService
 {
+    private readonly ILogger<SongLogService> _log;
+
     private const int MaxHistory = 200;
     private const int MaxSaved = 500;
     private static readonly string FilePath = Path.Combine(AppPaths.DataDir, "song_log.json");
@@ -32,8 +35,9 @@ public sealed class SongLogService
 
     public event Action<SongEntry>? Saved;
 
-    public SongLogService(RadioService radio, MediaPlayerService media)
+    public SongLogService(RadioService radio, MediaPlayerService media, ILogger<SongLogService> log)
     {
+        _log = log;
         _radio = radio;
         _media = media;
         Load();
@@ -91,7 +95,7 @@ public sealed class SongLogService
             if (_saved.Count > MaxSaved) _saved.RemoveRange(MaxSaved, _saved.Count - MaxSaved);
             Persist();
         }
-        Console.WriteLine($"[SONGS] Saved \"{e.Title}\"");
+        _log.LogInformation("Saved \"{Title}\"", e.Title);
         Saved?.Invoke(e);
         return e;
     }
@@ -147,7 +151,7 @@ public sealed class SongLogService
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[SONGS] Could not read the song log: " + ex.Message);
+            _log.LogWarning("Could not read the song log: {Message}", ex.Message);
         }
     }
 
@@ -162,7 +166,7 @@ public sealed class SongLogService
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[SONGS] Could not save the song log: " + ex.Message);
+            _log.LogWarning("Could not save the song log: {Message}", ex.Message);
         }
     }
 }

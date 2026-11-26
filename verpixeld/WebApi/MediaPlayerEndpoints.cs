@@ -9,10 +9,15 @@ namespace verpixeld.WebApi;
 /// <summary>
 ///     API endpoints for media player - video and audio playback
 /// </summary>
+[LogTag("MEDIA")]
 public static class MediaPlayerEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapMediaPlayerEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(MediaPlayerEndpoints));
         var mediaService = app.Services.GetRequiredService<MediaPlayerService>();
         var favoritesService = app.Services.GetRequiredService<FavoritesService>();
         var alertService = app.Services.GetRequiredService<AlertService>();
@@ -115,7 +120,7 @@ public static class MediaPlayerEndpoints
             if (SystemOverlayCanvases.IsSystem(canvasName))
                 return Results.Json(new { success = false, error = $"'{canvasName}' is a host overlay and cannot take media" });
             mediaService.TargetCanvasName = canvasName;
-            Console.WriteLine($"[MEDIA] Target canvas set to: {canvasName ?? MediaPlaybackTarget.OverlayName}");
+            Log.LogInformation("Target canvas set to: {Value}", canvasName ?? MediaPlaybackTarget.OverlayName);
 
             return Results.Json(new
             {
@@ -282,7 +287,7 @@ public static class MediaPlayerEndpoints
             var canvasName = request.Query["canvasName"].ToString();
             if (!string.IsNullOrWhiteSpace(canvasName))
                 mediaService.TargetCanvasName = canvasName.Trim();
-            Console.WriteLine($"[MEDIA-API] play target='{mediaService.TargetCanvasName ?? "Main"}'");
+            Log.LogInformation("[MEDIA-API] play target='{Value}'", mediaService.TargetCanvasName ?? "Main");
 
             var filePath = MediaLibrary.ResolveVideo(filename);
 
@@ -294,14 +299,14 @@ public static class MediaPlayerEndpoints
                 });
 
             // Extract thumbnail first (fast for local files)
-            Console.WriteLine($"[MEDIA-API] Extracting thumbnail for: {filePath}");
+            Log.LogInformation("[MEDIA-API] Extracting thumbnail for: {FilePath}", filePath);
             var thumbnail = await MediaProbeService.ExtractThumbnailAsync(filePath);
-            Console.WriteLine($"[MEDIA-API] Thumbnail extracted: {(thumbnail != null ? $"{thumbnail.Length} chars" : "null")}");
+            Log.LogInformation("[MEDIA-API] Thumbnail extracted: {Value}", (thumbnail != null ? $"{thumbnail.Length} chars" : "null"));
             
             await mediaService.PlayVideoAsync(filePath, loop ?? true);
             
             // Record in play history with thumbnail
-            Console.WriteLine($"[MEDIA-API] Adding to history: {filename}");
+            Log.LogInformation("[MEDIA-API] Adding to history: {Filename}", filename);
             favoritesService?.AddToHistory(new PlayHistoryItem
             {
                 Type = MediaItemType.LocalVideo,
@@ -309,7 +314,7 @@ public static class MediaPlayerEndpoints
                 LocalPath = filename,
                 Thumbnail = thumbnail
             });
-            Console.WriteLine("[MEDIA-API] History updated");
+            Log.LogInformation("[MEDIA-API] History updated");
 
             return Results.Json(new
             {
@@ -468,8 +473,7 @@ public static class MediaPlayerEndpoints
                 {
                     await mediaService.SeekAsync(currentPosition);
                     applied = true;
-                    Console.WriteLine(
-                        $"[MEDIA] Audio sync adjusted to {newOffset}ms, resynced at {currentPosition.TotalSeconds:F1}s");
+                    Log.LogInformation("Audio sync adjusted to {NewOffset}ms, resynced at {TotalSeconds:F1}s", newOffset, currentPosition.TotalSeconds);
                 }
             }
 
@@ -524,7 +528,7 @@ public static class MediaPlayerEndpoints
                 {
                     await mediaService.SeekAsync(currentPosition);
                     applied = true;
-                    Console.WriteLine($"[MEDIA] Scale filter changed to '{filter}', resynced at {currentPosition.TotalSeconds:F1}s");
+                    Log.LogInformation("Scale filter changed to '{Filter}', resynced at {TotalSeconds:F1}s", filter, currentPosition.TotalSeconds);
                 }
             }
 
@@ -629,7 +633,7 @@ public static class MediaPlayerEndpoints
             await using var stream = new FileStream(filePath, FileMode.Create);
             await file.CopyToAsync(stream);
 
-            Console.WriteLine($"[MEDIA] Video uploaded: {safeName} ({file.Length / 1024 / 1024}MB)");
+            Log.LogInformation("Video uploaded: {SafeName} ({Value}MB)", safeName, file.Length / 1024 / 1024);
 
             return Results.Json(new
             {
@@ -669,7 +673,7 @@ public static class MediaPlayerEndpoints
             await using var stream = new FileStream(filePath, FileMode.Create);
             await file.CopyToAsync(stream);
 
-            Console.WriteLine($"[MEDIA] MOD file uploaded: {safeName}");
+            Log.LogInformation("MOD file uploaded: {SafeName}", safeName);
 
             return Results.Json(new
             {
@@ -689,7 +693,7 @@ public static class MediaPlayerEndpoints
             try
             {
                 File.Delete(filePath);
-                Console.WriteLine($"[MEDIA] Video deleted: {filename}");
+                Log.LogInformation("Video deleted: {Filename}", filename);
 
                 return Results.Json(new
                 {
@@ -753,7 +757,7 @@ public static class MediaPlayerEndpoints
             await using var stream = new FileStream(filePath, FileMode.Create);
             await file.CopyToAsync(stream);
 
-            Console.WriteLine($"[MEDIA] Audio uploaded: {safeName} ({file.Length / 1024}KB)");
+            Log.LogInformation("Audio uploaded: {SafeName} ({Value}KB)", safeName, file.Length / 1024);
 
             return Results.Json(new
             {
@@ -811,7 +815,7 @@ public static class MediaPlayerEndpoints
             if (mediaService.LastPlayedWasNetwork && !string.IsNullOrEmpty(mediaService.LastPlayedAudioUrl))
             {
                 // Replay network audio
-                Console.WriteLine($"[MEDIA] Replaying network audio: {mediaService.LastPlayedAudio}");
+                Log.LogInformation("Replaying network audio: {LastPlayedAudio}", mediaService.LastPlayedAudio);
                 await mediaService.PlayNetworkAudioAsync(
                     mediaService.LastPlayedAudioUrl,
                     "Network",
@@ -836,7 +840,7 @@ public static class MediaPlayerEndpoints
                     message = $"Audio file not found: {mediaService.LastPlayedAudio}"
                 });
 
-            Console.WriteLine($"[MEDIA] Replaying local audio: {mediaService.LastPlayedAudio}");
+            Log.LogInformation("Replaying local audio: {LastPlayedAudio}", mediaService.LastPlayedAudio);
             await mediaService.PlayAudioAsync(filePath);
 
             return Results.Json(new
@@ -858,7 +862,7 @@ public static class MediaPlayerEndpoints
             try
             {
                 File.Delete(filePath);
-                Console.WriteLine($"[MEDIA] Audio deleted: {filename}");
+                Log.LogInformation("Audio deleted: {Filename}", filename);
 
                 return Results.Json(new
                 {
@@ -985,7 +989,7 @@ public static class MediaPlayerEndpoints
             if (string.IsNullOrEmpty(mediaService.LastPlayedYouTubeUrl))
                 return Results.Json(new { success = false, message = "No YouTube video to replay. Play a YouTube video first." });
 
-            Console.WriteLine($"[MEDIA] Replaying YouTube: {mediaService.LastPlayedYouTubeTitle}");
+            Log.LogInformation("Replaying YouTube: {LastPlayedYouTubeTitle}", mediaService.LastPlayedYouTubeTitle);
             
             var success = await mediaService.PlayYouTubeVideoAsync(mediaService.LastPlayedYouTubeUrl);
 

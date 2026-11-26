@@ -32,6 +32,8 @@ public sealed class AlarmEntry
 /// </summary>
 public sealed class AlarmService
 {
+    private readonly ILogger<AlarmService> _log;
+
     private static readonly string FilePath = Path.Combine(AppPaths.DataDir, "alarms.json");
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
@@ -46,8 +48,9 @@ public sealed class AlarmService
     /// <summary>The alarm that is ringing (fading in), or null.</summary>
     public AlarmEntry? Ringing { get; private set; }
 
-    public AlarmService(RadioService radio, PixToneOutputService board)
+    public AlarmService(RadioService radio, PixToneOutputService board, ILogger<AlarmService> log)
     {
+        _log = log;
         _radio = radio;
         _board = board;
         Load();
@@ -196,7 +199,7 @@ public sealed class AlarmService
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[ALARM] " + ex.Message);
+                _log.LogWarning("{Message}", ex.Message);
             }
         }
     }
@@ -208,10 +211,10 @@ public sealed class AlarmService
                       ?? _radio.Stations.FirstOrDefault();
         if (station == null)
         {
-            Console.WriteLine("[ALARM] No radio station to play");
+            _log.LogInformation("No radio station to play");
             return;
         }
-        Console.WriteLine($"[ALARM] {a.Hour:00}:{a.Minute:00} → {station.Name}");
+        _log.LogInformation("{Hour:00}:{Minute:00} → {Name}", a.Hour, a.Minute, station.Name);
         _fade?.Cancel();
         var cts = new CancellationTokenSource();
         _fade = cts;
@@ -282,11 +285,11 @@ public sealed class AlarmService
             if (!File.Exists(FilePath)) return;
             _alarms = JsonSerializer.Deserialize<List<AlarmEntry>>(File.ReadAllText(FilePath)) ?? new();
             foreach (var a in _alarms) Normalize(a);
-            Console.WriteLine($"[ALARM] {_alarms.Count} alarms");
+            _log.LogInformation("{Count} alarms", _alarms.Count);
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[ALARM] Could not read alarms: " + ex.Message);
+            _log.LogWarning("Could not read alarms: {Message}", ex.Message);
         }
     }
 
@@ -301,7 +304,7 @@ public sealed class AlarmService
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[ALARM] Could not save alarms: " + ex.Message);
+            _log.LogWarning("Could not save alarms: {Message}", ex.Message);
         }
     }
 }

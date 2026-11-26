@@ -21,8 +21,11 @@ namespace verpixeld.Hardware;
 ///     Requires SPI enabled (dtparam=spi=on) and spidev bufsiz >= payload size (~131 KB for 8-bit):
 ///     set "options spidev bufsiz=140000" in /etc/modprobe.d/spidev.conf.
 /// </summary>
+[LogTag("SPI")]
 public sealed class SpiMatrixRenderer : IMatrixRenderer, IDisposable
 {
+    private readonly ILogger<SpiMatrixRenderer> _log;
+
     // Panel constants (must match the MCU firmware: COLOR_4BITS, 256x128, 1/64 scan).
     private const int PanelWidth = 128;   // physical module width / shift columns
     private const int PolDispl = 64;      // pol_displ
@@ -76,8 +79,9 @@ public sealed class SpiMatrixRenderer : IMatrixRenderer, IDisposable
     [DllImport("libc", SetLastError = true)] private static extern int ioctl(int fd, uint request, ref byte arg);
     [DllImport("libc", SetLastError = true, EntryPoint = "ioctl")] private static extern int ioctl_u32(int fd, uint request, ref uint arg);
 
-    public SpiMatrixRenderer(int wallWidth, int wallHeight, SpiOptions options)
+    public SpiMatrixRenderer(int wallWidth, int wallHeight, SpiOptions options, ILogger<SpiMatrixRenderer> log)
     {
+        _log = log;
         Width = wallWidth;
         Height = wallHeight;
         _device = string.IsNullOrWhiteSpace(options.Device) ? "/dev/spidev0.0" : options.Device;
@@ -255,15 +259,14 @@ public sealed class SpiMatrixRenderer : IMatrixRenderer, IDisposable
 
         var written = write(_fd, payload, (nuint)payload.Length);
         if (written != payload.Length)
-            Console.WriteLine(
-                $"[SPI] short write ({written}/{payload.Length}). Raise spidev bufsiz to >= {payload.Length}.");
+            _log.LogInformation("short write ({Written}/{Length}). Raise spidev bufsiz to >= {Length2}.", written, payload.Length, payload.Length);
         }
     }
 
     public void Shutdown()
     {
         Dispose();
-        Console.WriteLine("[SPI] renderer shut down");
+        _log.LogInformation("renderer shut down");
     }
 
     public void Dispose()

@@ -9,8 +9,12 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class AiEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapAiEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(AiEndpoints));
         var aiService = app.Services.GetRequiredService<AiImageService>();
         var chatService = app.Services.GetRequiredService<AiChatService>();
 
@@ -46,7 +50,7 @@ public static class AiEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[AI] Generate endpoint error: {ex.Message}");
+                Log.LogError("Generate endpoint error: {Message}", ex.Message);
                 return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
             }
         });
@@ -88,7 +92,7 @@ public static class AiEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[AI] Edit endpoint error: {ex.Message}");
+                Log.LogError("Edit endpoint error: {Message}", ex.Message);
                 return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
             }
         });

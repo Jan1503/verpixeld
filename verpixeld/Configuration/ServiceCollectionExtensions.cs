@@ -53,7 +53,7 @@ public static class ServiceCollectionExtensions
             var network = configuration.GetSection(NetworkOptions.SectionName).Get<NetworkOptions>() ?? new NetworkOptions();
             ResolveBoundPanel(network);
             var ic = sp.GetRequiredService<ImageCorrectionService>();
-            var runtime = new OutputRuntime(app, matrix, hdmi, spi, network, ic, sp.GetRequiredService<ILogger<OutputRuntime>>());
+            var runtime = new OutputRuntime(app, matrix, hdmi, spi, network, ic, sp.GetRequiredService<ILoggerFactory>());
             Console.WriteLine("[INIT] Creating matrix renderer...");
             runtime.Start();
             return runtime;
@@ -159,7 +159,7 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<CanvasManager>(),
                 sp.GetRequiredService<ICanvasContentManager>(),
                 sp.GetRequiredService<PixToneOutputService>(),
-                sp.GetRequiredService<ILogger<CanvasRotationService>>());
+                sp.GetRequiredService<ILoggerFactory>());
             rot.LocalCamera = sp.GetRequiredService<LocalCameraService>();
             return rot;
         });
@@ -185,7 +185,7 @@ public static class ServiceCollectionExtensions
         {
             var cm = sp.GetRequiredService<CanvasManager>();
             return new MediaPlayerService(cm, sp.GetRequiredService<IAudioOutputService>(),
-                sp.GetRequiredService<PixToneOutputService>(), cm.Width, cm.Height, sp.GetRequiredService<ILogger<MediaPlayerService>>());
+                sp.GetRequiredService<PixToneOutputService>(), cm.Width, cm.Height, sp.GetRequiredService<ILoggerFactory>());
         });
 
         services.AddSingleton(sp =>
@@ -229,7 +229,7 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<AlertService>(),
                 sp.GetRequiredService<LocalCameraService>(),
                 cm.Width,
-                cm.Height, sp.GetRequiredService<ILogger<VoiceCommandService>>());
+                cm.Height, sp.GetRequiredService<ILoggerFactory>());
         });
 
         services.AddSingleton(sp =>

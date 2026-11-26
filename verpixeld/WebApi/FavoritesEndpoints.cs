@@ -7,14 +7,18 @@ namespace verpixeld.WebApi;
 /// <summary>
 ///     API endpoints for favorites and play history management
 /// </summary>
+[LogTag("AUTOPLAY")]
 public static class FavoritesEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     /// <summary>
     ///     Play a single auto-play item using the appropriate media service method
     /// </summary>
     private static async Task PlayAutoPlayItem(AutoPlayItem item, FavoritesService favoritesService, MediaPlayerService mediaService, NetworkShareService shareService)
     {
-        Console.WriteLine($"[AUTOPLAY] Playing item: {item.Name} (type={item.Type})");
+        Log.LogInformation("Playing item: {Name} (type={Type})", item.Name, item.Type);
 
         // Apply saved settings for video types
         if (item.Type != "local-audio" && item.Type != "network-audio")
@@ -84,7 +88,7 @@ public static class FavoritesEndpoints
             }
 
             default:
-                Console.WriteLine($"[AUTOPLAY] Unknown item type: {item.Type}");
+                Log.LogInformation("Unknown item type: {Type}", item.Type);
                 break;
         }
 
@@ -111,7 +115,7 @@ public static class FavoritesEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[HISTORY] Thumbnail: {ex.Message}");
+                Log.LogWarning("[HISTORY] Thumbnail: {Message}", ex.Message);
             }
         });
     }
@@ -142,6 +146,7 @@ public static class FavoritesEndpoints
 
     public static void MapFavoritesEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(FavoritesEndpoints));
         var favoritesService = app.Services.GetRequiredService<FavoritesService>();
         var mediaService = app.Services.GetRequiredService<MediaPlayerService>();
         var shareService = app.Services.GetRequiredService<NetworkShareService>();
@@ -444,7 +449,7 @@ public static class FavoritesEndpoints
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[AUTOPLAY] Error starting first item: {ex.Message}");
+                    Log.LogError("Error starting first item: {Message}", ex.Message);
                     mediaService.StopAutoPlay();
                 }
             });

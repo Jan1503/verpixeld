@@ -53,6 +53,8 @@ public sealed record RadioTitleHistory(string Title, DateTime At);
 /// </summary>
 public sealed class RadioService
 {
+    private readonly ILogger<RadioService> _log;
+
     private const int MaxRecent = 20;
     private const int MaxTitles = 15;
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
@@ -86,8 +88,9 @@ public sealed class RadioService
     /// <summary>Read the stream's song titles. Costs a second connection to the station.</summary>
     public bool ReadTitles { get; set; } = true;
 
-    public RadioService(MediaPlayerService media, RadioBrowserService browser, PixToneOutputService board)
+    public RadioService(MediaPlayerService media, RadioBrowserService browser, PixToneOutputService board, ILogger<RadioService> log)
     {
+        _log = log;
         _media = media;
         _browser = browser;
         _board = board;
@@ -301,7 +304,7 @@ public sealed class RadioService
             if (_recent.Count > MaxRecent) _recent.RemoveRange(MaxRecent, _recent.Count - MaxRecent);
             SaveLocked();
         }
-        Console.WriteLine($"[RADIO] Play \"{station.Name}\"");
+        _log.LogInformation("Play \"{Name}\"", station.Name);
         _ = _browser.CountClickAsync(station.StationUuid);
         NowChanged?.Invoke();
         ShowCover(station);
@@ -311,7 +314,7 @@ public sealed class RadioService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[RADIO] {station.Name}: {ex.Message}");
+            _log.LogWarning("{Name}: {Message}", station.Name, ex.Message);
             return false;
         }
         StartTitles(station.Url);
@@ -394,7 +397,7 @@ public sealed class RadioService
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[RADIO] watch: " + ex.Message);
+                _log.LogWarning("watch: {Message}", ex.Message);
             }
         }
     }
@@ -447,7 +450,7 @@ public sealed class RadioService
                 }
                 if (!int.TryParse(Header("icy-metaint"), out var metaInt) || metaInt <= 0)
                 {
-                    Console.WriteLine("[RADIO] Station sends no song titles");
+                    _log.LogInformation("Station sends no song titles");
                     return;
                 }
                 failures = 0;
@@ -481,7 +484,7 @@ public sealed class RadioService
             {
                 if (++failures >= 5)
                 {
-                    Console.WriteLine("[RADIO] Song titles unavailable: " + ex.Message);
+                    _log.LogWarning("Song titles unavailable: {Message}", ex.Message);
                     return;
                 }
                 try { await Task.Delay(5000, ct); } catch { return; }
@@ -518,7 +521,7 @@ public sealed class RadioService
             }
             station = _current?.Name;
         }
-        Console.WriteLine($"[RADIO] Now: {title}");
+        _log.LogInformation("Now: {Title}", title);
         // The panel splits "Artist - Title"; the station goes after the title.
         var board = string.IsNullOrWhiteSpace(title) ? station : $"{title} · {station}";
         _board.SetTrackTitle(board);
@@ -565,7 +568,7 @@ public sealed class RadioService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[RADIO] cover for {station.Name}: {ex.Message}");
+                _log.LogWarning("cover for {Name}: {Message}", station.Name, ex.Message);
             }
         });
     }
@@ -587,11 +590,11 @@ public sealed class RadioService
             if (store == null) return;
             _stations = store.Stations.Where(s => IsHttp(s.Url)).ToList();
             _recent = store.Recent.Where(s => IsHttp(s.Url)).Take(MaxRecent).ToList();
-            Console.WriteLine($"[RADIO] {_stations.Count} saved stations");
+            _log.LogInformation("{Count} saved stations", _stations.Count);
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[RADIO] Could not read the station list: " + ex.Message);
+            _log.LogWarning("Could not read the station list: {Message}", ex.Message);
         }
     }
 
@@ -606,7 +609,7 @@ public sealed class RadioService
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[RADIO] Could not save the station list: " + ex.Message);
+            _log.LogWarning("Could not save the station list: {Message}", ex.Message);
         }
     }
 

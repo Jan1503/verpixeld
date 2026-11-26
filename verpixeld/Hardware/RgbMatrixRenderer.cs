@@ -7,8 +7,11 @@ namespace verpixeld.Hardware;
 /// <summary>
 ///     RGB LED Matrix renderer implementation using rpi-rgb-led-matrix library
 /// </summary>
+[LogTag("MATRIX")]
 public class RgbMatrixRenderer : IMatrixRenderer, IDisposable
 {
+    private readonly ILogger<RgbMatrixRenderer> _log;
+
     private RGBLedCanvas? _canvas;
     private bool _disposed;
     private bool _isInitialized;
@@ -16,18 +19,11 @@ public class RgbMatrixRenderer : IMatrixRenderer, IDisposable
     private MatrixOptions _config = new();
 
     /// <summary>
-    ///     Creates a new RGB matrix renderer with default 384x192 configuration
-    /// </summary>
-    public RgbMatrixRenderer() : this(CreateDefaultOptions())
-    {
-    }
-
-    /// <summary>
     ///     Creates a new RGB matrix renderer from application <see cref="MatrixOptions" /> configuration
     ///     (bound from the "Matrix" section of appsettings.json). Image correction (gamma/contrast/etc.)
     ///     is applied globally in the render loop for every output mode, so this renderer only uploads.
     /// </summary>
-    public RgbMatrixRenderer(MatrixOptions config) : this(MapOptions(config))
+    public RgbMatrixRenderer(MatrixOptions config, ILogger<RgbMatrixRenderer> log) : this(MapOptions(config), log)
     {
         _config = config;
     }
@@ -46,8 +42,9 @@ public class RgbMatrixRenderer : IMatrixRenderer, IDisposable
     /// <summary>
     ///     Creates a new RGB matrix renderer with custom options
     /// </summary>
-    public RgbMatrixRenderer(RGBLedMatrixOptions options)
+    public RgbMatrixRenderer(RGBLedMatrixOptions options, ILogger<RgbMatrixRenderer> log)
     {
+        _log = log;
         Options = options;
 
         // Calculate dimensions based on options
@@ -81,9 +78,8 @@ public class RgbMatrixRenderer : IMatrixRenderer, IDisposable
         if (_isInitialized)
             return;
 
-        Console.WriteLine("[MATRIX] Initializing RGB LED Matrix...");
-        Console.WriteLine(
-            $"[MATRIX] Configuration: {Options.Cols}x{Options.Rows} × {Options.ChainLength} chains × {Options.Parallel} parallel");
+        _log.LogInformation("Initializing RGB LED Matrix...");
+        _log.LogInformation("Configuration: {Cols}x{Rows} × {ChainLength} chains × {Parallel} parallel", Options.Cols, Options.Rows, Options.ChainLength, Options.Parallel);
 
         EnsureNativeSafe(Options);
         _matrix = new RGBLedMatrix(Options);
@@ -94,16 +90,15 @@ public class RgbMatrixRenderer : IMatrixRenderer, IDisposable
         var mappedH = _canvas.Height;
         if (mappedW > 0 && mappedH > 0 && (mappedW != Width || mappedH != Height))
         {
-            Console.WriteLine(
-                $"[MATRIX] Pixel mapper reshaped canvas: {Width}x{Height} (raw) -> {mappedW}x{mappedH} (visible)");
+            _log.LogInformation("Pixel mapper reshaped canvas: {Width}x{Height} (raw) -> {MappedW}x{MappedH} (visible)", Width, Height, mappedW, mappedH);
             Width = mappedW;
             Height = mappedH;
         }
 
-        Console.WriteLine($"[MATRIX] Total resolution: {Width}x{Height}");
+        _log.LogInformation("Total resolution: {Width}x{Height}", Width, Height);
 
         _isInitialized = true;
-        Console.WriteLine("[MATRIX] Hardware initialized successfully");
+        _log.LogInformation("Hardware initialized successfully");
     }
 
     /// <summary>
@@ -128,22 +123,8 @@ public class RgbMatrixRenderer : IMatrixRenderer, IDisposable
     /// </summary>
     public void Shutdown()
     {
-        Console.WriteLine("[MATRIX] Shutting down...");
+        _log.LogInformation("Shutting down...");
         Dispose();
-    }
-
-    private static RGBLedMatrixOptions CreateDefaultOptions()
-    {
-        return new RGBLedMatrixOptions
-        {
-            ChainLength = 3,
-            Cols = 128,
-            Parallel = 3,
-            RowAddressType = 3,
-            Rows = 64,
-            GpioSlowdown = 5,
-            PwmLsbNanoseconds = 60 // 60 for Raspbian, 55 for DietPi
-        };
     }
 
     /// <summary>

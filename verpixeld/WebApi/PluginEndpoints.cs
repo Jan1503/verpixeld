@@ -10,15 +10,19 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class PluginEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapPluginEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(PluginEndpoints));
         var ctx = app.Services.GetRequiredService<EndpointContext>();
         app.MapPost("/api/plugins/reload", () =>
         {
             try { return ApiResponse.Ok(Reload(ctx), "Plugins reloaded"); }
             catch (Exception ex)
             {
-                Console.WriteLine($"[PLUGIN] reload failed: {ex}");
+                Log.LogError("reload failed: {Ex}", ex);
                 return ApiResponse.Error(ex);
             }
         });
@@ -55,12 +59,12 @@ public static class PluginEndpoints
         {
             if (filter is not IDisposable d) continue;
             try { d.Dispose(); }
-            catch (Exception ex) { Console.WriteLine($"[PLUGIN] dispose filter: {ex.Message}"); }
+            catch (Exception ex) { Log.LogWarning("dispose filter: {Message}", ex.Message); }
         }
 
         content.StopAllContent();
 
-        Console.WriteLine($"[PLUGIN] reload: {running.Count} extension(s), {filterSnap.Count} filter(s) to restore");
+        Log.LogInformation("reload: {Count} extension(s), {Count2} filter(s) to restore", running.Count, filterSnap.Count);
         ext.ReloadAssemblies(AppPaths.ExtensionsDir);
         filt.ReloadAssemblies(AppPaths.FiltersDir);
 
@@ -76,7 +80,7 @@ public static class PluginEndpoints
             catch (Exception ex)
             {
                 failedExt.Add($"{item.Canvas}: {item.DisplayName} ({ex.Message})");
-                Console.WriteLine($"[PLUGIN] restore extension '{item.DisplayName}' on '{item.Canvas}': {ex.Message}");
+                Log.LogWarning("restore extension '{DisplayName}' on '{Canvas}': {Message}", item.DisplayName, item.Canvas, ex.Message);
             }
         }
 
@@ -101,13 +105,13 @@ public static class PluginEndpoints
             catch (Exception ex)
             {
                 failedFilt.Add($"{item.Name} ({ex.Message})");
-                Console.WriteLine($"[PLUGIN] restore filter '{item.Name}': {ex.Message}");
+                Log.LogWarning("restore filter '{Name}': {Message}", item.Name, ex.Message);
             }
         }
 
         var extInfo = ext.GetAvailableInfo().Count();
         var filtInfo = filt.GetAvailableInfo().Count();
-        Console.WriteLine($"[PLUGIN] reload done: {extInfo} extension type(s), {filtInfo} filter type(s)");
+        Log.LogInformation("reload done: {ExtInfo} extension type(s), {FiltInfo} filter type(s)", extInfo, filtInfo);
 
         return new
         {

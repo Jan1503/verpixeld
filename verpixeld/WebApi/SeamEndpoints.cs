@@ -10,12 +10,17 @@ namespace verpixeld.WebApi;
 ///     Two profiles (8-bit / 14-bit). Live when the network output is active; otherwise
 ///     reads/writes seam_correction.json so the values are ready the next time that output is selected.
 /// </summary>
+[LogTag("API")]
 public static class SeamEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     private static string DefaultSeamFile => AppPaths.ResolveWritableConfigFile(null, "seam_correction.json");
 
     public static void MapSeamEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(SeamEndpoints));
         var renderer = app.Services.GetRequiredService<IMatrixRenderer>();
         NetworkMatrixRenderer? Current() =>
             (renderer as OutputRuntime)?.As<NetworkMatrixRenderer>() ?? renderer as NetworkMatrixRenderer;
@@ -71,12 +76,12 @@ public static class SeamEndpoints
                     store.Save(DefaultSeamFile);
                 }
 
-                Console.WriteLine($"[API] Seam correction {(enabled ? "on" : "off")}, live={net != null}");
+                Log.LogInformation("Seam correction {Value}, live={Value2}", (enabled ? "on" : "off"), net != null);
                 return ApiResponse.Ok(new { enabled, live = net != null });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error switching seam correction: {ex.Message}");
+                Log.LogError("Error switching seam correction: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });
@@ -119,8 +124,7 @@ public static class SeamEndpoints
                     store.Save(DefaultSeamFile);
                 }
 
-                Console.WriteLine(
-                    $"[API] Seam correction: {list.Count} columns, {SeamCorrectionStore.NormalizeBits(profileBits)}-bit, save={save}, live={net != null}");
+                Log.LogInformation("Seam correction: {Count} columns, {Value}-bit, save={Save}, live={Value2}", list.Count, SeamCorrectionStore.NormalizeBits(profileBits), save, net != null);
 
                 return ApiResponse.Ok(new
                 {
@@ -135,7 +139,7 @@ public static class SeamEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error setting seam correction: {ex.Message}");
+                Log.LogError("Error setting seam correction: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });
@@ -162,7 +166,7 @@ public static class SeamEndpoints
                 net.SetSeamCalibrateBits(bits);
                 if (bits is 8 or 14)
                     await net.EnsureColorBitsAsync(bits).ConfigureAwait(false);
-                Console.WriteLine($"[API] Seam calibrate lock: {(bits is 8 or 14 ? bits + "-bit" : "off")} (panel {net.ColorBits}-bit)");
+                Log.LogInformation("Seam calibrate lock: {Value} (panel {ColorBits}-bit)", (bits is 8 or 14 ? bits + "-bit" : "off"), net.ColorBits);
 
                 return ApiResponse.Ok(new
                 {
@@ -176,7 +180,7 @@ public static class SeamEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error setting seam mode: {ex.Message}");
+                Log.LogError("Error setting seam mode: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });
@@ -197,12 +201,12 @@ public static class SeamEndpoints
                     return ApiResponse.Ok(new { supported = false, live = false, previewLevel = -1 });
 
                 net.SetSeamPreview(level);
-                Console.WriteLine($"[API] Seam grey preview: {(level < 0 ? "off" : level.ToString())}");
+                Log.LogInformation("Seam grey preview: {Value}", (level < 0 ? "off" : level.ToString()));
                 return ApiResponse.Ok(new { supported = true, live = true, previewLevel = net.SeamPreviewGrey });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error setting seam preview: {ex.Message}");
+                Log.LogError("Error setting seam preview: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });

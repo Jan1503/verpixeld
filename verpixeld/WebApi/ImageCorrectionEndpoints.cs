@@ -12,10 +12,15 @@ namespace verpixeld.WebApi;
 ///     gpio/hardware, hdmi, spi) and the web preview at once. Optionally persists to the "ImageCorrection"
 ///     section of appsettings.json. Also exposes the network panel's R/B wiring swap for convenience.
 /// </summary>
+[LogTag("API")]
 public static class ImageCorrectionEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapImageCorrectionEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ImageCorrectionEndpoints));
         var correction = app.Services.GetRequiredService<ImageCorrectionService>();
         var renderer = app.Services.GetRequiredService<IMatrixRenderer>();
         NetworkMatrixRenderer? CurrentNet() =>
@@ -100,7 +105,7 @@ public static class ImageCorrectionEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error setting image correction: {ex.Message}");
+                Log.LogError("Error setting image correction: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });

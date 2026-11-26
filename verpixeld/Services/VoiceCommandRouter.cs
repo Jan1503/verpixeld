@@ -6,13 +6,17 @@ namespace verpixeld.Services;
 ///     Routes voice commands through an LLM to classify intent and generate a spoken response.
 ///     Uses Azure OpenAI chat completions via AiChatService.
 /// </summary>
+[LogTag("ROUTER")]
 public class VoiceCommandRouter
 {
+    private readonly ILogger<VoiceCommandRouter> _log;
+
     private readonly AiChatService _chatService;
     private readonly Func<VoiceContext> _contextProvider;
 
-    public VoiceCommandRouter(AiChatService chatService, Func<VoiceContext> contextProvider)
+    public VoiceCommandRouter(AiChatService chatService, Func<VoiceContext> contextProvider, ILogger<VoiceCommandRouter> log)
     {
+        _log = log;
         _chatService = chatService;
         _contextProvider = contextProvider;
     }
@@ -24,7 +28,7 @@ public class VoiceCommandRouter
     {
         if (!_chatService.IsConfigured)
         {
-            Console.WriteLine("[ROUTER] Chat not configured, falling back to image generation");
+            _log.LogInformation("Chat not configured, falling back to image generation");
             return new VoiceCommandResult
             {
                 Intent = VoiceIntents.GenerateImage,
@@ -39,26 +43,26 @@ public class VoiceCommandRouter
         var context = _contextProvider();
         var systemPrompt = BuildSystemPrompt(context);
 
-        Console.WriteLine($"[ROUTER] Classifying: \"{transcription}\"");
+        _log.LogInformation("Classifying: \"{Transcription}\"", transcription);
         var llmResponse = await _chatService.GetChatCompletionAsync(systemPrompt, transcription, 200);
 
         // Handle content filtering — Azure may block the classification request
         if (llmResponse == "CONTENT_FILTERED")
         {
-            Console.WriteLine("[ROUTER] Content filter triggered — attempting local fallback");
+            _log.LogInformation("Content filter triggered — attempting local fallback");
             return ContentFilterFallback(transcription);
         }
 
         if (string.IsNullOrEmpty(llmResponse))
         {
             // Retry once on empty response (transient Azure error)
-            Console.WriteLine("[ROUTER] LLM returned empty — retrying once...");
+            _log.LogInformation("LLM returned empty — retrying once...");
             await Task.Delay(500);
             llmResponse = await _chatService.GetChatCompletionAsync(systemPrompt, transcription, 200);
 
             if (llmResponse == "CONTENT_FILTERED")
             {
-                Console.WriteLine("[ROUTER] Content filter triggered on retry — attempting local fallback");
+                _log.LogInformation("Content filter triggered on retry — attempting local fallback");
                 return ContentFilterFallback(transcription);
             }
 
@@ -67,7 +71,7 @@ public class VoiceCommandRouter
                 // Empty response after retry — often caused by Azure content filtering
                 // returning null instead of a proper content_filter finish reason.
                 // Try local fallback before giving up.
-                Console.WriteLine("[ROUTER] LLM returned empty after retry — attempting local fallback");
+                _log.LogInformation("LLM returned empty after retry — attempting local fallback");
                 return ContentFilterFallback(transcription);
             }
         }
@@ -97,13 +101,13 @@ public class VoiceCommandRouter
                     action[prop.Name] = prop.Value.Clone();
             }
 
-            Console.WriteLine($"[ROUTER] Intent: {intent}, Response: \"{response}\"");
+            _log.LogInformation("Intent: {Intent}, Response: \"{Response}\"", intent, response);
             return new VoiceCommandResult { Intent = intent, Response = response, Action = action };
         }
         catch (JsonException ex)
         {
-            Console.WriteLine($"[ROUTER] Failed to parse LLM JSON: {ex.Message}");
-            Console.WriteLine($"[ROUTER] Raw LLM response: {llmResponse}");
+            _log.LogError("Failed to parse LLM JSON: {Message}", ex.Message);
+            _log.LogInformation("Raw LLM response: {LlmResponse}", llmResponse);
 
             // If parsing fails, treat as a question — the LLM response might be plain text
             return new VoiceCommandResult
@@ -120,7 +124,7 @@ public class VoiceCommandRouter
     ///     This typically happens with "male"/"zeichne"/"erstelle" (draw) commands where the filter
     ///     misinterprets the German text.
     /// </summary>
-    private static VoiceCommandResult ContentFilterFallback(string transcription)
+    private VoiceCommandResult ContentFilterFallback(string transcription)
     {
         var lower = transcription.ToLowerInvariant();
 
@@ -128,7 +132,7 @@ public class VoiceCommandRouter
         var drawKeywords = new[] { "male ", "mal ", "zeichne ", "erstelle ein bild", "generiere ein bild", "paint ", "draw " };
         if (drawKeywords.Any(k => lower.StartsWith(k) || lower.Contains(k)))
         {
-            Console.WriteLine($"[ROUTER] Content filter fallback → generate-image: \"{transcription}\"");
+            _log.LogInformation("Content filter fallback → generate-image: \"{Transcription}\"", transcription);
             return new VoiceCommandResult
             {
                 Intent = VoiceIntents.GenerateImage,
@@ -141,7 +145,7 @@ public class VoiceCommandRouter
         }
 
         // Default: tell the user to try again
-        Console.WriteLine($"[ROUTER] Content filter fallback → unknown (no local match)");
+        _log.LogInformation("Content filter fallback → unknown (no local match)");
         return new VoiceCommandResult
         {
             Intent = VoiceIntents.Unknown,

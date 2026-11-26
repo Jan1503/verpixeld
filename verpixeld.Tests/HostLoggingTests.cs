@@ -7,7 +7,8 @@ public class HostLoggingTests
 {
     [Theory]
     [InlineData("verpixeld.Services.AlertService", "ALERT")]
-    [InlineData("verpixeld.WebApi.CanvasEndpoints", "CANVAS")]
+    [InlineData("verpixeld.WebApi.SomethingEndpoints", "SOMETHING")]
+    [InlineData("verpixeld.WebApi.CanvasEndpoints", "API")] // [LogTag("API")]
     [InlineData("verpixeld.Layout.SomethingManager", "SOMETHING")]
     [InlineData("verpixeld.Layout.CanvasContentManager", "CONTENT")] // [LogTag("CONTENT")]
     [InlineData("verpixeld.Services.FrameBudgetMonitor", "PERF")] // [LogTag("PERF")]

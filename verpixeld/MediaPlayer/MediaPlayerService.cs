@@ -15,6 +15,7 @@ namespace verpixeld.MediaPlayer;
 public class MediaPlayerService : IDisposable
 {
     private readonly ILogger<MediaPlayerService> _log;
+    private readonly ILoggerFactory _loggers;
 
     private readonly AlsaAudioService _audio;
     private readonly CanvasManager _canvasManager;
@@ -47,15 +48,16 @@ public class MediaPlayerService : IDisposable
     private int _width;
 
     public MediaPlayerService(CanvasManager canvasManager, IAudioOutputService audioOutputService,
-        PixToneOutputService vap1, int width, int height, ILogger<MediaPlayerService> log)
+        PixToneOutputService vap1, int width, int height, ILoggerFactory loggers)
     {
-        _log = log;
+        _loggers = loggers;
+        _log = loggers.CreateLogger<MediaPlayerService>();
         _canvasManager = canvasManager;
         _audioOutputService = audioOutputService;
         _width = width;
         _height = height;
-        _audio = new AlsaAudioService();
-        _videoPlayer = new VideoPlayer(width, height, audioOutputService, vap1);
+        _audio = new AlsaAudioService(_loggers.CreateLogger<AlsaAudioService>());
+        _videoPlayer = new VideoPlayer(width, height, audioOutputService, vap1, _loggers.CreateLogger<VideoPlayer>());
 
         _videoPlayer.OnPlaybackStarted += () => _log.LogInformation("Video playback started");
         _videoPlayer.OnPlaybackStopped += OnPlaybackStopped;
@@ -457,7 +459,7 @@ public class MediaPlayerService : IDisposable
             return false;
         }
 
-        var ytService = new YouTubeService();
+        var ytService = new YouTubeService(_loggers.CreateLogger<YouTubeService>());
 
         // ── Audio-only path: extract best audio URL, no canvas ──
         if (audioOnly)

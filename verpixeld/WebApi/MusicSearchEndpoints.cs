@@ -7,10 +7,15 @@ namespace verpixeld.WebApi;
 /// <summary>
 ///     API endpoints for YouTube Music search and playback.
 /// </summary>
+[LogTag("MUSIC/API")]
 public static class MusicSearchEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapMusicSearchEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(MusicSearchEndpoints));
         var musicService = app.Services.GetRequiredService<MusicSearchService>();
         var mediaService = app.Services.GetRequiredService<MediaPlayerService>();
 
@@ -46,7 +51,7 @@ public static class MusicSearchEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[MUSIC/API] Search error: {ex.Message}");
+                Log.LogError("Search error: {Message}", ex.Message);
                 return Results.Json(new { success = false, message = "Search failed: " + ex.Message });
             }
         });
@@ -104,7 +109,7 @@ public static class MusicSearchEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[MUSIC/API] Play error: {ex.Message}");
+                Log.LogError("Play error: {Message}", ex.Message);
                 return Results.Json(new { success = false, message = "Playback failed: " + ex.Message });
             }
         });

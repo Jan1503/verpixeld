@@ -14,8 +14,12 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class SettingsEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapSettingsEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(SettingsEndpoints));
         var canvasManager = app.Services.GetRequiredService<CanvasManager>();
         var output = app.Services.GetRequiredService<OutputRuntime>();
         var homeAssistant = app.Services.GetRequiredService<HomeAssistantService>();
@@ -174,9 +178,8 @@ public static class SettingsEndpoints
                     ["DisplayHeight"] = config.App.DisplayHeight
                 });
 
-                Console.WriteLine(
-                    $"[SETTINGS] Matrix configuration saved: {config.App.DisplayWidth}x{config.App.DisplayHeight}");
-                Console.WriteLine("[SETTINGS] Restart required for changes to take effect");
+                Log.LogInformation("Matrix configuration saved: {DisplayWidth}x{DisplayHeight}", config.App.DisplayWidth, config.App.DisplayHeight);
+                Log.LogInformation("Restart required for changes to take effect");
 
                 return Results.Json(new
                 {
@@ -187,7 +190,7 @@ public static class SettingsEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SETTINGS] Error saving matrix config: {ex.Message}");
+                Log.LogError("Error saving matrix config: {Message}", ex.Message);
                 return Results.Json(new { success = false, error = ex.Message });
             }
         });
@@ -237,8 +240,7 @@ public static class SettingsEndpoints
                     output.App.VerboseLogging = config.App.VerboseLogging;
                 }
 
-                Console.WriteLine(
-                    $"[SETTINGS] App settings saved: FPS={config.App.TargetFps}, Verbose={config.App.VerboseLogging}");
+                Log.LogInformation("App settings saved: FPS={TargetFps}, Verbose={VerboseLogging}", config.App.TargetFps, config.App.VerboseLogging);
 
                 return Results.Json(new
                 {
@@ -248,7 +250,7 @@ public static class SettingsEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SETTINGS] Error saving app settings: {ex.Message}");
+                Log.LogError("Error saving app settings: {Message}", ex.Message);
                 return Results.Json(new { success = false, error = ex.Message });
             }
         });
@@ -488,7 +490,7 @@ public static class SettingsEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[CERT] Upload error: {ex.Message}");
+                Log.LogError("[CERT] Upload error: {Message}", ex.Message);
                 return Results.Json(new { success = false, error = ex.Message });
             }
         });
@@ -511,7 +513,7 @@ public static class SettingsEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[CERT] Regenerate error: {ex.Message}");
+                Log.LogError("[CERT] Regenerate error: {Message}", ex.Message);
                 return Results.Json(new { success = false, error = ex.Message });
             }
         });
@@ -532,7 +534,7 @@ public static class SettingsEndpoints
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CERT] Warning: Could not update config password: {ex.Message}");
+            Log.LogWarning("[CERT] Warning: Could not update config password: {Message}", ex.Message);
         }
     }
 }

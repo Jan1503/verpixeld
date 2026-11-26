@@ -8,10 +8,15 @@ namespace verpixeld.WebApi;
 /// <summary>
 ///     API endpoints for voice commands (Azure Speech) and local USB camera.
 /// </summary>
+[LogTag("DEVICES")]
 public static class VoiceEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapVoiceEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(VoiceEndpoints));
         var voiceService = app.Services.GetRequiredService<VoiceCommandService>();
         var cameraService = app.Services.GetRequiredService<LocalCameraService>();
 
@@ -164,7 +169,7 @@ public static class VoiceEndpoints
                     displayDuration: null, enabled: null
                 );
 
-                Console.WriteLine($"[VOICE] Keyword model uploaded: {filePath} ({file.Length} bytes)");
+                Log.LogInformation("[VOICE] Keyword model uploaded: {FilePath} ({Length} bytes)", filePath, file.Length);
 
                 return Results.Json(new
                 {
@@ -262,9 +267,9 @@ public static class VoiceEndpoints
             var videoDevices = LocalCameraService.ListVideoDevices();
             var audioDevices = LocalCameraService.ListAudioDevices();
 
-            Console.WriteLine($"[DEVICES] Found {videoDevices.Count} video, {audioDevices.Count} audio devices");
+            Log.LogInformation("Found {Count} video, {Count2} audio devices", videoDevices.Count, audioDevices.Count);
             foreach (var d in audioDevices)
-                Console.WriteLine($"[DEVICES] Audio: {d.Name} → {d.Path}");
+                Log.LogInformation("Audio: {Name} → {Path}", d.Name, d.Path);
 
             return Results.Json(new
             {

@@ -7,10 +7,15 @@ namespace verpixeld.WebApi;
 /// <summary>
 ///     System-related API endpoints (status, reboot, restart)
 /// </summary>
+[LogTag("REBOOT")]
 public static class SystemEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapSystemEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(SystemEndpoints));
         var ctx = app.Services.GetRequiredService<EndpointContext>();
         var render = app.Services.GetRequiredService<IRenderService>();
         var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
@@ -45,7 +50,7 @@ public static class SystemEndpoints
             {
                 if (AppPaths.RunningInContainer())
                 {
-                    Console.WriteLine("[REBOOT] Container restart requested — stopping the process");
+                    Log.LogInformation("Container restart requested — stopping the process");
                     _ = Task.Run(async () =>
                     {
                         await Task.Delay(800);
@@ -58,7 +63,7 @@ public static class SystemEndpoints
                     });
                 }
 
-                Console.WriteLine("[REBOOT] System reboot requested via API");
+                Log.LogInformation("System reboot requested via API");
 
                 _ = Task.Run(async () =>
                 {
@@ -95,22 +100,22 @@ public static class SystemEndpoints
 
                                 if (process.ExitCode == 0)
                                 {
-                                    Console.WriteLine($"[REBOOT] Success with: {cmd} {args}");
+                                    Log.LogInformation("Success with: {Cmd} {Args}", cmd, args);
                                     return; // Reboot initiated
                                 }
 
-                                Console.WriteLine($"[REBOOT] Failed ({process.ExitCode}): {error}");
+                                Log.LogError("Failed ({ExitCode}): {Error}", process.ExitCode, error);
                             }
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[REBOOT] {cmd} failed: {ex.Message}");
+                            Log.LogError("{Cmd} failed: {Message}", cmd, ex.Message);
                         }
 
                     // Try Windows as last resort
                     try
                     {
-                        Console.WriteLine("[REBOOT] Trying Windows shutdown...");
+                        Log.LogInformation("Trying Windows shutdown...");
                         Process.Start(new ProcessStartInfo
                         {
                             FileName = "shutdown",
@@ -121,8 +126,8 @@ public static class SystemEndpoints
                     }
                     catch (Exception winEx)
                     {
-                        Console.WriteLine($"[REBOOT] All methods failed. Last error: {winEx.Message}");
-                        Console.WriteLine("[REBOOT] Configure sudoers: daemon ALL=(ALL) NOPASSWD: /sbin/reboot");
+                        Log.LogError("All methods failed. Last error: {Message}", winEx.Message);
+                        Log.LogInformation("Configure sudoers: daemon ALL=(ALL) NOPASSWD: /sbin/reboot");
                     }
                 });
 
@@ -135,7 +140,7 @@ public static class SystemEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[REBOOT] Request failed: {ex.Message}");
+                Log.LogError("Request failed: {Message}", ex.Message);
                 return ApiResponse.Fail($"Failed to initiate reboot: {ex.Message}");
             }
         });
@@ -144,13 +149,13 @@ public static class SystemEndpoints
         {
             try
             {
-                Console.WriteLine("[API] Render loop restart requested");
+                Log.LogInformation("[API] Render loop restart requested");
                 render.Restart();
                 return ApiResponse.Ok("Render loop restarted successfully.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Render loop restart failed: {ex.Message}");
+                Log.LogError("[API] Render loop restart failed: {Message}", ex.Message);
                 return ApiResponse.Fail($"Failed to restart render loop: {ex.Message}");
             }
         });

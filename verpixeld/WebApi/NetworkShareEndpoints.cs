@@ -6,10 +6,15 @@ namespace verpixeld.WebApi;
 /// <summary>
 ///     API endpoints for managing SMB network shares
 /// </summary>
+[LogTag("NETWORK")]
 public static class NetworkShareEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapNetworkShareEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(NetworkShareEndpoints));
         var shareService = app.Services.GetRequiredService<NetworkShareService>();
         var mediaService = app.Services.GetRequiredService<MediaPlayerService>();
         var favoritesService = app.Services.GetRequiredService<FavoritesService>();
@@ -173,7 +178,7 @@ public static class NetworkShareEndpoints
 
             // Decode the path (browser encodes it)
             var decodedPath = Uri.UnescapeDataString(filePath);
-            Console.WriteLine($"[NETWORK] Play request: {decodedPath}");
+            Log.LogInformation("Play request: {DecodedPath}", decodedPath);
 
             // Build SMB URL
             var videoUrl = shareService.BuildFileUrl(id, decodedPath);
@@ -194,7 +199,7 @@ public static class NetworkShareEndpoints
                 }
             }
 
-            Console.WriteLine($"[NETWORK] Video URL: {displayUrl}");
+            Log.LogInformation("Video URL: {DisplayUrl}", displayUrl);
 
             // Check if we can stream
             if (!MediaPlayerService.FFmpegSmbSupported)
@@ -245,7 +250,7 @@ public static class NetworkShareEndpoints
 
             // Decode the path (browser encodes it)
             var decodedPath = Uri.UnescapeDataString(filePath);
-            Console.WriteLine($"[NETWORK] Play audio request: {decodedPath}");
+            Log.LogInformation("Play audio request: {DecodedPath}", decodedPath);
 
             // Build SMB URL
             var audioUrl = shareService.BuildFileUrl(id, decodedPath);
@@ -266,7 +271,7 @@ public static class NetworkShareEndpoints
                 }
             }
 
-            Console.WriteLine($"[NETWORK] Audio URL: {displayUrl}");
+            Log.LogInformation("Audio URL: {DisplayUrl}", displayUrl);
 
             // Check if we can stream
             if (!MediaPlayerService.FFmpegSmbSupported)

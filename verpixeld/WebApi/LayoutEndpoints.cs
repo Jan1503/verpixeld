@@ -10,10 +10,15 @@ namespace verpixeld.WebApi;
 /// <summary>
 ///     Layout management API endpoints
 /// </summary>
+[LogTag("API")]
 public static class LayoutEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapLayoutEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(LayoutEndpoints));
         var ctx = app.Services.GetRequiredService<EndpointContext>();
         MapLayoutProfileEndpoints(app, ctx);
         MapCanvasEndpoints(app, ctx);
@@ -87,18 +92,18 @@ public static class LayoutEndpoints
                         error = $"Invalid layout profile '{profileName}'"
                     });
 
-                Console.WriteLine($"[API] Applying layout: {profile}");
+                Log.LogInformation("Applying layout: {Profile}", profile);
 
                 // Clear active schedule - User is manually overriding
                 ctx.ScheduleManager.ClearActiveSchedule();
 
                 // Stop all current content
-                Console.WriteLine("[API] Stopping all current content...");
+                Log.LogInformation("Stopping all current content...");
                 ctx.ContentManager.StopAllContent();
 
                 // Give extensions time to fully stop
                 await Task.Delay(200);
-                Console.WriteLine("[API] All content stopped, applying new layout...");
+                Log.LogInformation("All content stopped, applying new layout...");
 
                 // A profile is a blank canvas structure, not a saved scene. Drop per-canvas rotation
                 // playlists so Studio's Content pane (and later assigns) don't inherit the previous
@@ -111,7 +116,7 @@ public static class LayoutEndpoints
                 var prime = ctx.LayoutManager.GetCanvas("Main")
                             ?? ctx.LayoutManager.GetCanvas("Content")
                             ?? ctx.LayoutManager.GetAllCanvases().FirstOrDefault().Canvas;
-                Console.WriteLine($"[API] Layout applied successfully. Prime canvas: {prime != null}");
+                Log.LogInformation("Layout applied successfully. Prime canvas: {Value}", prime != null);
 
                 return Results.Json(new
                 {
@@ -126,7 +131,7 @@ public static class LayoutEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error applying layout: {ex.Message}");
+                Log.LogError("Error applying layout: {Message}", ex.Message);
                 return Results.Json(new { success = false, error = ex.Message });
             }
         });
@@ -177,7 +182,7 @@ public static class LayoutEndpoints
                 if (SystemOverlayCanvases.IsSystem(canvasName))
                     return Results.Json(new { success = false, error = $"'{canvasName}' is a host overlay and cannot take content" });
 
-                Console.WriteLine($"[API] Assigning '{extensionName}' to canvas '{canvasName}'");
+                Log.LogInformation("Assigning '{ExtensionName}' to canvas '{CanvasName}'", extensionName, canvasName);
 
                 // Extract and convert config if present
                 Dictionary<string, object>? config = null;
@@ -223,7 +228,7 @@ public static class LayoutEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error assigning extension: {ex.Message}");
+                Log.LogError("Error assigning extension: {Message}", ex.Message);
                 return Results.Json(new { success = false, error = ex.Message });
             }
         });
@@ -233,7 +238,7 @@ public static class LayoutEndpoints
         {
             try
             {
-                Console.WriteLine($"[API] Stopping content on canvas '{canvasName}'");
+                Log.LogInformation("Stopping content on canvas '{CanvasName}'", canvasName);
                 ctx.ContentManager!.StopContent(canvasName);
                 return Results.Json(new { success = true, message = $"Content stopped on '{canvasName}'" });
             }
@@ -369,7 +374,7 @@ public static class LayoutEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error configuring canvas: {ex.Message}");
+                Log.LogError("Error configuring canvas: {Message}", ex.Message);
                 return Results.Json(new { success = false, error = ex.Message });
             }
         });
@@ -379,7 +384,7 @@ public static class LayoutEndpoints
         {
             try
             {
-                Console.WriteLine($"[API] Restarting extension on canvas '{canvasName}'");
+                Log.LogInformation("Restarting extension on canvas '{CanvasName}'", canvasName);
                 ctx.ContentManager!.RestartContent(canvasName);
                 return Results.Json(new { success = true, message = $"Extension restarted on '{canvasName}'" });
             }
@@ -440,7 +445,7 @@ public static class LayoutEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error invoking method: {ex.Message}");
+                Log.LogError("Error invoking method: {Message}", ex.Message);
                 return Results.Json(new { success = false, error = ex.Message });
             }
         });
@@ -507,8 +512,7 @@ public static class LayoutEndpoints
                 if (jsonDoc.RootElement.TryGetProperty("overrideGlobalBrightness", out var ovEl))
                     overrideBrightness = ovEl.ValueKind != JsonValueKind.False;
 
-                Console.WriteLine(
-                    $"[API] Saving layout '{name}'... (default: {isDefault}, applyBrightness: {overrideBrightness})");
+                Log.LogInformation("Saving layout '{Name}'... (default: {IsDefault}, applyBrightness: {OverrideBrightness})", name, isDefault, overrideBrightness);
 
                 // Build saved layout from current state
                 var savedLayout = new SavedLayout
@@ -599,8 +603,7 @@ public static class LayoutEndpoints
 
                 ctx.LayoutStorageManager!.SaveLayout(savedLayout);
 
-                Console.WriteLine(
-                    $"[API] Layout '{name}' saved with {savedLayout.Canvases.Count} canvas configurations");
+                Log.LogInformation("Layout '{Name}' saved with {Count} canvas configurations", name, savedLayout.Canvases.Count);
 
                 return Results.Json(new
                 {
@@ -617,7 +620,7 @@ public static class LayoutEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error saving layout: {ex.Message}");
+                Log.LogError("Error saving layout: {Message}", ex.Message);
                 return Results.Json(new { success = false, error = ex.Message });
             }
         });
@@ -627,7 +630,7 @@ public static class LayoutEndpoints
         {
             try
             {
-                Console.WriteLine($"[API] Loading layout '{layoutName}'...");
+                Log.LogInformation("Loading layout '{LayoutName}'...", layoutName);
 
                 var layout = ctx.LayoutStorageManager!.LoadLayout(layoutName);
                 if (layout == null)
@@ -658,7 +661,7 @@ public static class LayoutEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error loading layout: {ex.Message}");
+                Log.LogError("Error loading layout: {Message}", ex.Message);
                 return Results.Json(new { success = false, error = ex.Message });
             }
         });
@@ -672,7 +675,7 @@ public static class LayoutEndpoints
                 if (!deleted)
                     return Results.Json(new { success = false, error = $"Layout '{layoutName}' not found" });
 
-                Console.WriteLine($"[API] Layout '{layoutName}' deleted");
+                Log.LogInformation("Layout '{LayoutName}' deleted", layoutName);
                 return Results.Json(new { success = true, message = $"Layout '{layoutName}' deleted" });
             }
             catch (Exception ex)
@@ -708,7 +711,7 @@ public static class LayoutEndpoints
                     return Results.Json(new { success = false, error = $"Layout '{layoutName}' not found" });
 
                 ctx.LayoutStorageManager.SetDefaultLayout(layoutName);
-                Console.WriteLine($"[API] Layout '{layoutName}' set as default");
+                Log.LogInformation("Layout '{LayoutName}' set as default", layoutName);
 
                 return Results.Json(new { success = true, message = $"Layout '{layoutName}' set as default" });
             }
@@ -728,7 +731,7 @@ public static class LayoutEndpoints
                     return Results.Json(new { success = false, error = $"Layout '{layoutName}' is not the default" });
 
                 ctx.LayoutStorageManager.ClearDefaultLayout(layoutName);
-                Console.WriteLine("[API] Default layout cleared");
+                Log.LogInformation("Default layout cleared");
 
                 return Results.Json(new { success = true, message = "Default layout cleared" });
             }

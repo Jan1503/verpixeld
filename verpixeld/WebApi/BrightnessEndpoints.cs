@@ -7,10 +7,15 @@ namespace verpixeld.WebApi;
 /// <summary>
 ///     Brightness control API endpoints - Global and Per-Canvas
 /// </summary>
+[LogTag("API")]
 public static class BrightnessEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapBrightnessEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(BrightnessEndpoints));
         var ctx = app.Services.GetRequiredService<EndpointContext>();
 
         // Get global brightness
@@ -48,7 +53,7 @@ public static class BrightnessEndpoints
                 brightness = Math.Max(0.0, Math.Min(1.0, brightness));
 
                 ctx.CanvasManager.Brightness = (float)brightness;
-                Console.WriteLine($"[API] Global brightness set to {brightness:F2} ({(int)(brightness * 100)}%)");
+                Log.LogInformation("Global brightness set to {Brightness:F2} ({Value}%)", brightness, (int)(brightness * 100));
 
                 return ApiResponse.Ok(new
                 {
@@ -58,7 +63,7 @@ public static class BrightnessEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error setting global brightness: {ex.Message}");
+                Log.LogError("Error setting global brightness: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });
@@ -129,8 +134,7 @@ public static class BrightnessEndpoints
                 brightness = Math.Max(0.0, Math.Min(1.0, brightness));
 
                 canvas.Brightness = (float)brightness;
-                Console.WriteLine(
-                    $"[API] Canvas '{canvasName}' brightness set to {brightness:F2} ({(int)(brightness * 100)}%)");
+                Log.LogInformation("Canvas '{CanvasName}' brightness set to {Brightness:F2} ({Value}%)", canvasName, brightness, (int)(brightness * 100));
 
                 return ApiResponse.Ok(new
                 {
@@ -141,7 +145,7 @@ public static class BrightnessEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error setting canvas brightness: {ex.Message}");
+                Log.LogError("Error setting canvas brightness: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });

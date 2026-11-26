@@ -25,6 +25,7 @@ namespace verpixeld.Services;
 public class VoiceCommandService : IDisposable
 {
     private readonly ILogger<VoiceCommandService> _log;
+    private readonly ILoggerFactory _loggers;
 
     private readonly CanvasManager _canvasManager;
     private readonly AiImageService _aiImageService;
@@ -98,9 +99,10 @@ public class VoiceCommandService : IDisposable
         MediaPlayerService mediaPlayer, ICanvasContentManager contentManager,
         IExtensionDiscovery extensionDiscovery, MusicSearchService musicSearchService,
         RadioBrowserService radioBrowserService, AlertService alertService,
-        LocalCameraService localCameraService, int width, int height, ILogger<VoiceCommandService> log)
+        LocalCameraService localCameraService, int width, int height, ILoggerFactory loggers)
     {
-        _log = log;
+        _loggers = loggers;
+        _log = loggers.CreateLogger<VoiceCommandService>();
         _canvasManager = canvasManager;
         _aiImageService = aiImageService;
         _aiChatService = aiChatService;
@@ -114,15 +116,15 @@ public class VoiceCommandService : IDisposable
         _width = width;
         _height = height;
 
-        _tts = new TextToSpeechService();
-        _overlay = new VoiceOverlayManager(canvasManager);
+        _tts = new TextToSpeechService(_loggers.CreateLogger<TextToSpeechService>());
+        _overlay = new VoiceOverlayManager(canvasManager, _loggers.CreateLogger<VoiceOverlayManager>());
         _overlay.Initialize(width, height);
         _canvasManager.DisplayResized += OnDisplayResized;
 
         _configPath = AppPaths.VoiceConfig;
         LoadConfig();
 
-        _router = new VoiceCommandRouter(_aiChatService, BuildVoiceContext);
+        _router = new VoiceCommandRouter(_aiChatService, BuildVoiceContext, _loggers.CreateLogger<VoiceCommandRouter>());
         _log.LogInformation("Services wired: media, content manager, extensions, music search, alert, local camera, router");
 
         SdkAvailable = CheckSpeechSdkAvailable();
@@ -628,7 +630,7 @@ public class VoiceCommandService : IDisposable
         if (_persistentAudioSession == null)
         {
             var paSource = PulseAudioHelper.ResolvePaSource(AudioDevice);
-            _persistentAudioSession = new ParecAudioSession(paSource);
+            _persistentAudioSession = new ParecAudioSession(paSource, _loggers.CreateLogger<ParecAudioSession>());
             _log.LogInformation("Persistent audio session started");
         }
 
@@ -1276,7 +1278,7 @@ public class VoiceCommandService : IDisposable
             }
 
             var paSource = PulseAudioHelper.ResolvePaSource(AudioDevice);
-            using var session = new ParecAudioSession(paSource);
+            using var session = new ParecAudioSession(paSource, _loggers.CreateLogger<ParecAudioSession>());
             using var recognizer = new SpeechRecognizer(speechConfig, session.AudioConfig);
 
             var segments = new List<string>();

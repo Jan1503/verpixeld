@@ -12,8 +12,11 @@ namespace verpixeld.MediaPlayer.Audio;
 ///     Favorites and layouts start through their own API endpoints on this host, so the panel
 ///     behaves exactly like the web page.
 /// </summary>
+[LogTag("PANEL")]
 public sealed class PanelBridgeService
 {
+    private readonly ILogger<PanelBridgeService> _log;
+
     private readonly PixToneOutputService _board;
     private readonly MediaPlayerService _media;
     private readonly FavoritesService _favorites;
@@ -46,8 +49,9 @@ public sealed class PanelBridgeService
 
     public PanelBridgeService(PixToneOutputService board, MediaPlayerService media, FavoritesService favorites,
         RadioService radio, SleepTimerService sleep, AlarmService alarms, SongLogService songs,
-        IAudioVisualizerService visualizer, EndpointContext ctx, IConfiguration configuration)
+        IAudioVisualizerService visualizer, EndpointContext ctx, IConfiguration configuration, ILogger<PanelBridgeService> log)
     {
+        _log = log;
         _board = board;
         _media = media;
         _favorites = favorites;
@@ -77,7 +81,7 @@ public sealed class PanelBridgeService
         _radio.NowChanged += Kick;
         _sleep.Changed += Kick;
         _alarms.Changed += Kick;
-        Console.WriteLine("[PANEL] Audio board panel bridge ready");
+        _log.LogInformation("Audio board panel bridge ready");
     }
 
     private void Kick()
@@ -209,7 +213,7 @@ public sealed class PanelBridgeService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[PANEL] {key}: {ex.Message}");
+                _log.LogWarning("{Key}: {Message}", key, ex.Message);
             }
             Kick();
         });
@@ -257,7 +261,7 @@ public sealed class PanelBridgeService
                 var b = Math.Clamp(arg, (ushort)0, (ushort)100) / 100f;
                 _ctx.CanvasManager.Brightness = b;
                 if (b > 0.01f) _wallBrightness = b;
-                Console.WriteLine($"[PANEL] Wall brightness {arg}%");
+                _log.LogInformation("Wall brightness {Arg}%", arg);
                 break;
             }
             case PanelKey.WallPower:
@@ -265,7 +269,7 @@ public sealed class PanelBridgeService
                 var on = _ctx.CanvasManager.Brightness > 0.005f;
                 if (on) _wallBrightness = _ctx.CanvasManager.Brightness;
                 _ctx.CanvasManager.Brightness = on ? 0f : Math.Max(0.05f, _wallBrightness);
-                Console.WriteLine($"[PANEL] Wall {(on ? "off" : "on")}");
+                _log.LogInformation("Wall {Value}", (on ? "off" : "on"));
                 break;
             }
             case PanelKey.Select:
@@ -291,7 +295,7 @@ public sealed class PanelBridgeService
         var id = IdFor(list, generation, index);
         if (id == null)
         {
-            Console.WriteLine($"[PANEL] {list} entry {index} is gone");
+            _log.LogInformation("{List} entry {Index} is gone", list, index);
             return;
         }
         switch (list)
@@ -315,7 +319,7 @@ public sealed class PanelBridgeService
         using var resp = await _self.PostAsync(path, null);
         var body = await resp.Content.ReadAsStringAsync();
         if (body.Length > 160) body = body[..160];
-        Console.WriteLine($"[PANEL] {path} → {(int)resp.StatusCode} {body}");
+        _log.LogInformation("{Path} → {Value} {Body}", path, (int)resp.StatusCode, body);
     }
 
     /// <summary>For Home Assistant: the same toggle as the panel's SPECTRUM button.</summary>
@@ -324,7 +328,7 @@ public sealed class PanelBridgeService
         _ = Task.Run(async () =>
         {
             try { await ToggleVisualizerAsync(); }
-            catch (Exception ex) { Console.WriteLine("[PANEL] spectrum: " + ex.Message); }
+            catch (Exception ex) { _log.LogWarning("spectrum: {Message}", ex.Message); }
             Kick();
         });
     }
@@ -335,14 +339,14 @@ public sealed class PanelBridgeService
         if (_visualizer.IsRunning)
         {
             await _visualizer.StopAsync();
-            Console.WriteLine("[PANEL] Wall spectrum off");
+            _log.LogInformation("Wall spectrum off");
             return;
         }
         var canvases = _ctx.LayoutManager.GetAllCanvases()
             .Where(c => c.Canvas != null && !SystemOverlayCanvases.IsSystem(c.Name)).ToList();
         if (canvases.Count == 0)
         {
-            Console.WriteLine("[PANEL] No canvas for the spectrum");
+            _log.LogInformation("No canvas for the spectrum");
             return;
         }
         var pick = canvases.FirstOrDefault(c => c.Name == _visualCanvas);
@@ -361,7 +365,7 @@ public sealed class PanelBridgeService
     {
         var old = _media.AudioSyncOffsetMs;
         _media.AudioSyncOffsetMs = Math.Clamp(ms, -2000, 2000);
-        Console.WriteLine($"[PANEL] A/V sync {_media.AudioSyncOffsetMs} ms");
+        _log.LogInformation("A/V sync {AudioSyncOffsetMs} ms", _media.AudioSyncOffsetMs);
         if (old == _media.AudioSyncOffsetMs) return;
         _syncApply?.Cancel();
         var cts = new CancellationTokenSource();

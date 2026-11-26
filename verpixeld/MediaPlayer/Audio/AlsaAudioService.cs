@@ -8,8 +8,11 @@ namespace verpixeld.MediaPlayer.Audio;
 ///     ALSA-based audio service for media playback
 ///     Uses aplay for WAV playback, mikmod/xmp for MOD files
 /// </summary>
+[LogTag("AUDIO")]
 public class AlsaAudioService : IDisposable
 {
+    private readonly ILogger<AlsaAudioService> _log;
+
     // Audio generation parameters
     private const int SampleRate = 44100;
     private const int Channels = 1;
@@ -24,8 +27,9 @@ public class AlsaAudioService : IDisposable
     private Process? _modProcess;
     private float _volume = 0.7f;
 
-    public AlsaAudioService()
+    public AlsaAudioService(ILogger<AlsaAudioService> log)
     {
+        _log = log;
         _isLinux = RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
         _tempDir = Path.Combine(Path.GetTempPath(), "verpixeld_audio");
 
@@ -46,14 +50,14 @@ public class AlsaAudioService : IDisposable
                 IsEnabled = proc?.ExitCode == 0;
 
                 if (IsEnabled)
-                    Console.WriteLine("[AUDIO] ALSA audio enabled (aplay found)");
+                    _log.LogInformation("ALSA audio enabled (aplay found)");
                 else
-                    Console.WriteLine("[AUDIO] ALSA audio disabled (aplay not found)");
+                    _log.LogInformation("ALSA audio disabled (aplay not found)");
             }
             catch
             {
                 IsEnabled = false;
-                Console.WriteLine("[AUDIO] ALSA audio disabled (error checking aplay)");
+                _log.LogInformation("ALSA audio disabled (error checking aplay)");
             }
 
             // Detect MOD player
@@ -61,7 +65,7 @@ public class AlsaAudioService : IDisposable
         }
         else
         {
-            Console.WriteLine("[AUDIO] ALSA audio disabled (not running on Linux)");
+            _log.LogInformation("ALSA audio disabled (not running on Linux)");
             IsEnabled = false;
         }
     }
@@ -126,14 +130,14 @@ public class AlsaAudioService : IDisposable
 
                 if (proc?.ExitCode == 0)
                 {
-                    Console.WriteLine($"[AUDIO] Volume set to {percent}% via {control}");
+                    _log.LogInformation("Volume set to {Percent}% via {Control}", percent, control);
                     return;
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUDIO] Failed to set volume: {ex.Message}");
+            _log.LogError("Failed to set volume: {Message}", ex.Message);
         }
     }
 
@@ -195,11 +199,11 @@ public class AlsaAudioService : IDisposable
             }
 
             IsMuted = true;
-            Console.WriteLine("[AUDIO] Muted");
+            _log.LogInformation("Muted");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUDIO] Failed to mute: {ex.Message}");
+            _log.LogError("Failed to mute: {Message}", ex.Message);
         }
     }
 
@@ -229,11 +233,11 @@ public class AlsaAudioService : IDisposable
             }
 
             IsMuted = false;
-            Console.WriteLine("[AUDIO] Unmuted");
+            _log.LogInformation("Unmuted");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUDIO] Failed to unmute: {ex.Message}");
+            _log.LogError("Failed to unmute: {Message}", ex.Message);
         }
     }
 
@@ -266,11 +270,11 @@ public class AlsaAudioService : IDisposable
             {
                 _modPlayer = player;
                 _modPlayerArgs = loopArgs;
-                Console.WriteLine($"[AUDIO] MOD player found: {player}");
+                _log.LogInformation("MOD player found: {Player}", player);
                 return;
             }
 
-        Console.WriteLine("[AUDIO] No MOD player found (install xmp, mikmod, or openmpt123)");
+        _log.LogInformation("No MOD player found (install xmp, mikmod, or openmpt123)");
     }
 
     private bool IsCommandAvailable(string command)
@@ -308,7 +312,7 @@ public class AlsaAudioService : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[AUDIO] Error playing tone: {ex.Message}");
+                _log.LogError("Error playing tone: {Message}", ex.Message);
             }
         });
     }
@@ -352,7 +356,7 @@ public class AlsaAudioService : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[AUDIO] Error playing noise: {ex.Message}");
+                _log.LogError("Error playing noise: {Message}", ex.Message);
             }
         });
     }
@@ -373,7 +377,7 @@ public class AlsaAudioService : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[AUDIO] Error playing kick: {ex.Message}");
+                _log.LogError("Error playing kick: {Message}", ex.Message);
             }
         });
     }
@@ -394,7 +398,7 @@ public class AlsaAudioService : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[AUDIO] Error playing hi-hat: {ex.Message}");
+                _log.LogError("Error playing hi-hat: {Message}", ex.Message);
             }
         });
     }
@@ -441,13 +445,13 @@ public class AlsaAudioService : IDisposable
     {
         if (_modPlayer == null)
         {
-            Console.WriteLine("[AUDIO] No MOD player available");
+            _log.LogInformation("No MOD player available");
             return false;
         }
 
         if (!File.Exists(modFilePath))
         {
-            Console.WriteLine($"[AUDIO] MOD file not found: {modFilePath}");
+            _log.LogInformation("MOD file not found: {ModFilePath}", modFilePath);
             return false;
         }
 
@@ -457,7 +461,7 @@ public class AlsaAudioService : IDisposable
         try
         {
             var args = $"{_modPlayerArgs} \"{modFilePath}\"";
-            Console.WriteLine($"[AUDIO] Starting MOD playback: {_modPlayer} {args}");
+            _log.LogInformation("Starting MOD playback: {ModPlayer} {Args}", _modPlayer, args);
 
             var psi = new ProcessStartInfo(_modPlayer, args)
             {
@@ -473,7 +477,7 @@ public class AlsaAudioService : IDisposable
             {
                 IsModPlaying = true;
                 CurrentModFile = Path.GetFileName(modFilePath);
-                Console.WriteLine($"[AUDIO] MOD playback started: {CurrentModFile}");
+                _log.LogInformation("MOD playback started: {CurrentModFile}", CurrentModFile);
 
                 // Monitor for process exit
                 Task.Run(async () =>
@@ -483,7 +487,7 @@ public class AlsaAudioService : IDisposable
                         await _modProcess.WaitForExitAsync();
                         IsModPlaying = false;
                         CurrentModFile = null;
-                        Console.WriteLine("[AUDIO] MOD playback ended");
+                        _log.LogInformation("MOD playback ended");
                     }
                     catch { /* best effort, nothing to recover */ }
                 });
@@ -493,7 +497,7 @@ public class AlsaAudioService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUDIO] Error starting MOD playback: {ex.Message}");
+            _log.LogError("Error starting MOD playback: {Message}", ex.Message);
         }
 
         return false;
@@ -510,7 +514,7 @@ public class AlsaAudioService : IDisposable
                 if (!_modProcess.HasExited)
                 {
                     _modProcess.Kill();
-                    Console.WriteLine("[AUDIO] MOD playback stopped");
+                    _log.LogInformation("MOD playback stopped");
                 }
             }
             catch { /* best effort, nothing to recover */ }
@@ -687,7 +691,7 @@ public class AlsaAudioService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUDIO] aplay error: {ex.Message}");
+            _log.LogError("aplay error: {Message}", ex.Message);
         }
     }
 
@@ -716,7 +720,7 @@ public class AlsaAudioService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUDIO] aplay error: {ex.Message}");
+            _log.LogError("aplay error: {Message}", ex.Message);
         }
     }
 }

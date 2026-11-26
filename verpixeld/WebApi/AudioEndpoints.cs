@@ -11,6 +11,9 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class AudioEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -19,6 +22,7 @@ public static class AudioEndpoints
 
     public static void MapAudioEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(AudioEndpoints));
         var audioService = app.Services.GetRequiredService<IAudioOutputService>();
         var bluetoothService = app.Services.GetRequiredService<BluetoothAudioService>();
         var vap1 = app.Services.GetRequiredService<PixToneOutputService>();
@@ -200,7 +204,7 @@ public static class AudioEndpoints
                 }
                 var clampedVolume = Math.Clamp(volume, 0, 150);
                 var success = await audioService.SetVolumeAsync(clampedVolume);
-                Console.WriteLine($"[AUDIO] Volume API: set to {clampedVolume}%, success={success}");
+                Log.LogInformation("Volume API: set to {ClampedVolume}%, success={Success}", clampedVolume, success);
                 return Results.Json(new { success, volume = clampedVolume }, _jsonOptions);
             }
             catch (Exception ex)

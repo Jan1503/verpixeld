@@ -7,10 +7,15 @@ namespace verpixeld.WebApi;
 /// <summary>
 ///     Night mode API endpoints - Automatic brightness scheduling
 /// </summary>
+[LogTag("API")]
 public static class NightModeEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapNightModeEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(NightModeEndpoints));
         var ctx = app.Services.GetRequiredService<EndpointContext>();
 
         // Get night mode configuration
@@ -23,7 +28,7 @@ public static class NightModeEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error getting night mode config: {ex.Message}");
+                Log.LogError("Error getting night mode config: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });
@@ -42,7 +47,7 @@ public static class NightModeEndpoints
 
                 ctx.NightModeManager!.UpdateConfiguration(config);
 
-                Console.WriteLine($"[API] Night mode configuration updated. Enabled: {config.Enabled}");
+                Log.LogInformation("Night mode configuration updated. Enabled: {Enabled}", config.Enabled);
 
                 return ApiResponse.Ok(new
                 {
@@ -52,7 +57,7 @@ public static class NightModeEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error updating night mode config: {ex.Message}");
+                Log.LogError("Error updating night mode config: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });
@@ -76,7 +81,7 @@ public static class NightModeEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error getting night mode status: {ex.Message}");
+                Log.LogError("Error getting night mode status: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });
@@ -86,13 +91,12 @@ public static class NightModeEndpoints
         {
             try
             {
-                Console.WriteLine("[API] Force night mode update requested");
+                Log.LogInformation("Force night mode update requested");
                 ctx.NightModeManager!.ForceUpdateImmediate();
 
                 var (isActive, currentBrightness, targetBrightness, mode) = ctx.NightModeManager.GetStatus();
 
-                Console.WriteLine(
-                    $"[API] Night mode update applied - Mode: {mode}, Brightness: {currentBrightness:F2}");
+                Log.LogInformation("Night mode update applied - Mode: {Mode}, Brightness: {CurrentBrightness:F2}", mode, currentBrightness);
 
                 return ApiResponse.Ok(new
                 {
@@ -104,7 +108,7 @@ public static class NightModeEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error forcing night mode update: {ex.Message}");
+                Log.LogError("Error forcing night mode update: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });

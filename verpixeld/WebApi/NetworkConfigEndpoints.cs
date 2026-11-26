@@ -12,10 +12,15 @@ namespace verpixeld.WebApi;
 ///     the running <see cref="NetworkMatrixRenderer"/> WITHOUT a restart when that output is active, and
 ///     always persists to the "Network" section of appsettings.json when requested.
 /// </summary>
+[LogTag("API")]
 public static class NetworkConfigEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapNetworkConfigEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(NetworkConfigEndpoints));
         var renderer = app.Services.GetRequiredService<IMatrixRenderer>();
         var runtime = renderer as OutputRuntime;
         var canvas = app.Services.GetRequiredService<CanvasManager>();
@@ -126,7 +131,7 @@ public static class NetworkConfigEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Error setting network config: {ex.Message}");
+                Log.LogError("Error setting network config: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });
@@ -146,7 +151,7 @@ public static class NetworkConfigEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Panel discover: {ex.Message}");
+                Log.LogWarning("Panel discover: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });
@@ -165,7 +170,7 @@ public static class NetworkConfigEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[API] Panel identify: {ex.Message}");
+                Log.LogWarning("Panel identify: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });

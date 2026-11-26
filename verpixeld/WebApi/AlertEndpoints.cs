@@ -10,8 +10,12 @@ namespace verpixeld.WebApi;
 /// </summary>
 public static class AlertEndpoints
 {
+    /// <summary>Set when the endpoints are mapped; handlers in helper methods log through it too.</summary>
+    private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public static void MapAlertEndpoints(this WebApplication app)
     {
+        Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(AlertEndpoints));
         var alertService = app.Services.GetRequiredService<AlertService>();
 
         var group = app.MapGroup("/api/alert");
@@ -31,7 +35,7 @@ public static class AlertEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ALERT] Trigger error: {ex.Message}");
+                Log.LogError("Trigger error: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });
@@ -46,7 +50,7 @@ public static class AlertEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ALERT] Dismiss error: {ex.Message}");
+                Log.LogError("Dismiss error: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });
@@ -82,7 +86,7 @@ public static class AlertEndpoints
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ALERT] Configure error: {ex.Message}");
+                Log.LogError("Configure error: {Message}", ex.Message);
                 return ApiResponse.Error(ex);
             }
         });
