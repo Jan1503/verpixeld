@@ -16,32 +16,32 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: RGB-Display/verpixeld
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: Jan1503/canvasmanagement
           path: RGB-Display/CanvasManagement
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: Jan1503/pixplane
           path: RGB-Display/pixplane
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: Jan1503/pixtone
           path: RGB-Display/pixtone
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: Jan1503/rpi-rgb-led-matrix
           ref: fm6363-128
           path: '!Repos/rpi-rgb-led-matrix'
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: denoland/setup-deno@v2
         with:
