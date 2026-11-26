@@ -4,7 +4,7 @@
 
 import { api } from '../core/api.js';
 import { showConfirm, showPrompt } from '../ui/modal.js';
-import { escapeHtml, onAction, onReady, wire } from '../utils/helpers.js';
+import { escapeHtml, notifyError, onAction, onReady, wire } from '../utils/helpers.js';
 
 console.log('[FAVORITES] Module loading...');
 
@@ -484,7 +484,7 @@ async function removeHistoryItem(index) {
     await api.del(`/api/history/${index}?key=${encodeURIComponent(item?.key || '')}`);
     fetchHistory();
   } catch (error) {
-    reportError('Favorites', error);
+    notifyError('Favorites', error);
   }
 }
 
@@ -586,7 +586,7 @@ async function toggleAutoPlay() {
       renderFavorites();
       window.toast?.success('Auto-Play', 'Stopped');
     } catch (error) {
-      reportError('Favorites', error);
+      notifyError('Favorites', error);
     }
   } else {
     // Start auto-play

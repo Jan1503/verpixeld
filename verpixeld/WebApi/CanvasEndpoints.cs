@@ -24,6 +24,7 @@ public static class CanvasEndpoints
         var contentManager = app.Services.GetRequiredService<ICanvasContentManager>();
         var rotationService = app.Services.GetRequiredService<CanvasRotationService>();
         var mediaService = app.Services.GetRequiredService<MediaPlayerService>();
+        var filterFactory = app.Services.GetRequiredService<FilterFactory>();
 
         // Resolve a canvas by name. The layout manager only tracks canvases it created; live overlays added
         // directly on the CanvasManager (e.g. the MediaPlayer video overlay) aren't in its dictionary, so fall
@@ -494,6 +495,8 @@ public static class CanvasEndpoints
                 copy.Brightness = src.Brightness;
                 copy.PanelColorBits = src.PanelColorBits;
                 copy.TransparentBackground = src.TransparentBackground;
+                // Own instances: effects keep animation state, the copy must not share it.
+                copy.SetFilters(filterFactory.CreateAll(src.Filters.Select(FilterFactory.Describe)));
                 if (src.IsHidden) copy.Hide();
                 else copy.Show();
 

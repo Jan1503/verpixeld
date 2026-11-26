@@ -59,6 +59,25 @@ await walk(target);
 for (const line of inline) console.error(line);
 findings.push(...inline.map((message) => ({ code: "inline-handler", message })));
 
+// A module function named like a runtime global (reportError, structuredClone, …) hides a missing
+// import from no-undef: the other module silently calls the built-in instead. Forbid such names.
+const runtimeGlobals = new Set(Object.getOwnPropertyNames(globalThis));
+const shadowing: string[] = [];
+const declarations = /^(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*|const\s+|let\s+|var\s+|class\s+)(\w+)/gm;
+const collect = async (dir: string): Promise<void> => {
+  for await (const e of Deno.readDir(dir)) {
+    const p = `${dir}/${e.name}`;
+    if (e.isDirectory) { await collect(p); continue; }
+    if (!p.endsWith(".js")) continue;
+    for (const m of (await Deno.readTextFile(p)).matchAll(declarations)) {
+      if (runtimeGlobals.has(m[1])) shadowing.push(`${p.split("/wwwroot/").pop()}  shadows-global  '${m[1]}' is a browser/runtime global; pick another name`);
+    }
+  }
+};
+await collect(target);
+for (const line of shadowing) console.error(line);
+findings.push(...shadowing.map((message) => ({ code: "shadows-global", message })));
+
 const files = report.checked_files?.length ?? "?";
 if (findings.length || report.errors?.length) {
   console.error(`\n${findings.length} finding(s), ${report.errors?.length ?? 0} parse error(s) in ${files} files`);

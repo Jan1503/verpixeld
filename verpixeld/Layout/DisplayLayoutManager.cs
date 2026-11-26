@@ -185,6 +185,7 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         var panelBits = old.PanelColorBits;
         var hidden = old.IsHidden;
         var transparent = old.TransparentBackground;
+        var effects = old.Filters; // filters follow the size of whatever bitmap they get
 
         try { _audioVisualizerService?.NotifyCanvasRemoved(name); }
         catch { /* Ignore if service not available */ }
@@ -197,6 +198,7 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         canvas.Brightness = brightness;
         canvas.PanelColorBits = panelBits;
         canvas.TransparentBackground = transparent;
+        canvas.SetFilters(effects);
         if (hidden) canvas.Hide();
         else canvas.Show();
         _namedCanvases[name] = canvas;

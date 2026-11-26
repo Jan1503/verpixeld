@@ -18,19 +18,19 @@ public class LayoutLoaderService : ILayoutLoaderService
 
     private readonly CanvasManager _canvasManager;
     private readonly ICanvasContentManager _contentManager;
-    private readonly IFilterDiscovery _filterDiscovery;
+    private readonly FilterFactory _filters;
     private readonly IDisplayLayoutManager _layoutManager;
     private readonly INightModeManager _nightModeManager;
     private readonly CanvasRotationService? _rotationService;
 
-    public LayoutLoaderService(CanvasManager canvasManager, IDisplayLayoutManager layoutManager, ICanvasContentManager contentManager, INightModeManager nightModeManager, IFilterDiscovery filterDiscovery, ILogger<LayoutLoaderService> log, CanvasRotationService? rotationService = null)
+    public LayoutLoaderService(CanvasManager canvasManager, IDisplayLayoutManager layoutManager, ICanvasContentManager contentManager, INightModeManager nightModeManager, FilterFactory filters, ILogger<LayoutLoaderService> log, CanvasRotationService? rotationService = null)
     {
         _log = log;
         _canvasManager = canvasManager;
         _layoutManager = layoutManager;
         _contentManager = contentManager;
         _nightModeManager = nightModeManager;
-        _filterDiscovery = filterDiscovery;
+        _filters = filters;
         _rotationService = rotationService;
     }
 
@@ -198,6 +198,8 @@ public class LayoutLoaderService : ILayoutLoaderService
             canvas.Opacity = (float)canvasConfig.Opacity;
             canvas.PanelColorBits = canvasConfig.PanelColorBits;
             canvas.TransparentBackground = canvasConfig.TransparentBackground;
+            // Effects of this canvas only (an older scene has none: the chain is cleared).
+            canvas.SetFilters(_filters.CreateAll(canvasConfig.Filters));
             if (canvasConfig.Hidden) canvas.Hide();
             else canvas.Show();
             _canvasManager.SetCanvasZOrder(canvas, canvasConfig.ZOrder);
@@ -266,67 +268,14 @@ public class LayoutLoaderService : ILayoutLoaderService
         _canvasManager.ClearFilters();
         var restoredCount = 0;
 
-        foreach (var filterConfig in layout.Filters)
-            try
-            {
-                var filter = _filterDiscovery.Create(filterConfig.FilterType)
-                             ?? _filterDiscovery.CreateByDisplayName(filterConfig.FilterType);
-
-                if (filter != null && filterConfig.Parameters != null)
-                {
-                    ApplyFilterParameters(filter, filterConfig.Parameters);
-                    _canvasManager.AddFilter(filter);
-                    restoredCount++;
-                    _log.LogInformation("[{Source}] Restored filter: {FilterType}", source, filterConfig.FilterType);
-                }
-            }
-            catch (Exception ex)
-            {
-                _log.LogError("[{Source}] Failed to restore filter '{FilterType}': {Message}", source, filterConfig.FilterType, ex.Message);
-            }
+        foreach (var filter in _filters.CreateAll(layout.Filters))
+        {
+            _canvasManager.AddFilter(filter);
+            restoredCount++;
+            _log.LogInformation("[{Source}] Restored filter: {FilterType}", source, filter.GetType().Name);
+        }
 
         return restoredCount;
-    }
-
-    private static void ApplyFilterParameters(object filter, Dictionary<string, object> parameters)
-    {
-        var filterType = filter.GetType();
-
-        foreach (var kvp in parameters)
-        {
-            var prop = filterType.GetProperty(kvp.Key);
-            if (prop == null || !prop.CanWrite) continue;
-
-            try
-            {
-                var value = ConvertParameterValue(kvp.Value, prop.PropertyType);
-                prop.SetValue(filter, value);
-            }
-            catch
-            {
-                // Silently skip parameters that can't be set
-            }
-        }
-    }
-
-    private static object? ConvertParameterValue(object value, Type targetType)
-    {
-        if (targetType.IsEnum && value is string enumStr)
-            return Enum.Parse(targetType, enumStr, true);
-
-        if (targetType == typeof(SKColor) && value is string colorStr)
-        {
-            SKColor.TryParse(colorStr, out var skColor);
-            return skColor;
-        }
-
-        if (targetType == typeof(int) && value is long longVal)
-            return (int)longVal;
-
-        if (targetType == typeof(float) && value is double doubleVal)
-            return (float)doubleVal;
-
-        return value;
     }
 }
 

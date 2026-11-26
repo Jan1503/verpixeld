@@ -29,95 +29,9 @@ public static class EndpointHelpers
         return parameters;
     }
 
-    public static void ApplyFilterParameters(object filter, Dictionary<string, object> parameters)
-    {
-        var type = filter.GetType();
-
-        foreach (var (key, value) in parameters)
-        {
-            var prop = type.GetProperty(key);
-            if (prop != null && prop.CanWrite)
-                try
-                {
-                    object? convertedValue = null;
-
-                    if (value is JsonElement jsonElement)
-                    {
-                        if (prop.PropertyType == typeof(int))
-                            convertedValue = jsonElement.GetInt32();
-                        else if (prop.PropertyType == typeof(float))
-                            convertedValue = (float)jsonElement.GetDouble();
-                        else if (prop.PropertyType == typeof(double))
-                            convertedValue = jsonElement.GetDouble();
-                        else if (prop.PropertyType == typeof(bool))
-                            convertedValue = jsonElement.GetBoolean();
-                        else if (prop.PropertyType == typeof(byte))
-                            convertedValue = jsonElement.GetByte();
-                        else if (prop.PropertyType == typeof(string))
-                            convertedValue = jsonElement.GetString();
-                    }
-                    else if (prop.PropertyType == typeof(int))
-                    {
-                        if (value is long longVal)
-                            convertedValue = (int)longVal;
-                        else if (value is double doubleVal)
-                            convertedValue = (int)doubleVal;
-                        else if (value is string strVal && int.TryParse(strVal, out var intVal))
-                            convertedValue = intVal;
-                        else
-                            convertedValue = Convert.ToInt32(value);
-                    }
-                    else if (prop.PropertyType == typeof(float))
-                    {
-                        if (value is double doubleVal)
-                            convertedValue = (float)doubleVal;
-                        else if (value is long longVal)
-                            convertedValue = (float)longVal;
-                        else if (value is string strVal && float.TryParse(strVal, out var floatVal))
-                            convertedValue = floatVal;
-                        else
-                            convertedValue = Convert.ToSingle(value);
-                    }
-                    else if (prop.PropertyType == typeof(double))
-                    {
-                        if (value is long longVal)
-                            convertedValue = (double)longVal;
-                        else if (value is string strVal && double.TryParse(strVal, out var doubleVal))
-                            convertedValue = doubleVal;
-                        else
-                            convertedValue = Convert.ToDouble(value);
-                    }
-                    else if (prop.PropertyType == typeof(byte))
-                    {
-                        if (value is int intVal)
-                            convertedValue = (byte)intVal;
-                        else if (value is long longVal)
-                            convertedValue = (byte)longVal;
-                        else if (value is double doubleVal)
-                            convertedValue = (byte)doubleVal;
-                        else
-                            convertedValue = Convert.ToByte(value);
-                    }
-                    else if (prop.PropertyType == typeof(bool))
-                    {
-                        if (value is string strVal)
-                            convertedValue = bool.Parse(strVal);
-                        else
-                            convertedValue = Convert.ToBoolean(value);
-                    }
-                    else
-                    {
-                        convertedValue = Convert.ChangeType(value, prop.PropertyType);
-                    }
-
-                    prop.SetValue(filter, convertedValue);
-                }
-                catch
-                {
-                    // Skip properties that can't be set
-                }
-        }
-    }
+    /// <summary>Sets filter settings from an API request (see <see cref="Services.FilterFactory.Apply" />).</summary>
+    public static void ApplyFilterParameters(object filter, Dictionary<string, object> parameters) =>
+        Services.FilterFactory.Apply(filter, parameters);
 
     public static Dictionary<string, object> ExtractParameterInfo(object parameter)
     {

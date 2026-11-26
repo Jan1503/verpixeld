@@ -6,7 +6,7 @@ import { api } from '../core/api.js';
 import { loadCanvasStack } from './canvas-stack.js';
 import { fetchMediaStatus } from './media-player.js';
 import { showConfirm } from '../ui/modal.js';
-import { escapeHtml, onAction, onReady, wire } from '../utils/helpers.js';
+import { escapeHtml, notifyError, onAction, onReady, wire } from '../utils/helpers.js';
 
 let networkShares = [];
 let editingShareId = null;
@@ -93,7 +93,7 @@ async function deleteNetworkShare(id) {
     window.toast.success('Network', 'Share removed');
     await fetchNetworkShares();
   } catch (error) {
-    reportError('Network', error);
+    notifyError('Network', error);
   }
 }
 

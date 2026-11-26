@@ -7,7 +7,7 @@ import { loadCanvasStack } from './canvas-stack.js';
 import { radioPageShown } from './radio.js';
 import { showConfirm, showMessage } from '../ui/modal.js';
 import { updateMediaPlayerBar } from '../ui/tabs.js';
-import { contentTargetCanvases, escapeHtml, onAction, onReady, wire } from '../utils/helpers.js';
+import { contentTargetCanvases, escapeHtml, notifyError, onAction, onReady, wire } from '../utils/helpers.js';
 
 // Global media state - exposed immediately for other scripts
 window.mediaState = window.mediaState || {};
@@ -234,7 +234,7 @@ async function toggleMediaPause() {
       updateMediaUI();
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -252,7 +252,7 @@ async function playNextTrack() {
       window.toast.info('Media', result.message || 'End of playlist');
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -270,7 +270,7 @@ async function playPreviousTrack() {
       window.toast.info('Media', result.message || 'Start of playlist');
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -288,7 +288,7 @@ async function toggleShuffleMode() {
       updateMediaUI();
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -306,7 +306,7 @@ async function toggleRepeatMode() {
       updateMediaUI();
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -349,7 +349,7 @@ async function seekMediaVideo(event) {
       }
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -367,7 +367,7 @@ async function toggleMediaMute() {
       window.toast.info('Audio', result.message);
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -402,7 +402,7 @@ export async function setMediaVolume(volume) {
       }
     }, 300);
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -429,7 +429,7 @@ async function setAudioSync(offsetMs) {
       }
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -450,7 +450,7 @@ async function setScaleFilter(filter) {
       window.toast?.error('Scale', result.message);
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -474,7 +474,7 @@ async function selectModFile(filename) {
       window.toast.error('Music', result.message || 'Failed to set music');
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -492,7 +492,7 @@ async function stopModMusic() {
       await fetchMediaStatus();
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -644,7 +644,7 @@ async function deleteAudioFile(filename) {
       window.toast.error('Audio', result.message || 'Delete failed');
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -666,7 +666,7 @@ async function deleteMediaVideo(filename) {
       window.toast.error('Media', result.message || 'Delete failed');
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -1056,7 +1056,7 @@ async function setMediaTargetCanvas(canvasName) {
       console.log(`[MEDIA] Target canvas set to: ${result.targetCanvasName}`);
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 

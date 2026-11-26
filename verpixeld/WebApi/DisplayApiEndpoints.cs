@@ -31,6 +31,7 @@ public static class DisplayApiEndpoints
         app.MapExtensionEndpoints();
         app.MapPluginEndpoints();
         app.MapCanvasEndpoints();
+        app.MapCanvasEffectEndpoints();
         app.MapDrawingEndpoints();
     }
 

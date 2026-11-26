@@ -27,7 +27,7 @@ export function trackAction(el, result) {
     el.setAttribute('aria-busy', 'true');
   }, 150);
   result
-    .catch(error => reportError('Action failed', error))
+    .catch(error => notifyError('Action failed', error))
     .finally(() => {
       clearTimeout(timer);
       el._busy = false;
@@ -42,7 +42,7 @@ export function trackAction(el, result) {
  * background loads and polls keep failing quietly (console), or a server restart would spam toasts.
  */
 const _lastReported = new Map();
-function reportError(area, error) {
+export function notifyError(area, error) {
   console.error(`[${area}]`, error);
   const message = error?.message || String(error);
   const key = area + '|' + message;

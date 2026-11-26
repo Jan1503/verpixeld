@@ -20,6 +20,7 @@ import './features/saved-layouts.js';
 import './features/playlist.js';
 import './features/canvas-editor.js';
 import './features/layer-editor.js';
+import './features/canvas-effects.js';
 import './features/system-control.js';
 import './features/filter-management.js';
 import './features/extension-management.js';

@@ -1,0 +1,60 @@
+/* Effects of the canvas selected in the Studio inspector (js/features/canvas-effects.js) */
+
+.le-fx {
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.03));
+}
+
+.le-fx.is-off {
+  opacity: 0.55;
+}
+
+.le-fx-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.le-fx-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.le-fx-acts {
+  display: flex;
+  gap: 2px;
+}
+
+.le-fx-strength input[type="range"] {
+  flex: 1;
+}
+
+.le-fx-pct {
+  min-width: 3.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.le-fx-params {
+  margin-top: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px 12px;
+}
+
+.le-fx-add {
+  gap: 6px;
+}
+
+.le-fx-add select {
+  flex: 1;
+  min-width: 0;
+}

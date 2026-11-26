@@ -12,8 +12,9 @@ import { openPlaylistDialog } from './playlist.js';
 import { deleteSavedLayout, fetchSavedLayouts, loadSavedLayout, setAsDefaultLayout } from './saved-layouts.js';
 import { showConfirm, showMessage, showPrompt } from '../ui/modal.js';
 import { switchTab } from '../ui/tabs.js';
-import { escapeHtml, onAction, wire } from '../utils/helpers.js';
+import { escapeHtml, notifyError, onAction, wire } from '../utils/helpers.js';
 import { refreshAllCanvasSelectors } from './canvas-selectors.js';
+import { renderCanvasEffects } from './canvas-effects.js';
 
 export const layerEditor = {
   open: false,
@@ -732,10 +733,16 @@ function renderInspector() {
       </div>
     </div>
 
+    ${isSys ? '' : `<div class="le-section">
+      <div class="le-section-title">Effects</div>
+      <div id="le-effects" class="le-effects"></div>
+    </div>`}
+
     <div class="le-section">
       <div class="le-section-title">Content</div>
       <div id="le-content"></div>
     </div>`;
+  if (!isSys) renderCanvasEffects(c.name);
   if (isSys) {
     const host = document.getElementById('le-content');
     if (host)
@@ -1250,7 +1257,7 @@ async function layerEditorSetOpacity(value) {
   try {
     await window.api.put('/api/canvas/' + encodeURIComponent(name) + '/opacity', { opacity });
   } catch (e) {
-    reportError('Studio', e);
+    notifyError('Studio', e);
   }
 }
 
@@ -1265,7 +1272,7 @@ async function layerEditorSetBrightness(value) {
   try {
     await window.api.post('/api/brightness/canvas/' + encodeURIComponent(name), { brightness });
   } catch (e) {
-    reportError('Studio', e);
+    notifyError('Studio', e);
   }
 }
 
@@ -1313,7 +1320,7 @@ async function layerEditorSetPanelBits(value) {
   try {
     await window.api.put('/api/canvas/' + encodeURIComponent(name) + '/colorbits', { panelColorBits });
   } catch (e) {
-    reportError('Studio', e);
+    notifyError('Studio', e);
   }
 }
 
@@ -1967,7 +1974,7 @@ async function contentToggleParams(i) {
       const r = await window.api.get('/api/canvas/' + encodeURIComponent(s.name) + '/rotation/step/' + i);
       config = (r.data && r.data.config) || {};
     }
-  } catch (e) { reportError('Studio', e); }
+  } catch (e) { notifyError('Studio', e); }
 
   host.dataset.ext = ext || '';
   host.dataset.open = '1';

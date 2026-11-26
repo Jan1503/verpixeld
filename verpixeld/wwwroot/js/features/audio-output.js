@@ -5,7 +5,7 @@
 import { API_BASE } from '../constants.js';
 import { api } from '../core/api.js';
 import { showConfirm } from '../ui/modal.js';
-import { escapeHtml, onReady, wire } from '../utils/helpers.js';
+import { escapeHtml, notifyError, onReady, wire } from '../utils/helpers.js';
 
 let audioSystemStatus = {
   pulseAudioAvailable: false,
@@ -306,7 +306,7 @@ function setBoardVolume(value) {
     try {
       await api.post(`/api/audio/volume?volume=${shown}`);
     } catch (error) {
-      reportError('Audio', error);
+      notifyError('Audio', error);
     }
   }, 80);
 }
@@ -315,7 +315,7 @@ async function setWallPreview(on) {
   try {
     await api.post('/api/audio/pixtone/preview?on=' + (on ? 'true' : 'false'));
   } catch (error) {
-    reportError('Audio', error);
+    notifyError('Audio', error);
   }
 }
 
@@ -323,7 +323,7 @@ async function setPreviewFps(fps) {
   try {
     await api.post('/api/audio/pixtone/preview-fps?fps=' + encodeURIComponent(fps));
   } catch (error) {
-    reportError('Audio', error);
+    notifyError('Audio', error);
   }
 }
 
@@ -331,7 +331,7 @@ async function setPreviewFill(on) {
   try {
     await api.post('/api/audio/pixtone/preview-fill?on=' + (on ? 'true' : 'false'));
   } catch (error) {
-    reportError('Audio', error);
+    notifyError('Audio', error);
   }
 }
 
@@ -339,7 +339,7 @@ async function setPreviewWidth(width) {
   try {
     await api.post('/api/audio/pixtone/preview-width?width=' + encodeURIComponent(width));
   } catch (error) {
-    reportError('Audio', error);
+    notifyError('Audio', error);
   }
 }
 
@@ -348,7 +348,7 @@ async function toggleBoardMute() {
     await api.post('/api/audio/mute/toggle');
     await refreshAudioStatusSilent();
   } catch (error) {
-    reportError('Audio', error);
+    notifyError('Audio', error);
   }
 }
 

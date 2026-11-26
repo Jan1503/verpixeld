@@ -4,7 +4,7 @@
    ============================================================================ */
 
 import { setMediaVolume } from '../features/media-player.js';
-import { mediaPlaybackCanvasName, onReady, wire } from '../utils/helpers.js';
+import { mediaPlaybackCanvasName, notifyError, onReady, wire } from '../utils/helpers.js';
 
 // Tab state
 const tabState = {
@@ -566,7 +566,7 @@ async function setDemoVolume(value) {
         }
       }, 200);
     } catch (error) {
-      reportError('Playback', error);
+      notifyError('Playback', error);
     }
   }, 100);
 }
@@ -587,7 +587,7 @@ async function toggleDemoMute() {
       }
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 
@@ -602,7 +602,7 @@ async function toggleDemoPause() {
       updateMediaPlayerBar();
     }
   } catch (error) {
-    reportError('Playback', error);
+    notifyError('Playback', error);
   }
 }
 

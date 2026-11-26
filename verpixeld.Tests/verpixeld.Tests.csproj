@@ -21,4 +21,13 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- The stock filters, as the host finds them: a plugin DLL in Filters/ next to it (endpoint tests use them). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\CanvasManagement\Filters\CanvasManagement.Filters\CanvasManagement.Filters.csproj"
+                      ReferenceOutputAssembly="false" OutputItemType="FilterPlugin" />
+  </ItemGroup>
+  <Target Name="CopyFilterPlugins" AfterTargets="Build">
+    <Copy SourceFiles="@(FilterPlugin)" DestinationFolder="$(OutDir)Filters" SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

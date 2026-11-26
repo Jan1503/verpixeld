@@ -6,7 +6,7 @@
 
 import { api } from '../core/api.js';
 import { loadAiHistory } from './ai-art.js';
-import { onReady, wire } from '../utils/helpers.js';
+import { notifyError, onReady, wire } from '../utils/helpers.js';
 
 let voiceState = {
   pollInterval: null,
@@ -424,7 +424,7 @@ async function refreshLocalCamDevices() {
       if (currentVal) audioSelect.value = currentVal;
     }
   } catch (err) {
-    reportError('Camera', err);
+    notifyError('Camera', err);
   }
 }
 

@@ -5,7 +5,7 @@
 import { api } from '../core/api.js';
 import { refreshStudioDisplay } from './layer-editor.js';
 import { showConfirm } from '../ui/modal.js';
-import { escapeHtml, onReady, wire } from '../utils/helpers.js';
+import { escapeHtml, notifyError, onReady, wire } from '../utils/helpers.js';
 
 const OUTPUT_LABELS = {
   network: 'Network',
@@ -706,7 +706,7 @@ function onImageCorrectionInput() {
   if (_imgCorrTimer) clearTimeout(_imgCorrTimer);
   _imgCorrTimer = setTimeout(async () => {
     try { await api.post('/api/settings/image-correction', { ...v, save: false }); }
-    catch (error) { reportError('Settings', error); }
+    catch (error) { notifyError('Settings', error); }
   }, 120);
 }
 
@@ -735,7 +735,7 @@ async function resetImageCorrection() {
     await api.post('/api/settings/image-correction', { ...d, save: true });
     window.toast?.info('Settings', 'Image correction reset');
   } catch (error) {
-    reportError('Settings', error);
+    notifyError('Settings', error);
   }
 }
 

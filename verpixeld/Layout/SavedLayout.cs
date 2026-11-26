@@ -157,6 +157,12 @@ public class CanvasConfiguration
     /// </summary>
     [JsonPropertyName("rotation")]
     public CanvasRotationConfig? Rotation { get; set; }
+
+    /// <summary>
+    ///     Effects of this canvas only, in apply order (the wall-wide ones are <see cref="SavedLayout.Filters" />).
+    /// </summary>
+    [JsonPropertyName("filters")]
+    public List<FilterConfiguration> Filters { get; set; } = new();
 }
 
 /// <summary>

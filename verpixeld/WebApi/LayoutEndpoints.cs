@@ -528,6 +528,11 @@ public static class LayoutEndpoints
                 if (jsonDoc.RootElement.TryGetProperty("overrideGlobalBrightness", out var ovEl))
                     overrideBrightness = ovEl.ValueKind != JsonValueKind.False;
 
+                // "Include active filters": the wall-wide filter chain becomes part of the scene. Was offered by
+                // the save dialogs but never read, so scenes never kept their filters.
+                var includeFilters = jsonDoc.RootElement.TryGetProperty("includeFilters", out var incEl) &&
+                                     incEl.ValueKind == JsonValueKind.True;
+
                 Log.LogInformation("Saving layout '{Name}'... (default: {IsDefault}, applyBrightness: {OverrideBrightness})", name, isDefault, overrideBrightness);
 
                 // Build saved layout from current state
@@ -540,7 +545,10 @@ public static class LayoutEndpoints
                     IsDefault = isDefault,
                     OverrideGlobalBrightness = overrideBrightness,
                     GlobalBrightness = canvasManager.Brightness,
-                    Canvases = new Dictionary<string, CanvasConfiguration>()
+                    Canvases = new Dictionary<string, CanvasConfiguration>(),
+                    Filters = includeFilters
+                        ? canvasManager.GetFilters().Select(FilterFactory.Describe).ToList()
+                        : new List<FilterConfiguration>()
                 };
 
                 // Get current content from content manager
@@ -574,6 +582,7 @@ public static class LayoutEndpoints
                                                    liveCanvas.Height == canvasManager.Height);
                         canvasConfig.TransparentBackground = liveCanvas.TransparentBackground;
                         canvasConfig.Hidden = liveCanvas.IsHidden;
+                        canvasConfig.Filters = liveCanvas.Filters.Select(FilterFactory.Describe).ToList();
                     }
 
                     // Extract current parameters from the REAL extension instance (the [ExtensionParameter]
@@ -615,6 +624,29 @@ public static class LayoutEndpoints
                     if (rotation is { Steps.Count: > 0 }) canvasConfig.Rotation = rotation;
 
                     savedLayout.Canvases[content.CanvasName] = canvasConfig;
+                }
+
+                // Canvases without content are part of the scene too (an empty overlay, a canvas that only
+                // carries effects): keep their geometry and effects. Host overlays are not part of scenes.
+                foreach (var live in canvasManager.GetCanvasesByZOrder())
+                {
+                    if (savedLayout.Canvases.ContainsKey(live.Name) || SystemOverlayCanvases.IsSystem(live.Name)) continue;
+                    savedLayout.Canvases[live.Name] = new CanvasConfiguration
+                    {
+                        ZOrder = live.ZOrder,
+                        Opacity = live.Opacity,
+                        PanelColorBits = live.PanelColorBits,
+                        Brightness = live.Brightness,
+                        X = live.XPos,
+                        Y = live.YPos,
+                        Width = live.Width,
+                        Height = live.Height,
+                        IsOverlay = !(live.XPos == 0 && live.YPos == 0 &&
+                                      live.Width == canvasManager.Width && live.Height == canvasManager.Height),
+                        TransparentBackground = live.TransparentBackground,
+                        Hidden = live.IsHidden,
+                        Filters = live.Filters.Select(FilterFactory.Describe).ToList()
+                    };
                 }
 
                 layoutStorage!.SaveLayout(savedLayout);

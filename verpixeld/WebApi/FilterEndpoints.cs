@@ -50,6 +50,7 @@ public static class FilterEndpoints
                                 var paramDict = new Dictionary<string, object>
                                 {
                                     ["name"] = param.Name ?? "",
+                                    ["displayName"] = string.IsNullOrWhiteSpace(param.DisplayName) ? param.Name ?? "" : param.DisplayName,
                                     ["parameterType"] = param.ParameterType?.Name ?? "String",
                                     ["defaultValue"] = param.DefaultValue ?? 0,
                                     ["description"] = param.Description ?? "",

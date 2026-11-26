@@ -164,13 +164,15 @@ public static class ServiceCollectionExtensions
             return rot;
         });
 
+        services.AddSingleton<FilterFactory>();
+
         services.AddSingleton<ILayoutLoaderService>(sp =>
             new LayoutLoaderService(
                 sp.GetRequiredService<CanvasManager>(),
                 sp.GetRequiredService<IDisplayLayoutManager>(),
                 sp.GetRequiredService<ICanvasContentManager>(),
                 sp.GetRequiredService<INightModeManager>(),
-                sp.GetRequiredService<IFilterDiscovery>(),
+                sp.GetRequiredService<FilterFactory>(),
                 sp.GetRequiredService<ILogger<LayoutLoaderService>>(),
                 sp.GetRequiredService<CanvasRotationService>()));
 

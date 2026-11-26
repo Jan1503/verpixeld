@@ -6,7 +6,7 @@ import { ICONS } from '../constants.js';
 import { api } from '../core/api.js';
 import { fetchFilters, fetchStatus, formatFilterName, formatParameters } from '../core/init.js';
 import { showMessage } from '../ui/modal.js';
-import { createColorInputWithAlpha, dataAttrs, escapeHtml, getColorWithAlpha, markerAttrs, onAction, onReady, updateSlider, wire } from '../utils/helpers.js';
+import { createColorInputWithAlpha, dataAttrs, escapeHtml, getColorWithAlpha, markerAttrs, notifyError, onAction, onReady, updateSlider, wire } from '../utils/helpers.js';
 
 // Live update timer for filter editing
 let liveUpdateTimer = null;
@@ -208,7 +208,7 @@ function showFilterForm(typeName) {
 
     html += `<div class="slider-container">
             <div class="slider-label">
-                <span>${escapeHtml(paramName)}</span>
+                <span>${escapeHtml(param.displayName || paramName)}</span>
                 <span id="${paramName}-value">${isColorParam ? displayValue : defaultVal}</span>
             </div>`;
 
@@ -352,7 +352,7 @@ async function editFilter(index, filterType, currentParams) {
 
     html += `<div class="slider-container">
             <div class="slider-label">
-                <span>${escapeHtml(paramName)}</span>
+                <span>${escapeHtml(param.displayName || paramName)}</span>
                 <span id="${paramName}-value">${isColorParam ? displayValue : currentValue}</span>
             </div>`;
 
@@ -462,7 +462,7 @@ async function applyLiveFilterUpdate(index) {
   try {
     await api.put(`/api/filters/${index}`, { parameters });
   } catch (error) {
-    reportError('Filter', error);
+    notifyError('Filter', error);
   }
 }
 

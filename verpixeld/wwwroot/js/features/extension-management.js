@@ -6,7 +6,7 @@ import { ICONS } from '../constants.js';
 import { api } from '../core/api.js';
 import { captureStepFromLiveCanvas } from './layer-editor.js';
 import { showMessage } from '../ui/modal.js';
-import { createColorInputWithAlpha, dataAttrs, escapeHtml, getColorWithAlpha, markerAttrs, onAction, valuesEqual, wire } from '../utils/helpers.js';
+import { createColorInputWithAlpha, dataAttrs, escapeHtml, getColorWithAlpha, markerAttrs, notifyError, onAction, valuesEqual, wire } from '../utils/helpers.js';
 
 // Debounce for applying parameter changes to the running extension
 let extensionUpdateTimer = null;
@@ -142,7 +142,7 @@ async function applyExtensionParameterUpdate(canvasName) {
       });
     }
   } catch (error) {
-    reportError('Extension', error);
+    notifyError('Extension', error);
   }
 }
 
@@ -465,7 +465,7 @@ function scheduleStructuredApply(canvasName) {
 }
 
 /** Injects the (theme-aware) styles for the structured list/object editors once. */
-function ensureExtStyles() {
+export function ensureExtStyles() {
   if (document.getElementById('ext-struct-styles')) return;
   const style = document.createElement('style');
   style.id = 'ext-struct-styles';
