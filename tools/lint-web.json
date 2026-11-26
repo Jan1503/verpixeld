@@ -1,0 +1,17 @@
+{
+  "lint": {
+    "rules": {
+      "tags": [],
+      "include": [
+        "no-undef",
+        "no-import-assign",
+        "no-redeclare",
+        "no-const-assign",
+        "no-global-assign",
+        "no-func-assign",
+        "no-dupe-keys",
+        "no-unreachable"
+      ]
+    }
+  }
+}

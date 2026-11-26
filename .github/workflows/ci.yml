@@ -1,0 +1,72 @@
+# Build verpixeld with its sibling repositories, run the tests (unit and endpoint tests against the
+# real host) and check the web UI modules. The project references expect this layout:
+#   RGB-Display/verpixeld, RGB-Display/CanvasManagement, RGB-Display/pixplane, RGB-Display/pixtone
+#   !Repos/rpi-rgb-led-matrix   (C# binding only; the native library is not built off the Pi)
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    # Windows, like the CanvasManagement CI: the tests use SkiaSharp's Win32 native assets.
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: RGB-Display/verpixeld
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Jan1503/canvasmanagement
+          path: RGB-Display/CanvasManagement
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Jan1503/pixplane
+          path: RGB-Display/pixplane
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Jan1503/pixtone
+          path: RGB-Display/pixtone
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Jan1503/rpi-rgb-led-matrix
+          ref: fm6363-128
+          path: '!Repos/rpi-rgb-led-matrix'
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        working-directory: RGB-Display/verpixeld
+        run: dotnet restore verpixeld.sln
+
+      - name: Build (Release)
+        working-directory: RGB-Display/verpixeld
+        run: dotnet build verpixeld.sln -c Release --no-restore -p:SkipNative=true
+
+      - name: Tests
+        working-directory: RGB-Display/verpixeld
+        run: dotnet test verpixeld.sln -c Release --no-build --logger "console;verbosity=normal"
+
+  web-ui:
+    # Names used but never imported, assignments to imports and the like (tools/lint-web.ts).
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Lint web UI modules
+        run: deno run --allow-run --allow-read tools/lint-web.ts
