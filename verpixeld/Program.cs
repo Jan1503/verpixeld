@@ -126,7 +126,12 @@ public class Program
             }
         });
 
-        app.MapGet("/", () => Results.Content(WebUIProvider.GetIndexHtml(), "text/html; charset=utf-8"));
+        app.MapGet("/", (HttpContext context) =>
+        {
+            // The page itself is always revalidated; the scripts and styles it names carry content versions.
+            context.Response.Headers.CacheControl = "no-cache";
+            return Results.Content(WebUIProvider.GetIndexHtml(), "text/html; charset=utf-8");
+        });
 
         var shutdownCts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) =>
@@ -255,6 +260,8 @@ public class Program
         builder.Logging.AddProvider(new HostLoggerProvider(logService));
         builder.Logging.SetMinimumLevel(verbose ? LogLevel.Debug : LogLevel.Information);
         builder.Logging.AddFilter("Microsoft", verbose ? LogLevel.Information : LogLevel.Warning);
+        // Routing/endpoint/result messages come several per request: too many even for verbose.
+        builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
         builder.Logging.AddFilter("System", verbose ? LogLevel.Information : LogLevel.Warning);
         if (verbose)
             Console.WriteLine("[CONFIG] Verbose logging enabled");

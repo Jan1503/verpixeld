@@ -858,7 +858,7 @@ function renderPanelList(panels) {
     const boundCls = id && id === bound ? ' is-bound' : (cloned ? ' is-clone' : '');
     return `<div class="net-panel-card${boundCls}">
       <div class="net-panel-info">
-        <div class="net-panel-name">${name}</div>
+        <div class="net-panel-name">${escapeHtml(name)}</div>
         <div class="net-panel-meta">${meta}</div>
       </div>
       <div class="net-panel-actions">

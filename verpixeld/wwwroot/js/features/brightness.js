@@ -25,19 +25,20 @@ async function updateGlobalBrightness(value) {
 /**
  * Update per-canvas brightness
  */
+const canvasBrightnessTimers = new Map();
+
 async function updateCanvasBrightness(canvasName, value) {
   const brightness = parseInt(value) / 100.0;
-  document.getElementById(`${canvasName}-brightness-value`).textContent = `${value}%`;
 
-  // Debounce API calls
-  clearTimeout(window[`${canvasName}_brightnessTimer`]);
-  window[`${canvasName}_brightnessTimer`] = setTimeout(async () => {
+  // Debounce API calls, per canvas
+  clearTimeout(canvasBrightnessTimers.get(canvasName));
+  canvasBrightnessTimers.set(canvasName, setTimeout(async () => {
     try {
       await window.api.post(`/api/brightness/canvas/${encodeURIComponent(canvasName)}`, { brightness });
     } catch {
       return;
     }
-  }, 150);
+  }, 150));
 }
 
 /**
@@ -68,21 +69,29 @@ function displayCanvasBrightnessControls(canvases) {
     return;
   }
 
+  // Canvas names are user text: escaped, and carried in data-name (not in ids or inline code).
   const html = canvases.map(canvas => `
     <div class="canvas-brightness-item">
-      <div class="brightness-control">
-        <label for="${canvas.name}-brightness">${canvas.name}</label>
+      <label class="brightness-control">
+        <span>${escapeHtml(canvas.name)}</span>
         <div class="slider-with-value">
-          <input type="range" id="${canvas.name}-brightness" 
-                 min="0" max="100" value="${canvas.percentage}"
-                 oninput="updateCanvasBrightness('${canvas.name}', this.value)">
-          <span id="${canvas.name}-brightness-value">${canvas.percentage}%</span>
+          <input type="range" min="0" max="100" value="${canvas.percentage}" data-name="${escapeHtml(canvas.name)}">
+          <span class="canvas-brightness-value">${canvas.percentage}%</span>
         </div>
-      </div>
+      </label>
     </div>
   `).join('');
 
   container.innerHTML = html;
+  if (!container._brightnessBound) {
+    container._brightnessBound = true;
+    container.addEventListener('input', event => {
+      const input = event.target.closest('input[data-name]');
+      if (!input) return;
+      input.parentElement.querySelector('.canvas-brightness-value').textContent = `${input.value}%`;
+      updateCanvasBrightness(input.dataset.name, input.value);
+    });
+  }
 }
 
 // Expose globally

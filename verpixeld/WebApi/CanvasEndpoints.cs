@@ -267,8 +267,8 @@ public static class CanvasEndpoints
                     ? n.GetString()?.Trim()
                     : null;
 
-                if (string.IsNullOrWhiteSpace(newName))
-                    return Results.Json(new ApiResponse<string>(false, Error: "New name is required"));
+                if (!CanvasNames.IsValid(newName, out var renameProblem))
+                    return Results.Json(new ApiResponse<string>(false, Error: renameProblem));
 
                 var standard = new[]
                 {
@@ -445,6 +445,8 @@ public static class CanvasEndpoints
                 if (root.TryGetProperty("panelColorBits", out var bitsElement))
                     panelBits = bitsElement.GetInt32();
 
+                if (!CanvasNames.IsValid(name, out var createProblem))
+                    return Results.Json(new ApiResponse<string>(false, Error: createProblem));
                 if (layoutManager.HasCanvas(name))
                     return Results.Json(new ApiResponse<string>(false, Error: $"Canvas '{name}' already exists"));
 

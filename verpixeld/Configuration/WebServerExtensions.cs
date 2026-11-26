@@ -123,11 +123,14 @@ public static class WebServerExtensions
                 await next();
             });
 
-        // Verbose request logging
+        // Verbose request logging. Not for the web log's own polling (every poll would add a line and the
+        // log would fill with itself) nor for static files.
         if (verboseLogging)
             app.Use(async (context, next) =>
             {
-                Console.WriteLine($"[REQUEST] {context.Request.Scheme}://{context.Request.Host}{context.Request.Path}");
+                var path = context.Request.Path;
+                if (!path.StartsWithSegments("/api/logs") && !Path.HasExtension(path.Value))
+                    Console.WriteLine($"[REQUEST] {context.Request.Method} {path}{context.Request.QueryString}");
                 await next();
             });
 
@@ -168,7 +171,13 @@ public static class WebServerExtensions
             {
                 FileProvider = new PhysicalFileProvider(wwwrootPath),
                 RequestPath = "",
-                ContentTypeProvider = provider
+                ContentTypeProvider = provider,
+                // A URL with ?v=<content hash> never changes its content: let the browser keep it.
+                OnPrepareResponse = ctx =>
+                {
+                    if (WebApi.AssetVersioning.IsVersioned(ctx.Context))
+                        ctx.Context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+                }
             });
 
             Console.WriteLine($"[SERVER] Static files: {wwwrootPath}");

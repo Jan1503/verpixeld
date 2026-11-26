@@ -150,12 +150,12 @@ function renderFavorites() {
       ${isNowPlaying ? '<div class="now-playing-indicator"><span></span><span></span><span></span></div>' : ''}
       <div class="item-thumbnail">
         ${fav.thumbnail 
-          ? `<img src="${fav.thumbnail}" alt="${fav.name}">`
-          : `<span class="item-icon">${fav.icon}</span>`
+          ? `<img src="${escapeHtml(fav.thumbnail)}" alt="${escapeHtml(fav.name)}">`
+          : `<span class="item-icon">${escapeHtml(fav.icon)}</span>`
         }
       </div>
       <div class="item-info">
-        <div class="item-name" title="${fav.name}">${fav.name}</div>
+        <div class="item-name" title="${escapeHtml(fav.name)}">${escapeHtml(fav.name)}</div>
         <div class="item-meta">
           <span class="item-type-badge ${getTypeClass(fav.type)}">${formatType(fav.type)}</span>
           ${fav.avSyncOffset !== 0 
@@ -205,12 +205,12 @@ function renderHistory() {
     <div class="history-item" data-index="${index}" onclick="playHistoryItem(${index})">
       <div class="item-thumbnail">
         ${item.thumbnail 
-          ? `<img src="${item.thumbnail}" alt="${item.name}">`
-          : `<span class="item-icon">${item.icon}</span>`
+          ? `<img src="${escapeHtml(item.thumbnail)}" alt="${escapeHtml(item.name)}">`
+          : `<span class="item-icon">${escapeHtml(item.icon)}</span>`
         }
       </div>
       <div class="item-info">
-        <div class="item-name" title="${item.name}">${item.name}</div>
+        <div class="item-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
         <div class="item-meta">
           <span class="item-type-badge ${getTypeClass(item.type)}">${formatType(item.type)}</span>
           <span>${formatTimeAgo(item.playedAt)}</span>
@@ -268,7 +268,7 @@ function showItemLoading(el, message) {
   if (!el.querySelector('.item-loading-overlay')) {
     const overlay = document.createElement('div');
     overlay.className = 'item-loading-overlay';
-    overlay.innerHTML = `<div class="item-spinner"></div><span>${message || 'Loading...'}</span>`;
+    overlay.innerHTML = `<div class="item-spinner"></div><span>${escapeHtml(message || 'Loading...')}</span>`;
     el.appendChild(overlay);
   }
 }
@@ -325,7 +325,7 @@ async function playFavorite(id) {
     try {
       const result = await api.post('/api/youtube/play', { url: fav.source, loop: false });
       removeItemLoading(el);
-      window.toast?.success('Favorites', `Playing: ${fav.name}`);
+      window.toast?.success('Favorites', `Playing: ${escapeHtml(fav.name)}`);
       if (window.showMediaPlayerBar) window.showMediaPlayerBar();
       // Mark favorite as played in the background
       api.post(`/api/favorites/${id}/mark-played`).catch(() => {});
@@ -414,7 +414,7 @@ async function playHistoryItem(index) {
       await api.post('/api/youtube/play', { url: item.source, loop: false });
       removeItemLoading(el);
       setTimeout(fetchHistory, 1000);   // the entry moved to the top: reload so the next click hits the right one
-      window.toast?.success('History', `Playing: ${item.name}`);
+      window.toast?.success('History', `Playing: ${escapeHtml(item.name)}`);
       if (window.showMediaPlayerBar) window.showMediaPlayerBar();
     } catch (error) {
       removeItemLoading(el);

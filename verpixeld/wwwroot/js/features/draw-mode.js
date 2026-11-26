@@ -591,7 +591,7 @@ async function updateDrawTargetCanvases() {
     if (result.data) {
       const currentSelection = select.value;
       select.innerHTML = result.data.map(canvas =>
-        `<option value="${canvas.name}" data-width="${canvas.width}" data-height="${canvas.height}">${canvas.name} (${canvas.width}×${canvas.height})</option>`
+        `<option value="${escapeHtml(canvas.name)}" data-width="${canvas.width}" data-height="${canvas.height}">${escapeHtml(canvas.name)} (${canvas.width}×${canvas.height})</option>`
       ).join('');
       let selectedCanvas = result.data[0];
       if (currentSelection) {

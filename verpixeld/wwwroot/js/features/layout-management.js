@@ -66,23 +66,23 @@ function displayCanvases(canvases) {
     <div class="card ${hasContent ? 'card-success' : ''} card-interactive">
       <div class="card-header">
         <div>
-          <div class="card-title">${canvas.name}</div>
+          <div class="card-title">${escapeHtml(canvas.name)}</div>
           <div class="card-subtitle">${canvas.width}×${canvas.height}</div>
         </div>
         <span class="badge ${hasContent ? 'active' : 'inactive'}">
           ${hasContent ? 'Active' : 'Empty'}
         </span>
       </div>
-      
+
       ${hasContent ? `
         <div class="card-body">
           <strong>${content.extensionName}</strong>
           <div class="text-muted" style="margin-top: 4px;">Uptime: ${uptime}</div>
         </div>
       ` : '<div class="card-body text-muted">No extension assigned</div>'}
-      
+
       <div class="card-footer">
-        <button class="btn btn-small ${hasContent ? 'btn-secondary' : 'btn-primary'}" 
+        <button class="btn btn-small ${hasContent ? 'btn-secondary' : 'btn-primary'}"
                 onclick="assignExtensionToCanvas('${canvas.name}')">
           ${hasContent ? 'Change' : 'Assign'}
         </button>
@@ -162,46 +162,46 @@ async function assignExtensionToCanvas(canvasName, onPick) {
       type: 'warning',
       icon: '⚠️'
     });
-    
+
     if (!confirmed) {
       return;
     }
-    
+
     // Stop media player
     if (typeof stopDemoPlayback === 'function') {
       await stopDemoPlayback();
     }
   }
-  
+
   const html = `
     <div class="modal-overlay" id="extension-picker-modal">
       <div class="modal-content" style="max-width: 900px;">
-        
+
         <div class="modal-header">
-          <h2>${ICONS.CANVAS} Assign Extension to ${canvasName}</h2>
+          <h2>${ICONS.CANVAS} Assign Extension to ${escapeHtml(canvasName)}</h2>
           <button class="modal-close" onclick="closeExtensionPicker()">${ICONS.CLOSE}</button>
         </div>
-        
+
         <div class="modal-body">
           <div class="extension-selector" id="extension-selector">
             <!-- Extensions will be populated here -->
           </div>
         </div>
-        
+
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="closeExtensionPicker()">Cancel</button>
         </div>
-        
+
       </div>
     </div>
   `;
-  
+
   document.body.insertAdjacentHTML('beforeend', html);
-  
+
   try {
     const result = await api.get('/api/extensions/available');
     const container = document.getElementById('extension-selector');
-    
+
     const extHtml = result.data.map(ext => {
         let iconHtml;
         if (ext.iconData) {
@@ -212,8 +212,8 @@ async function assignExtensionToCanvas(canvasName, onPick) {
           } catch (e) { }
 
           iconHtml = `<div class="extension-icon-container">
-                        <img src="data:${mimeType};base64,${ext.iconData}" 
-                             alt="${ext.displayName}" class="extension-icon-img"
+                        <img src="data:${mimeType};base64,${ext.iconData}"
+                             alt="${escapeHtml(ext.displayName)}" class="extension-icon-img"
                              onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
                         <div class="extension-icon" style="display:none;">🧩</div>
                     </div>`;
@@ -223,15 +223,15 @@ async function assignExtensionToCanvas(canvasName, onPick) {
         }
 
         return `
-                    <div class="extension-card" data-extension="${ext.displayName}" data-canvas="${canvasName}">
+                    <div class="extension-card" data-extension="${escapeHtml(ext.displayName)}" data-canvas="${escapeHtml(canvasName)}">
                         ${iconHtml}
-                        <div class="extension-name">${ext.displayName}</div>
+                        <div class="extension-name">${escapeHtml(ext.displayName)}</div>
                     </div>
                 `;
       }).join('');
 
       container.innerHTML = extHtml;
-      
+
     container.querySelectorAll('.extension-card').forEach(card => {
       card.addEventListener('click', () => {
         const extensionName = card.getAttribute('data-extension');

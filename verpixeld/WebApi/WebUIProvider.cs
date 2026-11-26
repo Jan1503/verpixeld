@@ -4,17 +4,16 @@ namespace verpixeld.WebApi;
 
 public static class WebUIProvider
 {
+    /// <summary>index.html with content-versioned script and stylesheet URLs (<see cref="AssetVersioning"/>).</summary>
     public static string GetIndexHtml()
     {
-        var htmlPath = Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html");
+        var webRoot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+        var htmlPath = Path.Combine(webRoot, "index.html");
         if (File.Exists(htmlPath))
-        {
-            Console.WriteLine($"? Loading index.html from: {htmlPath}");
-            // IMPORTANT: Explicitly specify UTF-8 encoding to handle emojis correctly
-            return File.ReadAllText(htmlPath, Encoding.UTF8);
-        }
+            // UTF-8 explicitly: the page has emoji
+            return AssetVersioning.Apply(File.ReadAllText(htmlPath, Encoding.UTF8), webRoot);
 
-        Console.WriteLine("?? Using embedded HTML fallback (wwwroot not found)");
+        Console.WriteLine("[SERVER] wwwroot/index.html not found, serving the built-in fallback page");
         return GetEmbeddedHtml();
     }
 

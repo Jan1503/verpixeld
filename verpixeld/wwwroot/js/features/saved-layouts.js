@@ -63,7 +63,7 @@ async function displaySavedLayouts(layouts) {
           ${isDefault ? `<span class="badge-default">${ICONS.PIN} Default</span>` : ''}
           ${isActive ? `<span class="badge active">${ICONS.ACTIVE} ACTIVE</span>` : ''}
         </div>
-        <div class="card-subtitle">${layout.profile}</div>
+        <div class="card-subtitle">${escapeHtml(layout.profile)}</div>
       </div>
     </div>
     
@@ -135,7 +135,7 @@ async function showSaveLayoutDialog() {
         
         <div class="save-layout-summary">
           <p><strong>Current Configuration:</strong></p>
-          <p>Profile: ${layout.displayName}</p>
+          <p>Profile: ${escapeHtml(layout.displayName)}</p>
           <p>Canvases: ${layout.canvasCount}</p>
           <p>Extensions: ${extensionCount}</p>
         </div>
@@ -350,7 +350,7 @@ async function viewLayoutDetails(layoutName) {
 
     const canvasesHtml = Object.entries(layout.canvases || {}).map(([name, config]) => `
       <div style="padding: 10px; border-radius: 6px; margin: 8px 0;">
-        <strong>${name}:</strong> ${config.extensionName || '(empty)'}
+        <strong>${escapeHtml(name)}:</strong> ${escapeHtml(config.extensionName || '(empty)')}
         ${config.extensionName ? `
         <br>
         <small>${Object.keys(config.configuration || {}).length} settings configured</small>

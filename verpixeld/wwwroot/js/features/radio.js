@@ -19,7 +19,7 @@ const radioState = {
 const RADIO_PAGE = 40;
 
 function radioEsc(text) {
-  return typeof escapeHtml === 'function' ? escapeHtml(text ?? '') : String(text ?? '');
+  return escapeHtml(text);
 }
 
 function radioLogo(url, size = 40) {

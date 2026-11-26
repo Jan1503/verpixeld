@@ -57,7 +57,7 @@ function updateVisualizerUI() {
       ? contentTargetCanvases(visualizerStatus.availableCanvases.map(c => ({ name: c.id || c.name, id: c.id, isSystem: c.isSystem })))
       : visualizerStatus.availableCanvases);
     canvasSelect.innerHTML = list.map(c =>
-      `<option value="${c.id || c.name}">${c.name || c.id}</option>`
+      `<option value="${escapeHtml(c.id || c.name)}">${escapeHtml(c.name || c.id)}</option>`
     ).join('');
     
     // Restore selection or use current target

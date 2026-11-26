@@ -39,7 +39,7 @@ Import `docker/verpixeld-nas.tar` in Portainer (Images → Import), then recreat
 
 ## Web UI
 
-Plain ES in `verpixeld/wwwroot`. Bump `?v=` on every edited `js`/`css` in `index.html`. Studio is `layer-editor.js`. Media tab plays on a dedicated MediaPlayer overlay (not Main).
+Plain ES in `verpixeld/wwwroot`. Do not add `?v=` to script/style URLs: the host serves index.html with a content hash on every local `.js`/`.css` (`AssetVersioning`), so a changed file is fetched at once and unchanged ones stay cached. Text that is not ours (canvas, scene, file, device, station names; titles) goes into HTML only through `escapeHtml` (helpers.js; it also escapes quotes, so attributes are safe). Rendered lists put values in `data-*` attributes and use `onAction(container, handlers)` instead of `onclick="fn('${value}')"`. Studio is `layer-editor.js`. Media tab plays on a dedicated MediaPlayer overlay (not Main).
 
 ## Logging
 

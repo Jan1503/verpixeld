@@ -125,7 +125,7 @@ const CameraStream = (function() {
       if (result.data.canvases) {
         const currentValue = select.value;
         select.innerHTML = result.data.canvases.map(canvas => 
-          `<option value="${canvas.name}">${canvas.name} (${canvas.width}×${canvas.height})</option>`
+          `<option value="${escapeHtml(canvas.name)}">${escapeHtml(canvas.name)} (${canvas.width}×${canvas.height})</option>`
         ).join('');
         
         // Restore previous selection if still available

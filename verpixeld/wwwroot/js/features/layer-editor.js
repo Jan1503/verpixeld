@@ -191,7 +191,7 @@ function leOverlapSummary(c) {
   const area = c.width * c.height;
   const covered = Math.min(area, hits.reduce((s, h) => s + h.area, 0));
   const pct = area > 0 ? Math.round(100 * covered / area) : 0;
-  const names = [...new Set(hits.map(h => h.name))].join(', ');
+  const names = escapeHtml([...new Set(hits.map(h => h.name))].join(', '));
   return `${pct}% covered by ${names}`;
 }
 
@@ -506,7 +506,7 @@ function renderLayerBoxes(skipInspector) {
     // z-order) so a fully-covered canvas can still be grabbed once selected via the chip bar.
     box.style.zIndex = sel ? 1000 : (10 + c.zOrder);
     box.innerHTML =
-      `<div class="le-box-label">${c.name} · ${label}${locked ? ' 🔒' : ''}<br><span class="le-box-dims">${c.width}×${c.height}</span></div>` +
+      `<div class="le-box-label">${escapeHtml(c.name)} · ${escapeHtml(label)}${locked ? ' 🔒' : ''}<br><span class="le-box-dims">${c.width}×${c.height}</span></div>` +
       (locked ? '' : ['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'].map(h => `<div class="le-h le-h-${h}" data-h="${h}"></div>`).join(''));
     if (sel) {
       const sPx = layerEditor.scale;
@@ -544,15 +544,19 @@ function renderLayers() {
       const label = (LE_SYS.includes(c.name) || c.isSystem)
         ? 'host overlay'
         : (content ? content.extensionName : '(empty)');
-      const nm = c.name.replace(/'/g, "\\'");
+      const name = escapeHtml(c.name);
       const icon = leExtIcon(label === '(empty)' ? '' : label);
-      return `<div class="le-layer${sel}${hidden ? ' is-hidden' : ''}" data-name="${c.name}" onclick="selectLayerCanvas('${nm}')" title="z:${c.zOrder} · ${c.width}×${c.height}">
+      return `<div class="le-layer${sel}${hidden ? ' is-hidden' : ''}" data-action="select" data-name="${name}" title="z:${c.zOrder} · ${c.width}×${c.height}">
         ${icon}
-        <div class="le-layer-main"><span class="le-layer-name">${c.name}</span><span class="le-layer-ext">${label}</span></div>
-        <button class="le-eye" title="${hidden ? 'Show' : 'Hide'}" onclick="layerEditorToggleVisible('${nm}', event)">${hidden ? '○' : '●'}</button>
+        <div class="le-layer-main"><span class="le-layer-name">${name}</span><span class="le-layer-ext">${escapeHtml(label)}</span></div>
+        <button class="le-eye" title="${hidden ? 'Show' : 'Hide'}" data-action="toggle-visible" data-name="${name}">${hidden ? '○' : '●'}</button>
         <span class="le-layer-z">z${c.zOrder}</span>
       </div>`;
     }).join('');
+  onAction(pane, {
+    select: d => selectLayerCanvas(d.name),
+    'toggle-visible': (d, el, ev) => layerEditorToggleVisible(d.name, ev)
+  });
 }
 
 // RIGHT PANE — inspector for the selected canvas: Transform, Appearance, Content.
@@ -574,7 +578,7 @@ function renderInspector() {
   const dis = locked ? ' disabled' : '';
   pane.innerHTML = `
     <div class="le-insp-head">
-      <strong class="le-insp-name">${c.name}</strong>
+      <strong class="le-insp-name">${escapeHtml(c.name)}</strong>
       <span class="le-insp-actions">
         ${isSys ? '' : `<button class="le-ico" title="Duplicate" onclick="layerEditorDuplicate()">⧉</button>`}
         ${isStd || isSys ? '' : `<button class="le-ico" title="Rename" onclick="layerEditorRename()">✎</button>`}

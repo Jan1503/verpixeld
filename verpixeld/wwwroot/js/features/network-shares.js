@@ -174,7 +174,7 @@ async function browseNetworkVideos(shareId, path = '', forceRefresh = false) {
     // Add "Go up" button if not at root
     if (result.parentPath !== null && result.parentPath !== undefined) {
       html += `
-        <div class="network-video-item network-dir-item" onclick="browseNetworkVideos('${shareId}', '${result.parentPath}')">
+        <div class="network-video-item network-dir-item" data-action="browse" data-path="${escapeHtml(result.parentPath)}">
           <span class="video-icon">⬆️</span>
           <span class="video-name">..</span>
         </div>
@@ -184,9 +184,9 @@ async function browseNetworkVideos(shareId, path = '', forceRefresh = false) {
     // Add directories
     if (result.directories && result.directories.length > 0) {
       html += result.directories.map(dir => `
-        <div class="network-video-item network-dir-item" onclick="browseNetworkVideos('${shareId}', '${dir.path}')">
+        <div class="network-video-item network-dir-item" data-action="browse" data-path="${escapeHtml(dir.path)}">
           <span class="video-icon">📁</span>
-          <span class="video-name">${dir.name}</span>
+          <span class="video-name">${escapeHtml(dir.name)}</span>
         </div>
       `).join('');
     }
@@ -194,10 +194,10 @@ async function browseNetworkVideos(shareId, path = '', forceRefresh = false) {
     // Add videos
     if (result.videos && result.videos.length > 0) {
       html += result.videos.map(video => `
-        <div class="network-video-item" onclick="playNetworkVideo('${shareId}', '${video.path}')">
+        <div class="network-video-item" data-action="video" data-path="${escapeHtml(video.path)}">
           <span class="video-icon">🎬</span>
-          <span class="video-name">${video.name}</span>
-          <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); playNetworkVideo('${shareId}', '${video.path}')" title="Play">▶️</button>
+          <span class="video-name">${escapeHtml(video.name)}</span>
+          <button class="btn btn-small btn-primary" data-action="video" data-path="${escapeHtml(video.path)}" title="Play">▶️</button>
         </div>
       `).join('');
     }
@@ -205,10 +205,10 @@ async function browseNetworkVideos(shareId, path = '', forceRefresh = false) {
     // Add audio files
     if (result.audioFiles && result.audioFiles.length > 0) {
       html += result.audioFiles.map(audio => `
-        <div class="network-video-item network-audio-item" onclick="playNetworkAudio('${shareId}', '${audio.path}')">
+        <div class="network-video-item network-audio-item" data-action="audio" data-path="${escapeHtml(audio.path)}">
           <span class="video-icon">🎵</span>
-          <span class="video-name">${audio.name}</span>
-          <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); playNetworkAudio('${shareId}', '${audio.path}')" title="Play">▶️</button>
+          <span class="video-name">${escapeHtml(audio.name)}</span>
+          <button class="btn btn-small btn-primary" data-action="audio" data-path="${escapeHtml(audio.path)}" title="Play">▶️</button>
         </div>
       `).join('');
     }
@@ -224,6 +224,11 @@ async function browseNetworkVideos(shareId, path = '', forceRefresh = false) {
     }
     
     listEl.innerHTML = html;
+    onAction(listEl, {
+      browse: d => browseNetworkVideos(shareId, d.path),
+      video: d => playNetworkVideo(shareId, d.path),
+      audio: d => playNetworkAudio(shareId, d.path)
+    });
     
   } catch (error) {
     console.error('Failed to browse directory:', error);
@@ -488,12 +493,12 @@ function updateNetworkSharesUI() {
       <div class="network-share-icon">📁</div>
       <div class="network-share-info">
         <div class="network-share-name">
-          ${share.name}
+          ${escapeHtml(share.name)}
           <span class="badge badge-protocol">SMB</span>
           ${share.isDefault ? '<span class="badge">Default</span>' : ''}
           <span id="share-status-${share.id}" class="connection-status"></span>
         </div>
-        <div class="network-share-url">${share.displayUrl}</div>
+        <div class="network-share-url">${escapeHtml(share.displayUrl)}</div>
       </div>
       <div class="network-share-actions">
         <button class="btn btn-small" onclick="browseNetworkVideos('${share.id}')" title="Browse videos">📂</button>

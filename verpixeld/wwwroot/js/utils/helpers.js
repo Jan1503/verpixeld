@@ -4,12 +4,35 @@
    ============================================================================ */
 
 /**
- * Escape HTML to prevent XSS
+ * Escape text for HTML: element content and attribute values (single or double quoted). The one
+ * definition for the whole page; everything that puts names, titles or other outside text into
+ * innerHTML or an attribute goes through it.
  */
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+  return String(text ?? '').replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
+}
+
+/**
+ * Event delegation for rendered lists: one click listener on `container` runs
+ * `handlers[el.dataset.action](el.dataset, el, event)` for the closest `[data-action]` element clicked.
+ * Values travel in data-* attributes (escaped with escapeHtml when rendered, read back unescaped from
+ * dataset), so names and paths never end up inside JavaScript code in an onclick attribute.
+ * Safe to call on every render: a container is bound once.
+ */
+function onAction(container, handlers) {
+  if (!container) return;
+  container._actionHandlers = handlers;
+  if (container._actionsBound) return;
+  container._actionsBound = true;
+  container.addEventListener('click', event => {
+    const el = event.target.closest('[data-action]');
+    if (!el || !container.contains(el)) return;
+    const handler = container._actionHandlers?.[el.dataset.action];
+    if (!handler) return;
+    event.stopPropagation();
+    handler(el.dataset, el, event);
+  });
 }
 
 /**
@@ -268,7 +291,7 @@ async function refreshAllCanvasSelectors() {
     const canvases = contentTargetCanvases(result.data);
     
     const optionsHtml = canvases.map(c => 
-      `<option value="${c.name}">${c.name} (${c.width}\u00D7${c.height})</option>`
+      `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)} (${c.width}\u00D7${c.height})</option>`
     ).join('');
 
     const fillSelect = (id) => {

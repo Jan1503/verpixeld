@@ -201,12 +201,12 @@ function updateAudioOutputList() {
     const muteIcon = sink.isMuted ? '\u{1F507}' : '\u{1F50A}';
     
     return `
-      <div class="audio-output-item ${isActive ? 'active' : ''}" data-sink="${sink.name}">
+      <div class="audio-output-item ${isActive ? 'active' : ''}" data-sink="${escapeHtml(sink.name)}">
         <div class="audio-output-info">
           <span class="audio-output-icon">${typeIcon}</span>
           <div class="audio-output-details">
-            <span class="audio-output-name">${sink.description || sink.name}</span>
-            <span class="audio-output-type">${sink.type}</span>
+            <span class="audio-output-name">${escapeHtml(sink.description || sink.name)}</span>
+            <span class="audio-output-type">${escapeHtml(sink.type)}</span>
           </div>
         </div>
         <div class="audio-output-controls">
@@ -407,7 +407,7 @@ function updateBluetoothDevicesList() {
         <div class="bluetooth-device-info">
           <span class="bluetooth-device-icon">${deviceIcon}</span>
           <div class="bluetooth-device-details">
-            <span class="bluetooth-device-name">${device.name || device.address}</span>
+            <span class="bluetooth-device-name">${escapeHtml(device.name || device.address)}</span>
             <span class="bluetooth-device-address">${device.address}</span>
             <span class="bluetooth-device-status">${statusIcon} ${statusText}</span>
           </div>
@@ -480,7 +480,7 @@ async function scanBluetoothDevices() {
                 <div class="bluetooth-device-info">
                   <span class="bluetooth-device-icon">${icon}</span>
                   <div class="bluetooth-device-details">
-                    <span class="bluetooth-device-name">${device.name || 'Unknown Device'}</span>
+                    <span class="bluetooth-device-name">${escapeHtml(device.name || 'Unknown Device')}</span>
                     <span class="bluetooth-device-address">${device.address}</span>
                   </div>
                 </div>

@@ -122,7 +122,7 @@ function renderPlaylistLists() {
   } else {
     incEl.innerHTML = inc.map((name, i) => `
       <div class="playlist-row">
-        <span class="playlist-name" title="${name}">${i + 1}. ${name}</span>
+        <span class="playlist-name" title="${escapeHtml(name)}">${i + 1}. ${escapeHtml(name)}</span>
         <span class="playlist-actions">
           <button class="btn-icon" title="Up" onclick="playlistMove(${i},-1)" ${i === 0 ? 'disabled' : ''}>▲</button>
           <button class="btn-icon" title="Down" onclick="playlistMove(${i},1)" ${i === inc.length - 1 ? 'disabled' : ''}>▼</button>
@@ -137,7 +137,7 @@ function renderPlaylistLists() {
   } else {
     availEl.innerHTML = avail.map(name => `
       <div class="playlist-row">
-        <span class="playlist-name" title="${name}">${name}</span>
+        <span class="playlist-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
         <span class="playlist-actions">
           <button class="btn-icon" title="Add" onclick="playlistAdd('${encodeURIComponent(name)}')">＋</button>
         </span>

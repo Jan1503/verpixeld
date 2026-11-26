@@ -63,7 +63,7 @@ function displayCanvasStack(canvases) {
     : (mediaState.isRunning && !mediaState.isAudioPlayback
       ? (mediaState.playbackCanvasName || (!mediaState.targetCanvasName || mediaState.targetCanvasName === 'MediaPlayer' ? 'MediaPlayer' : mediaState.targetCanvasName))
       : null);
-  
+
   const html = (typeof contentTargetCanvases === 'function' ? contentTargetCanvases(sorted) : sorted).map(canvas => {
     const content = contentMap[canvas.name];
     const hasContent = !!content;
@@ -79,37 +79,50 @@ function displayCanvasStack(canvases) {
       const mediaType = mediaState.isAudioPlayback ? '🎵 Audio' : '🎬 Video';
       contentLabel = `<span class="stack-item-media">${mediaType}</span>`;
     } else if (hasContent) {
-      contentLabel = `<span class="stack-item-extension">${content.extensionName}</span>`;
+      contentLabel = `<span class="stack-item-extension">${escapeHtml(content.extensionName)}</span>`;
     }
 
+    // Canvas names are user text: escaped, and carried in data-name (not in ids or inline code).
+    const name = escapeHtml(canvas.name);
     return `
-  <div class="canvas-stack-item-compact ${hasContent ? 'has-content' : ''} ${hasMediaPlayer ? 'has-media' : ''}" data-canvas="${canvas.name}" data-zorder="${canvas.zOrder}">
+  <div class="canvas-stack-item-compact ${hasContent ? 'has-content' : ''} ${hasMediaPlayer ? 'has-media' : ''}" data-canvas="${name}" data-zorder="${canvas.zOrder}">
     <div class="stack-item-zorder">${canvas.zOrder}</div>
     <div class="stack-item-info">
-      <span class="stack-item-name">${canvas.name}</span>
+      <span class="stack-item-name">${name}</span>
       ${contentLabel}
       <span class="stack-item-dims">${canvas.width}×${canvas.height}</span>
       ${!canvas.isVisible ? '<span class="stack-item-hidden">Hidden</span>' : ''}
     </div>
     <div class="stack-item-opacity">
-      <input type="range" 
-             id="stack-opacity-${canvas.name}"
-             min="0" max="100" 
+      <input type="range" min="0" max="100" data-name="${name}"
              value="${Math.round(canvas.opacity * 100)}"
-             oninput="updateCanvasStackOpacity('${canvas.name}', this.value)"
              title="Opacity">
-      <span id="stack-opacity-value-${canvas.name}" class="stack-opacity-value">${Math.round(canvas.opacity * 100)}%</span>
+      <span class="stack-opacity-value">${Math.round(canvas.opacity * 100)}%</span>
     </div>
     <div class="stack-item-actions">
-      <button class="btn-stack" onclick="moveStackCanvasUp('${canvas.name}')" title="Move up">▲</button>
-      <button class="btn-stack" onclick="moveStackCanvasDown('${canvas.name}')" title="Move down">▼</button>
-      ${isOverlay ? `<button class="btn-stack btn-stack-danger" onclick="removeOverlayCanvas('${canvas.name}')" title="Remove">✕</button>` : ''}
+      <button class="btn-stack" data-action="up" data-name="${name}" title="Move up">▲</button>
+      <button class="btn-stack" data-action="down" data-name="${name}" title="Move down">▼</button>
+      ${isOverlay ? `<button class="btn-stack btn-stack-danger" data-action="remove" data-name="${name}" title="Remove">✕</button>` : ''}
     </div>
   </div>
 `;
 }).join('');
 
   container.innerHTML = html;
+  onAction(container, {
+    up: d => moveStackCanvasUp(d.name),
+    down: d => moveStackCanvasDown(d.name),
+    remove: d => removeOverlayCanvas(d.name)
+  });
+  if (!container._opacityBound) {
+    container._opacityBound = true;
+    container.addEventListener('input', event => {
+      const input = event.target.closest('input[data-name]');
+      if (!input) return;
+      input.parentElement.querySelector('.stack-opacity-value').textContent = `${input.value}%`;
+      updateCanvasStackOpacity(input.dataset.name, input.value);
+    });
+  }
 }
 
 /**
@@ -117,10 +130,6 @@ function displayCanvasStack(canvases) {
  */
 async function updateCanvasStackOpacity(canvasName, value) {
   const opacity = parseInt(value) / 100.0;
-  const valueSpan = document.getElementById(`stack-opacity-value-${canvasName}`);
-  if (valueSpan) {
-    valueSpan.textContent = `${value}%`;
-  }
 
   try {
     await api.put('/api/canvas/' + encodeURIComponent(canvasName) + '/opacity', { opacity });

@@ -1766,15 +1766,6 @@ async function playMusicResult(index) {
   }
 }
 
-/**
- * Escape HTML entities for safe rendering
- */
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text || '';
-  return div.innerHTML;
-}
-
 // Expose music functions globally
 window.searchMusic = searchMusic;
 window.playMusicResult = playMusicResult;
