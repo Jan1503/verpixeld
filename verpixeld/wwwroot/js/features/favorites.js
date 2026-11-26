@@ -480,7 +480,7 @@ async function removeHistoryItem(index) {
     await api.del(`/api/history/${index}?key=${encodeURIComponent(item?.key || '')}`);
     fetchHistory();
   } catch (error) {
-    console.error('Failed to remove history item:', error);
+    reportError('Favorites', error);
   }
 }
 
@@ -582,7 +582,7 @@ async function toggleAutoPlay() {
       renderFavorites();
       window.toast?.success('Auto-Play', 'Stopped');
     } catch (error) {
-      console.error('[AUTOPLAY] Failed to stop:', error);
+      reportError('Favorites', error);
     }
   } else {
     // Start auto-play

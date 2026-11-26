@@ -87,7 +87,7 @@ async function deleteNetworkShare(id) {
     window.toast.success('Network', 'Share removed');
     await fetchNetworkShares();
   } catch (error) {
-    console.error('Failed to delete share:', error);
+    reportError('Network', error);
   }
 }
 

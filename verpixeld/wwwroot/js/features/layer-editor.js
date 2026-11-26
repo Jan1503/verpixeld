@@ -1237,7 +1237,7 @@ async function layerEditorSetOpacity(value) {
   try {
     await window.api.put('/api/canvas/' + encodeURIComponent(name) + '/opacity', { opacity });
   } catch (e) {
-    console.error('Opacity update failed:', e);
+    reportError('Studio', e);
   }
 }
 
@@ -1252,7 +1252,7 @@ async function layerEditorSetBrightness(value) {
   try {
     await window.api.post('/api/brightness/canvas/' + encodeURIComponent(name), { brightness });
   } catch (e) {
-    console.error('Brightness update failed:', e);
+    reportError('Studio', e);
   }
 }
 
@@ -1300,7 +1300,7 @@ async function layerEditorSetPanelBits(value) {
   try {
     await window.api.put('/api/canvas/' + encodeURIComponent(name) + '/colorbits', { panelColorBits });
   } catch (e) {
-    console.error('Panel depth update failed:', e);
+    reportError('Studio', e);
   }
 }
 
@@ -1954,7 +1954,7 @@ async function contentToggleParams(i) {
       const r = await window.api.get('/api/canvas/' + encodeURIComponent(s.name) + '/rotation/step/' + i);
       config = (r.data && r.data.config) || {};
     }
-  } catch (e) { console.error('[studio] load params failed', e); }
+  } catch (e) { reportError('Studio', e); }
 
   host.dataset.ext = ext || '';
   host.dataset.open = '1';

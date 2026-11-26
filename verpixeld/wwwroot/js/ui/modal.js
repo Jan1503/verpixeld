@@ -170,8 +170,7 @@ function showMessage(text, typeOrIsError = 'success') {
     type = typeOrIsError;
   }
   
-  // Map 'info' to 'success' for consistency
-  if (type === 'info') type = 'success';
+  // 'info' stays info (neutral), it is not a success
   
   toast.show({
     type: type,

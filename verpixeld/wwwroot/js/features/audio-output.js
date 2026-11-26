@@ -301,7 +301,7 @@ function setBoardVolume(value) {
     try {
       await api.post(`/api/audio/volume?volume=${shown}`);
     } catch (error) {
-      console.error('Failed to set board volume:', error);
+      reportError('Audio', error);
     }
   }, 80);
 }
@@ -310,7 +310,7 @@ async function setWallPreview(on) {
   try {
     await api.post('/api/audio/pixtone/preview?on=' + (on ? 'true' : 'false'));
   } catch (error) {
-    console.error('Failed to set wall preview:', error);
+    reportError('Audio', error);
   }
 }
 
@@ -318,7 +318,7 @@ async function setPreviewFps(fps) {
   try {
     await api.post('/api/audio/pixtone/preview-fps?fps=' + encodeURIComponent(fps));
   } catch (error) {
-    console.error('Failed to set preview fps:', error);
+    reportError('Audio', error);
   }
 }
 
@@ -326,7 +326,7 @@ async function setPreviewFill(on) {
   try {
     await api.post('/api/audio/pixtone/preview-fill?on=' + (on ? 'true' : 'false'));
   } catch (error) {
-    console.error('Failed to set preview fill:', error);
+    reportError('Audio', error);
   }
 }
 
@@ -334,7 +334,7 @@ async function setPreviewWidth(width) {
   try {
     await api.post('/api/audio/pixtone/preview-width?width=' + encodeURIComponent(width));
   } catch (error) {
-    console.error('Failed to set preview width:', error);
+    reportError('Audio', error);
   }
 }
 
@@ -343,7 +343,7 @@ async function toggleBoardMute() {
     await api.post('/api/audio/mute/toggle');
     await refreshAudioStatusSilent();
   } catch (error) {
-    console.error('Failed to toggle mute:', error);
+    reportError('Audio', error);
   }
 }
 

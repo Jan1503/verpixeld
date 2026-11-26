@@ -421,7 +421,7 @@ async function refreshLocalCamDevices() {
       if (currentVal) audioSelect.value = currentVal;
     }
   } catch (err) {
-    console.error('[VOICE] Device refresh error:', err);
+    reportError('Camera', err);
   }
 }
 

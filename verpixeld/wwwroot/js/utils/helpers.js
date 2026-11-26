@@ -14,11 +14,58 @@ function escapeHtml(text) {
 }
 
 /**
+ * Feedback for a user action. When a click or submit handler returns a promise, the control is busy
+ * until it settles: further clicks on it are ignored (no double submits), and after 150 ms it shows a
+ * spinner (`is-busy`, `aria-busy`). An error the handler did not handle itself becomes a toast instead
+ * of vanishing. `disabled` is left alone on purpose, handlers set it themselves (e.g. Undo).
+ */
+function trackAction(el, result) {
+  if (!el || !result || typeof result.then !== 'function') return;
+  el._busy = true;
+  const timer = setTimeout(() => {
+    el.classList.add('is-busy');
+    el.setAttribute('aria-busy', 'true');
+  }, 150);
+  result
+    .catch(error => reportError('Action failed', error))
+    .finally(() => {
+      clearTimeout(timer);
+      el._busy = false;
+      el.classList.remove('is-busy');
+      el.removeAttribute('aria-busy');
+    });
+}
+
+/**
+ * Tells the user that an action failed (toast) and logs it. The same message within a few seconds is
+ * shown once, so a slider or a repeated click cannot flood the screen. For user actions only:
+ * background loads and polls keep failing quietly (console), or a server restart would spam toasts.
+ */
+const _lastReported = new Map();
+function reportError(area, error) {
+  console.error(`[${area}]`, error);
+  const message = error?.message || String(error);
+  const key = area + '|' + message;
+  const now = Date.now();
+  if (now - (_lastReported.get(key) || 0) < 4000) return;
+  _lastReported.set(key, now);
+  window.toast?.error(area, message);
+}
+
+/** True while `el` (or the form it submits) still runs its last action: the new event is dropped. */
+function isBusy(el, event) {
+  if (!el?._busy) return false;
+  event.preventDefault();
+  event.stopPropagation();
+  return true;
+}
+
+/**
  * Event delegation for rendered lists: one click listener on `container` runs
  * `handlers[el.dataset.action](el.dataset, el, event)` for the closest `[data-action]` element clicked.
  * Values travel in data-* attributes (escaped with escapeHtml when rendered, read back unescaped from
  * dataset), so names and paths never end up inside JavaScript code in an onclick attribute.
- * Safe to call on every render: a container is bound once.
+ * Safe to call on every render: a container is bound once. Async handlers get trackAction feedback.
  */
 function onAction(container, handlers) {
   if (!container) return;
@@ -31,8 +78,15 @@ function onAction(container, handlers) {
     const handler = container._actionHandlers?.[el.dataset.action];
     if (!handler) return;
     event.stopPropagation();
-    handler(el.dataset, el, event);
+    if (isBusy(el, event)) return;
+    trackAction(el, handler(el.dataset, el, event));
   });
+}
+
+/** Runs `fn` once the page's DOM is ready (at once if it already is). */
+function onReady(fn) {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn, { once: true });
+  else fn();
 }
 
 /**
@@ -43,13 +97,9 @@ function onAction(container, handlers) {
  * `handlers` is `{ click: { name: (el, event) => ... }, input: { ... }, ... }`. One listener per event
  * type on the container (delegation), so it also covers controls rendered later. Safe to call again:
  * a container is bound once per event type, later calls add or replace handlers.
+ * Async click and submit handlers get trackAction feedback (busy state, errors as toasts); for a
+ * submit the busy control is the submit button.
  */
-/** Runs `fn` once the page's DOM is ready (at once if it already is). */
-function onReady(fn) {
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn, { once: true });
-  else fn();
-}
-
 const WIRE_ATTR = { click: 'action', input: 'input', change: 'change', keydown: 'keydown', submit: 'submit', pointerdown: 'pointerdown' };
 function wire(container, handlers) {
   if (!container) return;
@@ -66,7 +116,10 @@ function wire(container, handlers) {
       const handler = container._wire[type]?.[el.dataset[attr]];
       if (!handler) return;
       if (type === 'submit') event.preventDefault();
-      handler(el, event);
+      if (type !== 'click' && type !== 'submit') { handler(el, event); return; }
+      const busyEl = type === 'submit' ? (event.submitter || el.querySelector('[type="submit"]') || el) : el;
+      if (isBusy(busyEl, event)) return;
+      trackAction(busyEl, handler(el, event));
     });
   }
 }
@@ -392,6 +445,7 @@ function populateDemoCanvasSelector() { refreshAllCanvasSelectors(); }
 
 // Expose globally
 window.escapeHtml = escapeHtml;
+window.reportError = reportError;
 window.formatUptime = formatUptime;
 window.setButtonLoading = setButtonLoading;
 window.updateSlider = updateSlider;

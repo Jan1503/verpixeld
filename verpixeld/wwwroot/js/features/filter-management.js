@@ -22,7 +22,7 @@ function displayFilters(filters) {
   }
 
   const html = filters.map((filter, index) => `
-  <div class="card card-interactive filter-item" data-filter-index="${index}" data-filter-type="${filter.type}">
+  <div class="card card-interactive filter-item" data-filter-index="${index}" data-filter-type="${escapeHtml(filter.type)}">
     <div class="card-header">
       <div class="card-title">${formatFilterName(filter.type)}</div>
     </div>
@@ -34,8 +34,8 @@ function displayFilters(filters) {
     </div>
     
     <div class="card-footer">
-      <button class="btn btn-small btn-secondary btn-edit-filter" data-index="${index}">Edit</button>
-      <button class="btn btn-small btn-danger btn-remove-filter" data-index="${index}">Remove</button>
+      <button class="btn btn-small btn-secondary" data-action="edit" data-index="${index}">Edit</button>
+      <button class="btn btn-small btn-danger" data-action="remove" data-index="${index}">Remove</button>
     </div>
   </div>
 `).join('');
@@ -43,21 +43,9 @@ function displayFilters(filters) {
   container.innerHTML = html;
   window.activeFilterParams = filters.map(f => f.parameters);
 
-  document.querySelectorAll('.btn-edit-filter').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const index = parseInt(e.target.getAttribute('data-index'));
-      const filterItem = e.target.closest('.filter-item');
-      const filterType = filterItem.getAttribute('data-filter-type');
-      const params = window.activeFilterParams[index];
-      editFilter(index, filterType, params);
-    });
-  });
-
-  document.querySelectorAll('.btn-remove-filter').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const index = parseInt(e.target.getAttribute('data-index'));
-      removeFilter(index);
-    });
+  onAction(container, {
+    edit: (d, el) => editFilter(Number(d.index), el.closest('.filter-item').dataset.filterType, window.activeFilterParams[Number(d.index)]),
+    remove: d => removeFilter(Number(d.index))
   });
 }
 
@@ -127,7 +115,7 @@ async function showFilterPicker() {
         iconHtml = `<div class="extension-icon">${ICONS.FILTER}</div>`;
       }
 
-      filterHtml += `<div class="extension-card filter-card" data-filter="${escapeHtml(filter.name)}">
+      filterHtml += `<div class="extension-card filter-card" data-action="pick" data-filter="${escapeHtml(filter.name)}">
                 ${iconHtml}
                 <div class="extension-name">${escapeHtml(filter.displayName)}</div>
             </div>`;
@@ -138,12 +126,8 @@ async function showFilterPicker() {
 
   container.innerHTML = filterHtml;
   
-  container.querySelectorAll('.filter-card').forEach(card => {
-    card.addEventListener('click', () => {
-      const filterName = card.getAttribute('data-filter');
-      closeFilterPicker();
-      showFilterForm(filterName);
-    });
+  onAction(container, {
+    pick: d => { closeFilterPicker(); showFilterForm(d.filter); }
   });
 }
 
@@ -455,7 +439,7 @@ async function applyLiveFilterUpdate(index) {
   try {
     await api.put(`/api/filters/${index}`, { parameters });
   } catch (error) {
-    console.error('Failed to update filter:', error);
+    reportError('Filter', error);
   }
 }
 

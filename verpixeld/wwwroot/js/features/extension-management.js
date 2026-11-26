@@ -133,7 +133,7 @@ async function applyExtensionParameterUpdate(canvasName) {
       });
     }
   } catch (error) {
-    console.error('Failed to update extension:', error);
+    reportError('Extension', error);
   }
 }
 

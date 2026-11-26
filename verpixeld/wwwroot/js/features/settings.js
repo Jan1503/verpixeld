@@ -701,7 +701,7 @@ function onImageCorrectionInput() {
   if (_imgCorrTimer) clearTimeout(_imgCorrTimer);
   _imgCorrTimer = setTimeout(async () => {
     try { await api.post('/api/settings/image-correction', { ...v, save: false }); }
-    catch (error) { console.error('[SETTINGS] Live image correction apply failed:', error); }
+    catch (error) { reportError('Settings', error); }
   }, 120);
 }
 
@@ -730,7 +730,7 @@ async function resetImageCorrection() {
     await api.post('/api/settings/image-correction', { ...d, save: true });
     window.toast?.info('Settings', 'Image correction reset');
   } catch (error) {
-    console.error('[SETTINGS] Failed to reset image correction:', error);
+    reportError('Settings', error);
   }
 }
 

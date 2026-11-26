@@ -316,6 +316,34 @@
   height: 14px;
 }
 
+/* Busy state of any control whose action is still running (trackAction in helpers.js) */
+.is-busy {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.btn.is-busy::after,
+.btn-icon.is-busy::after,
+.le-ico.is-busy::after,
+.item-action-btn.is-busy::after {
+  content: '';
+  display: inline-block;
+  box-sizing: border-box;
+  width: 11px;
+  height: 11px;
+  margin-left: 6px;
+  vertical-align: -1px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-right-color: currentColor;
+  border-radius: 50%;
+  animation: btn-spin 0.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-busy::after { animation-duration: 2.4s; }
+}
+
 @keyframes btn-spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }

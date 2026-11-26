@@ -117,18 +117,22 @@ function initializeApplication() {
     }
   });
 
-  // Attach event listeners to static buttons
-  document.getElementById('apply-layout-btn')?.addEventListener('click', applyLayout);
-  document.getElementById('refresh-layout-btn')?.addEventListener('click', refreshLayoutInfo);
-  document.getElementById('save-current-layout-btn')?.addEventListener('click', showSaveLayoutDialog);
-  document.getElementById('refresh-saved-layouts-btn')?.addEventListener('click', fetchSavedLayouts);
-  document.getElementById('start-local-mode-btn')?.addEventListener('click', startSelectedLocalMode);
-  document.getElementById('stop-local-mode-btn')?.addEventListener('click', () => setMode('stop'));
-  document.getElementById('configure-mode-btn')?.addEventListener('click', showModeConfig);
-  document.getElementById('add-filter-btn')?.addEventListener('click', showFilterPicker);
-  document.getElementById('clear-all-filters-btn')?.addEventListener('click', clearAllFilters);
-  document.getElementById('reboot-btn')?.addEventListener('click', confirmSystemReboot);
-  document.getElementById('restart-render-btn')?.addEventListener('click', confirmRestartRender);
+  // Static buttons with an id; trackAction gives them the same busy state and error toast as wired ones.
+  const onClick = (id, fn) => {
+    const btn = document.getElementById(id);
+    btn?.addEventListener('click', event => { if (!isBusy(btn, event)) trackAction(btn, fn()); });
+  };
+  onClick('apply-layout-btn', () => applyLayout());
+  onClick('refresh-layout-btn', () => refreshLayoutInfo());
+  onClick('save-current-layout-btn', () => showSaveLayoutDialog());
+  onClick('refresh-saved-layouts-btn', () => fetchSavedLayouts());
+  onClick('start-local-mode-btn', () => startSelectedLocalMode());
+  onClick('stop-local-mode-btn', () => setMode('stop'));
+  onClick('configure-mode-btn', () => showModeConfig());
+  onClick('add-filter-btn', () => showFilterPicker());
+  onClick('clear-all-filters-btn', () => clearAllFilters());
+  onClick('reboot-btn', () => confirmSystemReboot());
+  onClick('restart-render-btn', () => confirmRestartRender());
 
   console.log('Application initialized');
 }

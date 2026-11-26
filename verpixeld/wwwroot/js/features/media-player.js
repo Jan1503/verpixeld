@@ -227,7 +227,7 @@ async function toggleMediaPause() {
       updateMediaUI();
     }
   } catch (error) {
-    console.error('Failed to toggle pause:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -245,7 +245,7 @@ async function playNextTrack() {
       window.toast.info('Media', result.message || 'End of playlist');
     }
   } catch (error) {
-    console.error('Failed to play next:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -263,7 +263,7 @@ async function playPreviousTrack() {
       window.toast.info('Media', result.message || 'Start of playlist');
     }
   } catch (error) {
-    console.error('Failed to play previous:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -281,7 +281,7 @@ async function toggleShuffleMode() {
       updateMediaUI();
     }
   } catch (error) {
-    console.error('Failed to toggle shuffle:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -299,7 +299,7 @@ async function toggleRepeatMode() {
       updateMediaUI();
     }
   } catch (error) {
-    console.error('Failed to toggle repeat:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -342,7 +342,7 @@ async function seekMediaVideo(event) {
       }
     }
   } catch (error) {
-    console.error('Failed to seek:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -360,7 +360,7 @@ async function toggleMediaMute() {
       window.toast.info('Audio', result.message);
     }
   } catch (error) {
-    console.error('Failed to toggle mute:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -395,7 +395,7 @@ async function setMediaVolume(volume) {
       }
     }, 300);
   } catch (error) {
-    console.error('Failed to set volume:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -422,7 +422,7 @@ async function setAudioSync(offsetMs) {
       }
     }
   } catch (error) {
-    console.error('Failed to set audio sync:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -443,7 +443,7 @@ async function setScaleFilter(filter) {
       window.toast?.error('Scale', result.message);
     }
   } catch (error) {
-    console.error('Failed to set scale filter:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -467,7 +467,7 @@ async function selectModFile(filename) {
       window.toast.error('Music', result.message || 'Failed to set music');
     }
   } catch (error) {
-    console.error('Failed to set MOD:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -485,7 +485,7 @@ async function stopModMusic() {
       await fetchMediaStatus();
     }
   } catch (error) {
-    console.error('Failed to stop music:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -637,7 +637,7 @@ async function deleteAudioFile(filename) {
       window.toast.error('Audio', result.message || 'Delete failed');
     }
   } catch (error) {
-    console.error('Failed to delete audio:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -659,7 +659,7 @@ async function deleteMediaVideo(filename) {
       window.toast.error('Media', result.message || 'Delete failed');
     }
   } catch (error) {
-    console.error('Failed to delete video:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -1074,7 +1074,7 @@ async function setMediaTargetCanvas(canvasName) {
       console.log(`[MEDIA] Target canvas set to: ${result.targetCanvasName}`);
     }
   } catch (error) {
-    console.error('Failed to set target canvas:', error);
+    reportError('Playback', error);
   }
 }
 

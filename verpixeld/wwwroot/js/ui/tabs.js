@@ -564,7 +564,7 @@ async function setDemoVolume(value) {
         }
       }, 200);
     } catch (error) {
-      console.error('Failed to set volume:', error);
+      reportError('Playback', error);
     }
   }, 100);
 }
@@ -585,7 +585,7 @@ async function toggleDemoMute() {
       }
     }
   } catch (error) {
-    console.error('Failed to toggle mute:', error);
+    reportError('Playback', error);
   }
 }
 
@@ -600,7 +600,7 @@ async function toggleDemoPause() {
       updateMediaPlayerBar();
     }
   } catch (error) {
-    console.error('Failed to toggle pause:', error);
+    reportError('Playback', error);
   }
 }
 
