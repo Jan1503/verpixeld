@@ -1,5 +1,7 @@
+using verpixeld.Layout;
+using verpixeld.Interfaces;
+using CanvasManagement;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 using verpixeld.MediaPlayer.Audio;
 using verpixeld.Services;
 
@@ -12,7 +14,7 @@ public static class VisualizerEndpoints
 {
     public static void MapVisualizerEndpoints(this WebApplication app)
     {
-        var ctx = app.Services.GetRequiredService<EndpointContext>();
+        var layoutManager = app.Services.GetRequiredService<IDisplayLayoutManager>();
         var visualizerService = app.Services.GetRequiredService<IAudioVisualizerService>();
 
         var group = app.MapGroup("/api/visualizer").WithTags("Audio Visualizer");
@@ -27,7 +29,7 @@ public static class VisualizerEndpoints
                 var status = visualizerService.GetStatus();
 
                 // Get available canvases from layout manager
-                var canvases = ctx.LayoutManager.GetAllCanvases()
+                var canvases = layoutManager.GetAllCanvases()
                     .Where(c => !SystemOverlayCanvases.IsSystem(c.Name))
                     .Select(c => new { id = c.Name, name = c.Name })
                     .ToArray();
@@ -67,7 +69,7 @@ public static class VisualizerEndpoints
                     return ApiResponse.Fail("Canvas name is required");
 
                 // Get canvas from layout manager
-                var canvas = ctx.LayoutManager.GetCanvas(request.CanvasId);
+                var canvas = layoutManager.GetCanvas(request.CanvasId);
                 if (canvas == null)
                     return ApiResponse.Fail($"Canvas '{request.CanvasId}' not found");
 

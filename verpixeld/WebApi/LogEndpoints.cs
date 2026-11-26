@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using verpixeld.Services;
 
 namespace verpixeld.WebApi;

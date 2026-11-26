@@ -25,7 +25,9 @@ public sealed class PanelBridgeService
     private readonly AlarmService _alarms;
     private readonly SongLogService _songs;
     private readonly IAudioVisualizerService _visualizer;
-    private readonly EndpointContext _ctx;
+    private readonly CanvasManagement.CanvasManager _canvasManager;
+    private readonly verpixeld.Layout.LayoutStorageManager _layoutStorage;
+    private readonly verpixeld.Interfaces.IDisplayLayoutManager _layoutManager;
     private string? _visualCanvas;
     private readonly HttpClient _self;
     private readonly object _gate = new();
@@ -49,7 +51,9 @@ public sealed class PanelBridgeService
 
     public PanelBridgeService(PixToneOutputService board, MediaPlayerService media, FavoritesService favorites,
         RadioService radio, SleepTimerService sleep, AlarmService alarms, SongLogService songs,
-        IAudioVisualizerService visualizer, EndpointContext ctx, IConfiguration configuration, ILogger<PanelBridgeService> log)
+        IAudioVisualizerService visualizer, CanvasManagement.CanvasManager canvasManager,
+        verpixeld.Layout.LayoutStorageManager layoutStorage, verpixeld.Interfaces.IDisplayLayoutManager layoutManager,
+        IConfiguration configuration, ILogger<PanelBridgeService> log)
     {
         _log = log;
         _board = board;
@@ -60,7 +64,9 @@ public sealed class PanelBridgeService
         _alarms = alarms;
         _songs = songs;
         _visualizer = visualizer;
-        _ctx = ctx;
+        _canvasManager = canvasManager;
+        _layoutStorage = layoutStorage;
+        _layoutManager = layoutManager;
         var port = configuration.GetSection(WebServerOptions.SectionName).GetValue("HttpPort", 5000);
         // With HTTPS on, plain HTTP is redirected; the header is the server's own way to stay on HTTP.
         _self = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false })
@@ -69,7 +75,7 @@ public sealed class PanelBridgeService
             Timeout = TimeSpan.FromSeconds(30)
         };
         _self.DefaultRequestHeaders.Add("X-Allow-HTTP", "1");
-        if (_ctx.CanvasManager.Brightness > 0.01f) _wallBrightness = _ctx.CanvasManager.Brightness;
+        if (_canvasManager.Brightness > 0.01f) _wallBrightness = _canvasManager.Brightness;
 
         _board.PlayStateSource = PlayState;
         _board.PanelPackets = Packets;
@@ -121,7 +127,7 @@ public sealed class PanelBridgeService
         var flags = PanelFlags.None;
         if (_media.ShuffleMode) flags |= PanelFlags.Shuffle;
         if (_media.RepeatMode) flags |= PanelFlags.Repeat;
-        var brightness = _ctx.CanvasManager.Brightness;
+        var brightness = _canvasManager.Brightness;
         if (brightness > 0.005f) flags |= PanelFlags.WallOn;
         if (_media.IsRadioPlaying) flags |= PanelFlags.Radio;
         if (AudioOnly()) flags |= PanelFlags.AudioOnly;
@@ -152,7 +158,7 @@ public sealed class PanelBridgeService
         List<string> layouts;
         try
         {
-            layouts = _ctx.LayoutStorageManager.GetAllLayouts().Select(l => l.Name)
+            layouts = _layoutStorage.GetAllLayouts().Select(l => l.Name)
                 .OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase).Take(PixToneProtocol.ListMax).ToList();
         }
         catch
@@ -259,16 +265,16 @@ public sealed class PanelBridgeService
             case PanelKey.Brightness:
             {
                 var b = Math.Clamp(arg, (ushort)0, (ushort)100) / 100f;
-                _ctx.CanvasManager.Brightness = b;
+                _canvasManager.Brightness = b;
                 if (b > 0.01f) _wallBrightness = b;
                 _log.LogInformation("Wall brightness {Arg}%", arg);
                 break;
             }
             case PanelKey.WallPower:
             {
-                var on = _ctx.CanvasManager.Brightness > 0.005f;
-                if (on) _wallBrightness = _ctx.CanvasManager.Brightness;
-                _ctx.CanvasManager.Brightness = on ? 0f : Math.Max(0.05f, _wallBrightness);
+                var on = _canvasManager.Brightness > 0.005f;
+                if (on) _wallBrightness = _canvasManager.Brightness;
+                _canvasManager.Brightness = on ? 0f : Math.Max(0.05f, _wallBrightness);
                 _log.LogInformation("Wall {Value}", (on ? "off" : "on"));
                 break;
             }
@@ -342,7 +348,7 @@ public sealed class PanelBridgeService
             _log.LogInformation("Wall spectrum off");
             return;
         }
-        var canvases = _ctx.LayoutManager.GetAllCanvases()
+        var canvases = _layoutManager.GetAllCanvases()
             .Where(c => c.Canvas != null && !SystemOverlayCanvases.IsSystem(c.Name)).ToList();
         if (canvases.Count == 0)
         {

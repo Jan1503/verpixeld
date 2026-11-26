@@ -1,3 +1,4 @@
+using verpixeld.Interfaces;
 using System.Text.Json;
 using CanvasManagement;
 using verpixeld.Layout;
@@ -18,11 +19,11 @@ public static class CanvasEndpoints
     public static void MapCanvasEndpoints(this WebApplication app)
     {
         Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(CanvasEndpoints));
-        var ctx = app.Services.GetRequiredService<EndpointContext>();
+        var canvasManager = app.Services.GetRequiredService<CanvasManager>();
+        var layoutManager = app.Services.GetRequiredService<IDisplayLayoutManager>();
+        var contentManager = app.Services.GetRequiredService<ICanvasContentManager>();
+        var rotationService = app.Services.GetRequiredService<CanvasRotationService>();
         var mediaService = app.Services.GetRequiredService<MediaPlayerService>();
-        var canvasManager = ctx.CanvasManager;
-        var layoutManager = ctx.LayoutManager;
-        var contentManager = ctx.ContentManager;
 
         // Resolve a canvas by name. The layout manager only tracks canvases it created; live overlays added
         // directly on the CanvasManager (e.g. the MediaPlayer video overlay) aren't in its dictionary, so fall
@@ -398,7 +399,7 @@ public static class CanvasEndpoints
                     Log.LogError("[CANVAS] Stopping media on '{CanvasName}' before removal failed: {Message}", canvasName, ex.Message);
                 }
 
-                ctx.RotationService.Forget(canvasName);
+                rotationService.Forget(canvasName);
 
                 try
                 {
@@ -453,7 +454,7 @@ public static class CanvasEndpoints
 
                 // A brand-new canvas must not inherit a rotation config left over (in the global store) from a
                 // previous layout that happened to use the same canvas name — that resurrected old content.
-                ctx.RotationService.Forget(name);
+                rotationService.Forget(name);
 
                 return Results.Json(new ApiResponse<string>(true, $"Canvas '{name}' created"));
             }
@@ -503,13 +504,13 @@ public static class CanvasEndpoints
                     contentManager.AssignExtension(name, content.ExtensionDisplayName, cfg);
                 }
 
-                var rot = ctx.RotationService.GetConfig(canvasName);
+                var rot = rotationService.GetConfig(canvasName);
                 if (rot.Steps.Count > 0)
                 {
                     var cloned = JsonSerializer.Deserialize<CanvasRotationConfig>(
                                     JsonSerializer.Serialize(rot))
                                 ?? new CanvasRotationConfig();
-                    ctx.RotationService.ImportConfig(name, cloned);
+                    rotationService.ImportConfig(name, cloned);
                 }
 
                 Log.LogInformation("Duplicated '{CanvasName}' → '{Name}' ({Width}x{Height} @ {X},{Y})", canvasName, name, copy.Width, copy.Height, x, y);

@@ -1,5 +1,7 @@
+using verpixeld.Layout;
+using verpixeld.Interfaces;
+using CanvasManagement;
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using verpixeld.Services;
 
 namespace verpixeld.WebApi;
@@ -16,7 +18,8 @@ public static class BrightnessEndpoints
     public static void MapBrightnessEndpoints(this WebApplication app)
     {
         Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(BrightnessEndpoints));
-        var ctx = app.Services.GetRequiredService<EndpointContext>();
+        var canvasManager = app.Services.GetRequiredService<CanvasManager>();
+        var layoutManager = app.Services.GetRequiredService<IDisplayLayoutManager>();
 
         // Get global brightness
         app.MapGet("/api/brightness/global", () =>
@@ -25,8 +28,8 @@ public static class BrightnessEndpoints
             {
                 return ApiResponse.Ok(new
                 {
-                    brightness = ctx.CanvasManager.Brightness,
-                    percentage = (int)(ctx.CanvasManager.Brightness * 100)
+                    brightness = canvasManager.Brightness,
+                    percentage = (int)(canvasManager.Brightness * 100)
                 });
             }
             catch (Exception ex)
@@ -52,13 +55,13 @@ public static class BrightnessEndpoints
                 // Clamp between 0.0 and 1.0
                 brightness = Math.Max(0.0, Math.Min(1.0, brightness));
 
-                ctx.CanvasManager.Brightness = (float)brightness;
+                canvasManager.Brightness = (float)brightness;
                 Log.LogInformation("Global brightness set to {Brightness:F2} ({Value}%)", brightness, (int)(brightness * 100));
 
                 return ApiResponse.Ok(new
                 {
-                    brightness = ctx.CanvasManager.Brightness,
-                    percentage = (int)(ctx.CanvasManager.Brightness * 100)
+                    brightness = canvasManager.Brightness,
+                    percentage = (int)(canvasManager.Brightness * 100)
                 });
             }
             catch (Exception ex)
@@ -73,7 +76,7 @@ public static class BrightnessEndpoints
         {
             try
             {
-                var canvases = ctx.LayoutManager.GetAllCanvases()
+                var canvases = layoutManager.GetAllCanvases()
                     .Where(c => !SystemOverlayCanvases.IsSystem(c.Name))
                     .Select(c => new
                     {
@@ -95,7 +98,7 @@ public static class BrightnessEndpoints
         {
             try
             {
-                var canvas = ctx.LayoutManager.GetCanvas(canvasName);
+                var canvas = layoutManager.GetCanvas(canvasName);
                 if (canvas == null)
                     return ApiResponse.Fail($"Canvas '{canvasName}' not found");
 
@@ -117,7 +120,7 @@ public static class BrightnessEndpoints
         {
             try
             {
-                var canvas = ctx.LayoutManager.GetCanvas(canvasName);
+                var canvas = layoutManager.GetCanvas(canvasName);
                 if (canvas == null)
                     return ApiResponse.Fail($"Canvas '{canvasName}' not found");
 

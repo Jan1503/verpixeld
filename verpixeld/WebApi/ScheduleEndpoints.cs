@@ -1,5 +1,7 @@
+using verpixeld.Services;
+using verpixeld.Interfaces;
+using CanvasManagement;
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using verpixeld.Layout;
 
 namespace verpixeld.WebApi;
@@ -16,14 +18,14 @@ public static class ScheduleEndpoints
     public static void MapScheduleEndpoints(this WebApplication app)
     {
         Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ScheduleEndpoints));
-        var ctx = app.Services.GetRequiredService<EndpointContext>();
+        var scheduleManager = app.Services.GetRequiredService<ILayoutScheduleManager>();
 
         // Get all schedules
         app.MapGet("/api/schedule/list", () =>
         {
             try
             {
-                var schedules = ctx.ScheduleManager!.GetAllSchedules();
+                var schedules = scheduleManager!.GetAllSchedules();
                 return Results.Json(new { success = true, data = schedules });
             }
             catch (Exception ex)
@@ -37,7 +39,7 @@ public static class ScheduleEndpoints
         {
             try
             {
-                var active = ctx.ScheduleManager!.GetActiveSchedule();
+                var active = scheduleManager!.GetActiveSchedule();
                 if (active == null)
                     return Results.Json(new { success = true, data = (object?)null });
 
@@ -54,7 +56,7 @@ public static class ScheduleEndpoints
         {
             try
             {
-                var schedule = ctx.ScheduleManager!.GetSchedule(scheduleName);
+                var schedule = scheduleManager!.GetSchedule(scheduleName);
                 if (schedule == null)
                     return Results.Json(new { success = false, error = $"Schedule '{scheduleName}' not found" });
 
@@ -78,7 +80,7 @@ public static class ScheduleEndpoints
                 if (schedule == null)
                     return Results.Json(new { success = false, error = "Invalid schedule data" });
 
-                var saved = ctx.ScheduleManager!.SaveSchedule(schedule);
+                var saved = scheduleManager!.SaveSchedule(schedule);
                 if (!saved)
                     return Results.Json(new { success = false, error = "Failed to save schedule" });
 
@@ -86,20 +88,20 @@ public static class ScheduleEndpoints
                 if (schedule.Enabled)
                 {
                     // Activate the schedule if it's enabled
-                    ctx.ScheduleManager.ActivateSchedule(schedule.Name);
+                    scheduleManager.ActivateSchedule(schedule.Name);
                     Log.LogInformation("Auto-activated enabled schedule '{Name}'", schedule.Name);
                 }
                 else
                 {
                     // Deactivate if this schedule was the active one
-                    var activeSchedule = ctx.ScheduleManager.GetActiveSchedule();
+                    var activeSchedule = scheduleManager.GetActiveSchedule();
                     if (activeSchedule != null && activeSchedule.Name == schedule.Name)
                     {
-                        ctx.ScheduleManager.ClearActiveSchedule();
+                        scheduleManager.ClearActiveSchedule();
                         Log.LogInformation("Deactivated schedule '{Name}' (was disabled)", schedule.Name);
 
                         // Try to activate another enabled schedule
-                        ctx.ScheduleManager.AutoActivateIfNeeded();
+                        scheduleManager.AutoActivateIfNeeded();
                     }
                 }
 
@@ -121,7 +123,7 @@ public static class ScheduleEndpoints
         {
             try
             {
-                var deleted = ctx.ScheduleManager!.DeleteSchedule(scheduleName);
+                var deleted = scheduleManager!.DeleteSchedule(scheduleName);
                 if (!deleted)
                     return Results.Json(new { success = false, error = $"Schedule '{scheduleName}' not found" });
 
@@ -142,7 +144,7 @@ public static class ScheduleEndpoints
         {
             try
             {
-                var activated = ctx.ScheduleManager!.ActivateSchedule(scheduleName);
+                var activated = scheduleManager!.ActivateSchedule(scheduleName);
                 if (!activated)
                     return Results.Json(new { success = false, error = $"Schedule '{scheduleName}' not found" });
 
@@ -163,7 +165,7 @@ public static class ScheduleEndpoints
         {
             try
             {
-                var success = ctx.ScheduleManager!.SetDefaultSchedule(scheduleName);
+                var success = scheduleManager!.SetDefaultSchedule(scheduleName);
                 if (!success)
                     return Results.Json(new { success = false, error = $"Schedule '{scheduleName}' not found" });
 
@@ -184,7 +186,7 @@ public static class ScheduleEndpoints
         {
             try
             {
-                var next = ctx.ScheduleManager!.GetNextScheduledChange();
+                var next = scheduleManager!.GetNextScheduledChange();
                 if (next == null)
                     return Results.Json(new { success = true, data = (object?)null });
 

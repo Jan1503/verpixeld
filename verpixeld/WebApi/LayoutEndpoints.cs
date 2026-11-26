@@ -1,6 +1,6 @@
+using CanvasManagement;
 using System.Text.Json;
 using CanvasManagement.Interfaces;
-using Microsoft.Extensions.DependencyInjection;
 using verpixeld.Interfaces;
 using verpixeld.Layout;
 using verpixeld.Services;
@@ -19,14 +19,17 @@ public static class LayoutEndpoints
     public static void MapLayoutEndpoints(this WebApplication app)
     {
         Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(LayoutEndpoints));
-        var ctx = app.Services.GetRequiredService<EndpointContext>();
-        MapLayoutProfileEndpoints(app, ctx);
-        MapCanvasEndpoints(app, ctx);
-        MapSavedLayoutEndpoints(app, ctx);
+        MapLayoutProfileEndpoints(app);
+        MapCanvasEndpoints(app);
+        MapSavedLayoutEndpoints(app);
     }
 
-    private static void MapLayoutProfileEndpoints(WebApplication app, EndpointContext ctx)
+    private static void MapLayoutProfileEndpoints(WebApplication app)
     {
+        var layoutManager = app.Services.GetRequiredService<IDisplayLayoutManager>();
+        var contentManager = app.Services.GetRequiredService<ICanvasContentManager>();
+        var scheduleManager = app.Services.GetRequiredService<ILayoutScheduleManager>();
+        var rotationService = app.Services.GetRequiredService<CanvasRotationService>();
         // Get available layout profiles
         app.MapGet("/api/layout/profiles", () =>
         {
@@ -53,7 +56,7 @@ public static class LayoutEndpoints
         {
             try
             {
-                var canvases = ctx.LayoutManager.GetAllCanvases()
+                var canvases = layoutManager.GetAllCanvases()
                     .Select(c => new
                     {
                         name = c.Name,
@@ -66,10 +69,10 @@ public static class LayoutEndpoints
                     success = true,
                     data = new
                     {
-                        profile = ctx.LayoutManager.CurrentProfile.ToString().ToLower(),
-                        displayName = ctx.LayoutManager.CurrentProfile.ToString(),
-                        description = DisplayLayoutManager.GetLayoutDescription(ctx.LayoutManager.CurrentProfile),
-                        canvasCount = ctx.LayoutManager.CanvasCount,
+                        profile = layoutManager.CurrentProfile.ToString().ToLower(),
+                        displayName = layoutManager.CurrentProfile.ToString(),
+                        description = DisplayLayoutManager.GetLayoutDescription(layoutManager.CurrentProfile),
+                        canvasCount = layoutManager.CanvasCount,
                         canvases
                     }
                 });
@@ -95,11 +98,11 @@ public static class LayoutEndpoints
                 Log.LogInformation("Applying layout: {Profile}", profile);
 
                 // Clear active schedule - User is manually overriding
-                ctx.ScheduleManager.ClearActiveSchedule();
+                scheduleManager.ClearActiveSchedule();
 
                 // Stop all current content
                 Log.LogInformation("Stopping all current content...");
-                ctx.ContentManager.StopAllContent();
+                contentManager.StopAllContent();
 
                 // Give extensions time to fully stop
                 await Task.Delay(200);
@@ -108,14 +111,14 @@ public static class LayoutEndpoints
                 // A profile is a blank canvas structure, not a saved scene. Drop per-canvas rotation
                 // playlists so Studio's Content pane (and later assigns) don't inherit the previous
                 // layout's steps — same as loading a saved layout, which then re-imports from JSON.
-                ctx.RotationService.ClearAll();
+                rotationService.ClearAll();
 
                 // Apply new layout
-                ctx.LayoutManager.ApplyLayout(profile);
+                layoutManager.ApplyLayout(profile);
 
-                var prime = ctx.LayoutManager.GetCanvas("Main")
-                            ?? ctx.LayoutManager.GetCanvas("Content")
-                            ?? ctx.LayoutManager.GetAllCanvases().FirstOrDefault().Canvas;
+                var prime = layoutManager.GetCanvas("Main")
+                            ?? layoutManager.GetCanvas("Content")
+                            ?? layoutManager.GetAllCanvases().FirstOrDefault().Canvas;
                 Log.LogInformation("Layout applied successfully. Prime canvas: {Value}", prime != null);
 
                 return Results.Json(new
@@ -124,8 +127,8 @@ public static class LayoutEndpoints
                     data = new
                     {
                         profile = profile.ToString().ToLower(),
-                        canvasCount = ctx.LayoutManager.CanvasCount,
-                        canvases = ctx.LayoutManager.GetCanvasNames()
+                        canvasCount = layoutManager.CanvasCount,
+                        canvases = layoutManager.GetCanvasNames()
                     }
                 });
             }
@@ -141,7 +144,7 @@ public static class LayoutEndpoints
         {
             try
             {
-                var canvases = ctx.LayoutManager.GetAllCanvases()
+                var canvases = layoutManager.GetAllCanvases()
                     .Select(c => new
                     {
                         name = c.Name,
@@ -158,8 +161,10 @@ public static class LayoutEndpoints
         });
     }
 
-    private static void MapCanvasEndpoints(WebApplication app, EndpointContext ctx)
+    private static void MapCanvasEndpoints(WebApplication app)
     {
+        var layoutManager = app.Services.GetRequiredService<IDisplayLayoutManager>();
+        var contentManager = app.Services.GetRequiredService<ICanvasContentManager>();
         // Assign extension to canvas
         app.MapPost("/api/layout/assign", async (HttpContext context) =>
         {
@@ -212,7 +217,7 @@ public static class LayoutEndpoints
                 }
 
                 // Use content manager to assign extension
-                var content = ctx.ContentManager!.AssignExtension(canvasName, extensionName, config);
+                var content = contentManager!.AssignExtension(canvasName, extensionName, config);
 
                 return Results.Json(new
                 {
@@ -239,7 +244,7 @@ public static class LayoutEndpoints
             try
             {
                 Log.LogInformation("Stopping content on canvas '{CanvasName}'", canvasName);
-                ctx.ContentManager!.StopContent(canvasName);
+                contentManager!.StopContent(canvasName);
                 return Results.Json(new { success = true, message = $"Content stopped on '{canvasName}'" });
             }
             catch (Exception ex)
@@ -253,8 +258,8 @@ public static class LayoutEndpoints
         {
             try
             {
-                var contents = ctx.ContentManager!.GetAllContents().ToList();
-                var totalCanvases = ctx.LayoutManager.CanvasCount;
+                var contents = contentManager!.GetAllContents().ToList();
+                var totalCanvases = layoutManager.CanvasCount;
 
                 // Map to serializable DTOs (ExtensionInstance contains non-serializable Type)
                 // Return in the format expected by the frontend: { contents: [...] }
@@ -289,7 +294,7 @@ public static class LayoutEndpoints
         {
             try
             {
-                var content = ctx.ContentManager!.GetContent(canvasName);
+                var content = contentManager!.GetContent(canvasName);
                 if (content == null)
                     return Results.Json(new { success = false, error = $"No content on canvas '{canvasName}'" });
 
@@ -368,7 +373,7 @@ public static class LayoutEndpoints
                     config[propName] = value;
                 }
 
-                ctx.ContentManager!.UpdateConfiguration(canvasName, config);
+                contentManager!.UpdateConfiguration(canvasName, config);
 
                 return Results.Json(new { success = true, message = "Configuration updated" });
             }
@@ -385,7 +390,7 @@ public static class LayoutEndpoints
             try
             {
                 Log.LogInformation("Restarting extension on canvas '{CanvasName}'", canvasName);
-                ctx.ContentManager!.RestartContent(canvasName);
+                contentManager!.RestartContent(canvasName);
                 return Results.Json(new { success = true, message = $"Extension restarted on '{canvasName}'" });
             }
             catch (Exception ex)
@@ -431,7 +436,7 @@ public static class LayoutEndpoints
                         })
                         .ToArray();
 
-                var result = ctx.ContentManager!.InvokeMethod(canvasName, methodName, parameters);
+                var result = contentManager!.InvokeMethod(canvasName, methodName, parameters);
 
                 return Results.Json(new
                 {
@@ -455,7 +460,7 @@ public static class LayoutEndpoints
         {
             try
             {
-                var methods = ctx.ContentManager!.GetAvailableMethods(canvasName);
+                var methods = contentManager!.GetAvailableMethods(canvasName);
                 return Results.Json(new { success = true, data = methods });
             }
             catch (Exception ex)
@@ -465,14 +470,21 @@ public static class LayoutEndpoints
         });
     }
 
-    private static void MapSavedLayoutEndpoints(WebApplication app, EndpointContext ctx)
+    private static void MapSavedLayoutEndpoints(WebApplication app)
     {
+        var canvasManager = app.Services.GetRequiredService<CanvasManager>();
+        var layoutManager = app.Services.GetRequiredService<IDisplayLayoutManager>();
+        var contentManager = app.Services.GetRequiredService<ICanvasContentManager>();
+        var layoutStorage = app.Services.GetRequiredService<LayoutStorageManager>();
+        var layoutLoader = app.Services.GetRequiredService<ILayoutLoaderService>();
+        var scheduleManager = app.Services.GetRequiredService<ILayoutScheduleManager>();
+        var rotationService = app.Services.GetRequiredService<CanvasRotationService>();
         // Get all saved layouts
         app.MapGet("/api/layout/saved", () =>
         {
             try
             {
-                var layouts = ctx.LayoutStorageManager!.GetAllLayouts();
+                var layouts = layoutStorage!.GetAllLayouts();
                 return Results.Json(new { success = true, data = layouts });
             }
             catch (Exception ex)
@@ -519,16 +531,16 @@ public static class LayoutEndpoints
                 {
                     Name = name,
                     Description = description,
-                    Profile = ctx.LayoutManager.CurrentProfile.ToString(),
+                    Profile = layoutManager.CurrentProfile.ToString(),
                     CreatedAt = DateTime.UtcNow,
                     IsDefault = isDefault,
                     OverrideGlobalBrightness = overrideBrightness,
-                    GlobalBrightness = ctx.CanvasManager.Brightness,
+                    GlobalBrightness = canvasManager.Brightness,
                     Canvases = new Dictionary<string, CanvasConfiguration>()
                 };
 
                 // Get current content from content manager
-                var contents = ctx.ContentManager!.GetAllContents();
+                var contents = contentManager!.GetAllContents();
                 foreach (var content in contents)
                 {
                     if (content.ExtensionInstance == null) continue;
@@ -542,7 +554,7 @@ public static class LayoutEndpoints
                     // Capture the live canvas geometry/stacking so multi-canvas layouts (e.g. a second
                     // full-screen layer or an overlay) can be recreated on load even when the profile only
                     // defines a single base canvas.
-                    var liveCanvas = ctx.CanvasManager.GetCanvasByName(content.CanvasName);
+                    var liveCanvas = canvasManager.GetCanvasByName(content.CanvasName);
                     if (liveCanvas != null)
                     {
                         canvasConfig.ZOrder = liveCanvas.ZOrder;
@@ -554,8 +566,8 @@ public static class LayoutEndpoints
                         canvasConfig.Width = liveCanvas.Width;
                         canvasConfig.Height = liveCanvas.Height;
                         canvasConfig.IsOverlay = !(liveCanvas.XPos == 0 && liveCanvas.YPos == 0 &&
-                                                   liveCanvas.Width == ctx.CanvasManager.Width &&
-                                                   liveCanvas.Height == ctx.CanvasManager.Height);
+                                                   liveCanvas.Width == canvasManager.Width &&
+                                                   liveCanvas.Height == canvasManager.Height);
                         canvasConfig.TransparentBackground = liveCanvas.TransparentBackground;
                         canvasConfig.Hidden = liveCanvas.IsHidden;
                     }
@@ -595,13 +607,13 @@ public static class LayoutEndpoints
                         }
 
                     // Persist this canvas's content rotation (if any) with the layout so it restores on load.
-                    var rotation = ctx.RotationService.GetConfig(content.CanvasName);
+                    var rotation = rotationService.GetConfig(content.CanvasName);
                     if (rotation is { Steps.Count: > 0 }) canvasConfig.Rotation = rotation;
 
                     savedLayout.Canvases[content.CanvasName] = canvasConfig;
                 }
 
-                ctx.LayoutStorageManager!.SaveLayout(savedLayout);
+                layoutStorage!.SaveLayout(savedLayout);
 
                 Log.LogInformation("Layout '{Name}' saved with {Count} canvas configurations", name, savedLayout.Canvases.Count);
 
@@ -632,15 +644,15 @@ public static class LayoutEndpoints
             {
                 Log.LogInformation("Loading layout '{LayoutName}'...", layoutName);
 
-                var layout = ctx.LayoutStorageManager!.LoadLayout(layoutName);
+                var layout = layoutStorage!.LoadLayout(layoutName);
                 if (layout == null)
                     return Results.Json(new { success = false, error = $"Layout '{layoutName}' not found" });
 
                 // Clear active schedule - User is manually overriding
-                ctx.ScheduleManager.ClearActiveSchedule();
+                scheduleManager.ClearActiveSchedule();
 
                 // Use the centralized layout loader service
-                var result = await ctx.LayoutLoader.LoadLayoutAsync(layout, "API");
+                var result = await layoutLoader.LoadLayoutAsync(layout, "API");
 
                 return Results.Json(new
                 {
@@ -671,7 +683,7 @@ public static class LayoutEndpoints
         {
             try
             {
-                var deleted = ctx.LayoutStorageManager!.DeleteLayout(layoutName);
+                var deleted = layoutStorage!.DeleteLayout(layoutName);
                 if (!deleted)
                     return Results.Json(new { success = false, error = $"Layout '{layoutName}' not found" });
 
@@ -689,7 +701,7 @@ public static class LayoutEndpoints
         {
             try
             {
-                var layout = ctx.LayoutStorageManager!.LoadLayout(layoutName);
+                var layout = layoutStorage!.LoadLayout(layoutName);
                 if (layout == null)
                     return Results.Json(new { success = false, error = $"Layout '{layoutName}' not found" });
 
@@ -706,11 +718,11 @@ public static class LayoutEndpoints
         {
             try
             {
-                var layout = ctx.LayoutStorageManager!.LoadLayout(layoutName);
+                var layout = layoutStorage!.LoadLayout(layoutName);
                 if (layout == null)
                     return Results.Json(new { success = false, error = $"Layout '{layoutName}' not found" });
 
-                ctx.LayoutStorageManager.SetDefaultLayout(layoutName);
+                layoutStorage.SetDefaultLayout(layoutName);
                 Log.LogInformation("Layout '{LayoutName}' set as default", layoutName);
 
                 return Results.Json(new { success = true, message = $"Layout '{layoutName}' set as default" });
@@ -726,11 +738,11 @@ public static class LayoutEndpoints
         {
             try
             {
-                var defaultLayout = ctx.LayoutStorageManager!.GetDefaultLayout();
+                var defaultLayout = layoutStorage!.GetDefaultLayout();
                 if (defaultLayout == null || defaultLayout.Name != layoutName)
                     return Results.Json(new { success = false, error = $"Layout '{layoutName}' is not the default" });
 
-                ctx.LayoutStorageManager.ClearDefaultLayout(layoutName);
+                layoutStorage.ClearDefaultLayout(layoutName);
                 Log.LogInformation("Default layout cleared");
 
                 return Results.Json(new { success = true, message = "Default layout cleared" });

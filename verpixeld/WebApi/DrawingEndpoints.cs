@@ -1,3 +1,7 @@
+using verpixeld.Services;
+using verpixeld.Layout;
+using verpixeld.Interfaces;
+using CanvasManagement;
 using System.Text.Json;
 using SkiaSharp;
 
@@ -10,8 +14,7 @@ public static class DrawingEndpoints
 {
     public static void MapDrawingEndpoints(this WebApplication app)
     {
-        var ctx = app.Services.GetRequiredService<EndpointContext>();
-        var layoutManager = ctx.LayoutManager;
+        var layoutManager = app.Services.GetRequiredService<IDisplayLayoutManager>();
 
         // Apply drawing to canvas
         app.MapPost("/api/draw/apply/{canvasName}", async (HttpContext context, string canvasName) =>

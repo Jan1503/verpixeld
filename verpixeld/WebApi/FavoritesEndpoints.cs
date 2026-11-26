@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using verpixeld.Configuration;
 using verpixeld.MediaPlayer;
 

@@ -1,3 +1,7 @@
+using verpixeld.Services;
+using verpixeld.Layout;
+using verpixeld.Interfaces;
+using CanvasManagement;
 using CanvasManagement.Interfaces;
 
 namespace verpixeld.WebApi;
@@ -13,9 +17,8 @@ public static class FilterEndpoints
     public static void MapFilterEndpoints(this WebApplication app)
     {
         Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(FilterEndpoints));
-        var ctx = app.Services.GetRequiredService<EndpointContext>();
-        var canvasManager = ctx.CanvasManager;
-        var filterDiscovery = ctx.FilterDiscovery;
+        var canvasManager = app.Services.GetRequiredService<CanvasManager>();
+        var filterDiscovery = app.Services.GetRequiredService<IFilterDiscovery>();
 
         // Get available filter types
         app.MapGet("/api/filters/available", () =>

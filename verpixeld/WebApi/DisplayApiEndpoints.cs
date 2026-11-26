@@ -1,10 +1,9 @@
+using verpixeld.Layout;
 using System.Net;
 using System.Text.Json;
-using CanvasManagement;
 using CanvasManagement.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using verpixeld.Configuration;
-using verpixeld.Interfaces;
 using verpixeld.MediaPlayer;
 using verpixeld.Services;
 
@@ -21,7 +20,7 @@ public static class DisplayApiEndpoints
     private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
 
     /// <summary>
-    ///     Maps layout/filter/system endpoints. Each mapper resolves <see cref="EndpointContext"/> from DI.
+    ///     Maps layout/filter/system endpoints. Each mapper resolves the services it uses from DI.
     /// </summary>
     public static void MapDisplayEndpointsWithContext(this WebApplication app)
     {
@@ -36,7 +35,7 @@ public static class DisplayApiEndpoints
     }
 
     /// <summary>
-    ///     Maps display endpoints from the DI-built <see cref="EndpointContext"/>.
+    ///     Maps the display endpoints.
     /// </summary>
     public static void MapDisplayEndpoints(this WebApplication app) => app.MapDisplayEndpointsWithContext();
 }

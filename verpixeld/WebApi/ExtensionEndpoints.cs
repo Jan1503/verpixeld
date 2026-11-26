@@ -1,3 +1,6 @@
+using verpixeld.Services;
+using verpixeld.Layout;
+using verpixeld.Interfaces;
 using CanvasManagement;
 using CanvasManagement.Interfaces;
 
@@ -14,8 +17,7 @@ public static class ExtensionEndpoints
     public static void MapExtensionEndpoints(this WebApplication app)
     {
         Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ExtensionEndpoints));
-        var ctx = app.Services.GetRequiredService<EndpointContext>();
-        var extensionDiscovery = ctx.ExtensionDiscovery;
+        var extensionDiscovery = app.Services.GetRequiredService<IExtensionDiscovery>();
 
         // Get all available extensions
         app.MapGet("/api/extensions/available", () =>

@@ -1,5 +1,7 @@
+using verpixeld.Services;
+using verpixeld.Interfaces;
+using CanvasManagement;
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using verpixeld.Layout;
 
 namespace verpixeld.WebApi;
@@ -16,14 +18,14 @@ public static class NightModeEndpoints
     public static void MapNightModeEndpoints(this WebApplication app)
     {
         Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(NightModeEndpoints));
-        var ctx = app.Services.GetRequiredService<EndpointContext>();
+        var nightModeManager = app.Services.GetRequiredService<INightModeManager>();
 
         // Get night mode configuration
         app.MapGet("/api/nightmode/config", () =>
         {
             try
             {
-                var config = ctx.NightModeManager!.GetConfiguration();
+                var config = nightModeManager!.GetConfiguration();
                 return ApiResponse.Ok(config);
             }
             catch (Exception ex)
@@ -45,7 +47,7 @@ public static class NightModeEndpoints
                 if (config == null)
                     return ApiResponse.Fail("Invalid configuration");
 
-                ctx.NightModeManager!.UpdateConfiguration(config);
+                nightModeManager!.UpdateConfiguration(config);
 
                 Log.LogInformation("Night mode configuration updated. Enabled: {Enabled}", config.Enabled);
 
@@ -67,7 +69,7 @@ public static class NightModeEndpoints
         {
             try
             {
-                var (isActive, currentBrightness, targetBrightness, mode) = ctx.NightModeManager!.GetStatus();
+                var (isActive, currentBrightness, targetBrightness, mode) = nightModeManager!.GetStatus();
 
                 return ApiResponse.Ok(new
                 {
@@ -92,9 +94,9 @@ public static class NightModeEndpoints
             try
             {
                 Log.LogInformation("Force night mode update requested");
-                ctx.NightModeManager!.ForceUpdateImmediate();
+                nightModeManager!.ForceUpdateImmediate();
 
-                var (isActive, currentBrightness, targetBrightness, mode) = ctx.NightModeManager.GetStatus();
+                var (isActive, currentBrightness, targetBrightness, mode) = nightModeManager.GetStatus();
 
                 Log.LogInformation("Night mode update applied - Mode: {Mode}, Brightness: {CurrentBrightness:F2}", mode, currentBrightness);
 

@@ -1,3 +1,7 @@
+using verpixeld.Hardware;
+using verpixeld.Interfaces;
+using CanvasManagement.Interfaces;
+using CanvasManagement;
 using System.Diagnostics;
 using verpixeld.Configuration;
 using verpixeld.Services;
@@ -16,7 +20,9 @@ public static class SystemEndpoints
     public static void MapSystemEndpoints(this WebApplication app)
     {
         Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(SystemEndpoints));
-        var ctx = app.Services.GetRequiredService<EndpointContext>();
+        var canvasManager = app.Services.GetRequiredService<CanvasManager>();
+        var renderService = app.Services.GetRequiredService<IRenderService>();
+        var outputRuntime = app.Services.GetRequiredService<OutputRuntime>();
         var render = app.Services.GetRequiredService<IRenderService>();
         var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
 
@@ -24,16 +30,16 @@ public static class SystemEndpoints
         app.MapGet("/api/status", () =>
         {
             var uptime = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
-            var fps = ctx.GetCurrentFps();
+            var fps = renderService.CurrentFps;
 
-            var resolution = ctx.DisplayResolution;
+            var resolution = $"{outputRuntime.Width}x{outputRuntime.Height}";
 
-            var isRunning = ctx.CanvasManager.GetCanvases.Count > 0;
+            var isRunning = canvasManager.GetCanvases.Count > 0;
 
             var status = new SystemStatus(
-                ctx.GetLocalIp()?.ToString() ?? "Unknown",
+                StartupService.GetLocalIPAddress()?.ToString() ?? "Unknown",
                 isRunning,
-                ctx.CanvasManager.GetFilterCount(),
+                canvasManager.GetFilterCount(),
                 resolution,
                 (long)uptime.TotalSeconds,
                 $"{uptime.Days}d {uptime.Hours}h {uptime.Minutes}m",

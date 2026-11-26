@@ -1,6 +1,7 @@
 using CanvasManagement;
 using CanvasManagement.Interfaces;
 using verpixeld.Configuration;
+using verpixeld.Interfaces;
 using verpixeld.Layout;
 
 namespace verpixeld.WebApi;
@@ -16,25 +17,24 @@ public static class PluginEndpoints
     public static void MapPluginEndpoints(this WebApplication app)
     {
         Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(PluginEndpoints));
-        var ctx = app.Services.GetRequiredService<EndpointContext>();
+        var canvasManager = app.Services.GetRequiredService<CanvasManager>();
+        var contentManager = app.Services.GetRequiredService<ICanvasContentManager>();
+        var extensionDiscovery = app.Services.GetRequiredService<IExtensionDiscovery>();
+        var filterDiscovery = app.Services.GetRequiredService<IFilterDiscovery>();
         app.MapPost("/api/plugins/reload", () =>
         {
-            try { return ApiResponse.Ok(Reload(ctx), "Plugins reloaded"); }
+            try { return ApiResponse.Ok(Reload(canvasManager, contentManager, extensionDiscovery, filterDiscovery), "Plugins reloaded"); }
             catch (Exception ex)
             {
-                Log.LogError("reload failed: {Ex}", ex);
+                Log.LogError(ex, "Reload failed");
                 return ApiResponse.Error(ex);
             }
         });
     }
 
-    private static object Reload(EndpointContext ctx)
+    private static object Reload(CanvasManager cm, ICanvasContentManager content, IExtensionDiscovery ext,
+        IFilterDiscovery filt)
     {
-        var cm = ctx.CanvasManager;
-        var content = ctx.ContentManager;
-        var ext = ctx.ExtensionDiscovery;
-        var filt = ctx.FilterDiscovery;
-
         var running = content.GetAllContents()
             .Where(c => c.ContentType == ContentType.DynamicExtension &&
                         !string.IsNullOrWhiteSpace(c.ExtensionDisplayName))

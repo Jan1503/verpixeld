@@ -292,28 +292,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<PulseAudioEventService>();
         services.AddHostedService(sp => sp.GetRequiredService<PulseAudioEventService>());
 
-        services.AddSingleton(sp =>
-        {
-            var runtime = sp.GetRequiredService<OutputRuntime>();
-            var render = sp.GetRequiredService<IRenderService>();
-            return new EndpointContext
-            {
-                CanvasManager = sp.GetRequiredService<CanvasManager>(),
-                GetLocalIp = StartupService.GetLocalIPAddress,
-                GetCurrentFps = () => render.CurrentFps,
-                LayoutManager = sp.GetRequiredService<IDisplayLayoutManager>(),
-                ContentManager = sp.GetRequiredService<ICanvasContentManager>(),
-                LayoutStorageManager = sp.GetRequiredService<LayoutStorageManager>(),
-                LayoutLoader = sp.GetRequiredService<ILayoutLoaderService>(),
-                ExtensionDiscovery = sp.GetRequiredService<IExtensionDiscovery>(),
-                FilterDiscovery = sp.GetRequiredService<IFilterDiscovery>(),
-                NightModeManager = sp.GetRequiredService<INightModeManager>(),
-                ScheduleManager = sp.GetRequiredService<ILayoutScheduleManager>(),
-                RotationService = sp.GetRequiredService<CanvasRotationService>(),
-                DisplayResolution = $"{runtime.Width}x{runtime.Height}"
-            };
-        });
-
         services.AddDisplayHealthChecks();
         return services;
     }
