@@ -32,7 +32,7 @@ function radioLogo(url, size = 40) {
   const fallback = `<span class="radio-logo-fallback" style="width:${size}px;height:${size}px">📻</span>`;
   if (!safe) return fallback;
   return `<img class="radio-logo" src="${safe}" width="${size}" height="${size}" loading="lazy" alt=""
-           referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'radio-logo-fallback',textContent:'📻'}))">`;
+           referrerpolicy="no-referrer" data-fallback="radio-logo">`;
 }
 
 function radioMeta(s) {

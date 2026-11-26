@@ -206,6 +206,25 @@ export function markerAttrs(event, marker) {
   return ` data-${event}="${escapeHtml(action)}"` + dataAttrs(data);
 }
 
+// Images that fail to load (error events do not bubble, so listen in the capture phase):
+//   data-fallback="hide"        hide the image
+//   data-fallback="next"        hide it and show the element right after it (an icon placeholder)
+//   data-fallback="radio-logo"  replace it with the radio placeholder
+document.addEventListener('error', event => {
+  const img = event.target;
+  if (img?.tagName !== 'IMG' || !img.dataset.fallback) return;
+  const mode = img.dataset.fallback;
+  if (mode === 'radio-logo') {
+    const span = document.createElement('span');
+    span.className = 'radio-logo-fallback';
+    span.textContent = '📻';
+    img.replaceWith(span);
+    return;
+  }
+  img.style.display = 'none';
+  if (mode === 'next' && img.nextElementSibling) img.nextElementSibling.style.display = 'block';
+}, true);
+
 // Alpha sliders of createColorInputWithAlpha keep their percent label current, wherever they are rendered.
 document.addEventListener('input', event => {
   const el = event.target.closest?.('[data-alpha-label]');

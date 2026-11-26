@@ -38,6 +38,27 @@ for (const d of findings) {
   console.error(`${file}:${d.range.start.line}:${d.range.start.col + 1}  ${d.code}  ${d.message}`);
 }
 
+// No inline event handlers (onclick="…", onerror="…"): controls carry data-* markers wired in JS.
+const inline: string[] = [];
+const scan = async (path: string) => {
+  const text = await Deno.readTextFile(path);
+  text.split("\n").forEach((line, i) => {
+    const m = /\son[a-z]+\s*=\s*["'`$]/.exec(line);
+    if (m) inline.push(`${path.split("/wwwroot/").pop()}:${i + 1}  inline handler  ${line.trim().slice(0, 90)}`);
+  });
+};
+await scan(`${root}verpixeld/wwwroot/index.html`);
+const walk = async (dir: string): Promise<void> => {
+  for await (const e of Deno.readDir(dir)) {
+    const p = `${dir}/${e.name}`;
+    if (e.isDirectory) await walk(p);
+    else if (p.endsWith(".js")) await scan(p);
+  }
+};
+await walk(target);
+for (const line of inline) console.error(line);
+findings.push(...inline.map((message) => ({ code: "inline-handler", message })));
+
 const files = report.checked_files?.length ?? "?";
 if (findings.length || report.errors?.length) {
   console.error(`\n${findings.length} finding(s), ${report.errors?.length ?? 0} parse error(s) in ${files} files`);

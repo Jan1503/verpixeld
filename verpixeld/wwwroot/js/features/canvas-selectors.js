@@ -5,6 +5,8 @@
 
 import { api } from '../core/api.js';
 import { contentTargetCanvases, escapeHtml } from '../utils/helpers.js';
+import { updateCameraTargetCanvases } from './camera-stream.js';
+import { updateDrawTargetCanvases } from './draw-mode.js';
 import { populateMediaCanvasSelector } from './media-player.js';
 import { refreshVisualizerStatus } from './visualizer.js';
 
@@ -33,8 +35,10 @@ export async function refreshAllCanvasSelectors() {
         el.value = currentValue;
     };
 
-    fillSelect('draw-target-canvas');
-    fillSelect('camera-target-canvas');
+    // Draw and camera size themselves to the chosen canvas: their own modules fill those lists
+    // (with the canvas sizes), a plain refill here would drop the sizes and leave a stale size.
+    updateDrawTargetCanvases();
+    updateCameraTargetCanvases();
     fillSelect('ai-target-canvas');
     fillSelect('ai-schedule-canvas');
     fillSelect('gallery-slideshow-canvas');

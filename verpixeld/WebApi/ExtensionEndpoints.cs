@@ -41,7 +41,12 @@ public static class ExtensionEndpoints
 
                 var results = new List<object>();
 
-                foreach (var info in extensionInfo)
+                // Alphabetical by the name users see, so every picker lists them in the same order.
+                var ordered = extensionInfo.OrderBy(
+                    i => string.IsNullOrWhiteSpace(i.DisplayName) ? i.Name ?? "" : i.DisplayName,
+                    StringComparer.Create(System.Globalization.CultureInfo.InvariantCulture, ignoreCase: true));
+
+                foreach (var info in ordered)
                     try
                     {
                         var extDict = new Dictionary<string, object>

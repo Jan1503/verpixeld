@@ -1,4 +1,4 @@
-import { escapeHtml, onReady, wire } from '../utils/helpers.js';
+import { contentTargetCanvases, escapeHtml, onReady, wire } from '../utils/helpers.js';
 
 // ==========================================================================
 // CAMERA STREAM MODULE
@@ -126,7 +126,7 @@ const CameraStream = (function() {
       const result = await window.api.get('/api/layout/current');
       if (result.data.canvases) {
         const currentValue = select.value;
-        select.innerHTML = result.data.canvases.map(canvas => 
+        select.innerHTML = contentTargetCanvases(result.data.canvases).map(canvas => 
           `<option value="${escapeHtml(canvas.name)}">${escapeHtml(canvas.name)} (${canvas.width}×${canvas.height})</option>`
         ).join('');
         
@@ -142,8 +142,11 @@ const CameraStream = (function() {
       return;
     }
 
-    // Update dimensions when selection changes
-    select.addEventListener('change', updateTargetDimensions);
+    // Update dimensions when selection changes (bound once: this runs on every canvas change)
+    if (!select.dataset.sizeBound) {
+      select.dataset.sizeBound = '1';
+      select.addEventListener('change', updateTargetDimensions);
+    }
   }
 
   /**

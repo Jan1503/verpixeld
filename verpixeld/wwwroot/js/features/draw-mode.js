@@ -6,7 +6,7 @@
 import { API_BASE } from '../constants.js';
 import { api } from '../core/api.js';
 import { closeModal, showConfirm } from '../ui/modal.js';
-import { escapeHtml, hexToRgba, onAction, onReady, setButtonLoading, wire } from '../utils/helpers.js';
+import { contentTargetCanvases, escapeHtml, hexToRgba, onAction, onReady, setButtonLoading, wire } from '../utils/helpers.js';
 
 // ============================================================================
 // DRAW STATE
@@ -594,20 +594,22 @@ export async function updateDrawTargetCanvases() {
   try {
     const result = await api.get('/api/layout/canvases');
     if (result.data) {
+      const canvases = contentTargetCanvases(result.data);
       const currentSelection = select.value;
-      select.innerHTML = result.data.map(canvas =>
+      select.innerHTML = canvases.map(canvas =>
         `<option value="${escapeHtml(canvas.name)}" data-width="${canvas.width}" data-height="${canvas.height}">${escapeHtml(canvas.name)} (${canvas.width}×${canvas.height})</option>`
       ).join('');
-      let selectedCanvas = result.data[0];
+      let selectedCanvas = canvases[0];
       if (currentSelection) {
-        const found = result.data.find(c => c.name === currentSelection);
+        const found = canvases.find(c => c.name === currentSelection);
         if (found) {
           select.value = currentSelection;
           selectedCanvas = found;
         }
       }
-      if (selectedCanvas) {
-        resizeDrawCanvas(selectedCanvas.width, selectedCanvas.height);
+      // Follow the canvas size (e.g. after "Fill wall"); keep what is drawn so far.
+      if (selectedCanvas && (selectedCanvas.width !== drawState.canvasWidth || selectedCanvas.height !== drawState.canvasHeight)) {
+        resizeDrawCanvas(selectedCanvas.width, selectedCanvas.height, true);
       }
     }
   } catch (err) {

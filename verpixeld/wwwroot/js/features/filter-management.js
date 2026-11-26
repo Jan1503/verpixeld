@@ -130,7 +130,7 @@ export async function showFilterPicker() {
         iconHtml = `<div class="extension-icon-container">
                     <img src="data:${mimeType};base64,${filter.iconData}" 
                          alt="${escapeHtml(filter.displayName)}" class="extension-icon-img"
-                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                         data-fallback="next" />
                     <div class="extension-icon" style="display:none;">${ICONS.FILTER}</div>
                 </div>`;
       }

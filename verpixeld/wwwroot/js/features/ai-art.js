@@ -278,7 +278,7 @@ function renderAiHistory() {
 
     return `
       <div class="ai-history-item" title="${escapeHtml(item.prompt)}">
-        <img src="${thumb}" alt="Generated image" onerror="this.style.display='none'">
+        <img src="${thumb}" alt="Generated image" data-fallback="hide">
         <div class="ai-history-item-info">
           <div class="ai-history-item-prompt">${escapeHtml(item.prompt || '(no prompt)')}</div>
           <div class="ai-history-item-time">${label} &middot; ${time}</div>
@@ -735,7 +735,7 @@ function renderGallery() {
     return `
       <div class="gallery-item" data-action="preview" data-file="${escapeHtml(item.filename)}" title="${escapeHtml(item.filename)}">
         <img src="${AI_GALLERY_BASE}/gallery/${encodeURIComponent(item.filename)}/thumb" 
-             onerror="this.style.display='none'"
+             data-fallback="hide"
              loading="lazy">
         <div class="gallery-item-info">
           <div class="gallery-item-name">${escapeHtml(displayName)}</div>

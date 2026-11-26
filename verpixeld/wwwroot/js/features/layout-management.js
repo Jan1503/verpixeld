@@ -225,7 +225,7 @@ export async function assignExtensionToCanvas(canvasName, onPick) {
           iconHtml = `<div class="extension-icon-container">
                         <img src="data:${mimeType};base64,${ext.iconData}"
                              alt="${escapeHtml(ext.displayName)}" class="extension-icon-img"
-                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                             data-fallback="next" />
                         <div class="extension-icon" style="display:none;">🧩</div>
                     </div>`;
         }
