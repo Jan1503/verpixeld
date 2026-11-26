@@ -1,8 +1,8 @@
 /**
  * Image & Video Upload Feature
- * Handles drag-drop, file selection, image preview, and video frame streaming
+ * Handles drag-drop, file selection, image preview, and video frame streaming.
+ * ES module: nothing here is global, the controls are wired at the end of the file.
  */
-'use strict';
 
 let uploadState = {
   file: null,
@@ -275,17 +275,20 @@ function clearUploadedImage() {
   if (input) input.value = '';
 }
 
-// Expose globally
-window.handleFileUpload = handleFileUpload;
-window.applyUploadedImage = applyUploadedImage;
-window.clearUploadedImage = clearUploadedImage;
-window.seekUploadVideo = seekUploadVideo;
-window.streamUploadVideo = streamUploadVideo;
-window.stopUploadVideoStream = stopUploadVideoStream;
+onReady(initImageUpload);
 
-// Initialize
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initImageUpload);
-} else {
-  initImageUpload();
-}
+// Controls of #tab-canvas in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-canvas'), {
+  click: {
+    'apply-uploaded-image': () => applyUploadedImage(),
+    'clear-uploaded-image': () => clearUploadedImage(),
+    'stream-upload-video': () => streamUploadVideo(),
+    'stop-upload-video-stream': () => stopUploadVideoStream()
+  },
+  change: {
+    'handle-file-upload': (el, event) => handleFileUpload(el)
+  },
+  input: {
+    'seek-upload-video': (el, event) => seekUploadVideo(el.value)
+  }
+}));

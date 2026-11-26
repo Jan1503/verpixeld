@@ -16,6 +16,11 @@ const consoleState = {
  * Initialize console log
  */
 function initConsoleLog() {
+  wire(document.getElementById('tab-console'), {
+    click: { pause: toggleConsolePause, clear: clearConsoleLog, bottom: scrollConsoleToBottom },
+    input: { filter: el => filterConsoleLogs(el.value) },
+    change: { level: el => filterConsoleLevel(el.value) }
+  });
   fetchInitialLogs();
   startLogPolling();
   
@@ -240,14 +245,6 @@ function updateAutoScrollIndicator() {
     el.classList.toggle('active', consoleState.autoScroll);
   }
 }
-
-// Expose globally
-window.initConsoleLog = initConsoleLog;
-window.filterConsoleLogs = filterConsoleLogs;
-window.filterConsoleLevel = filterConsoleLevel;
-window.toggleConsolePause = toggleConsolePause;
-window.clearConsoleLog = clearConsoleLog;
-window.scrollConsoleToBottom = scrollConsoleToBottom;
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {

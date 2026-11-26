@@ -26,17 +26,6 @@ function formatParameters(params) {
 }
 
 /**
- * Update slider display value
- */
-function updateSlider(paramName) {
-  const element = document.getElementById(paramName);
-  const valueDisplay = document.getElementById(paramName + '-value');
-  if (element && valueDisplay) {
-    valueDisplay.textContent = element.value;
-  }
-}
-
-/**
  * Fetch application status from server
  */
 async function fetchStatus() {
@@ -167,7 +156,6 @@ function initEnhancedUI() {
 // Expose globally
 window.formatFilterName = formatFilterName;
 window.formatParameters = formatParameters;
-window.updateSlider = updateSlider;
 window.fetchStatus = fetchStatus;
 window.fetchAvailableFilters = fetchAvailableFilters;
 window.fetchFilters = fetchFilters;

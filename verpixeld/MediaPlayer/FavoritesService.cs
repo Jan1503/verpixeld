@@ -102,6 +102,14 @@ public class FavoritesService
         }
     }
 
+    /// <summary>The favorite with the same source as <paramref name="probe" /> (same rule as the duplicate check), or null.</summary>
+    public FavoriteItem? FindFavorite(FavoriteItem probe)
+    {
+        lock (_lock)
+            return _favorites.FirstOrDefault(f =>
+                f.Type == probe.Type && f.GetSourceIdentifier() == probe.GetSourceIdentifier());
+    }
+
     /// <summary>
     ///     Remove a favorite by ID
     /// </summary>

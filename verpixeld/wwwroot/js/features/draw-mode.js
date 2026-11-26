@@ -979,7 +979,7 @@ function showSaveDrawingDialog() {
       <div class="modal-content" style="max-width: 450px;">
         <div class="modal-header">
           <h3>Save Drawing</h3>
-          <button class="modal-close" onclick="closeModal()">&times;</button>
+          <button class="modal-close" data-action="close">&times;</button>
         </div>
         <div class="modal-body">
           <div class="save-drawing-preview">
@@ -995,14 +995,18 @@ function showSaveDrawingDialog() {
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-          <button class="btn btn-primary" onclick="confirmSaveDrawing()">Save</button>
+          <button class="btn btn-secondary" data-action="close">Cancel</button>
+          <button class="btn btn-primary" data-action="save">Save</button>
         </div>
       </div>
     </div>
   `;
   
   document.body.insertAdjacentHTML('beforeend', modalHTML);
+  onAction(document.getElementById('save-drawing-modal'), {
+    close: () => closeModal(),
+    save: () => confirmSaveDrawing()
+  });
   
   // Focus input and select on Enter
   const nameInput = document.getElementById('drawing-name');
@@ -1059,7 +1063,7 @@ async function showDrawingGallery() {
       <div class="modal-content" style="max-width: 700px;">
         <div class="modal-header">
           <h3>Shared Drawings</h3>
-          <button class="modal-close" onclick="closeModal()">&times;</button>
+          <button class="modal-close" data-action="close">&times;</button>
         </div>
         <div class="modal-body">
           <div class="skeleton-container">
@@ -1071,6 +1075,14 @@ async function showDrawingGallery() {
     </div>
   `;
   document.body.insertAdjacentHTML('beforeend', loadingHTML);
+  // the modal element stays while its content is replaced below, so one listener covers both states
+  onAction(document.getElementById('drawing-gallery-modal'), {
+    close: () => closeModal(),
+    load: d => loadDrawing(d.id),
+    delete: d => deleteDrawing(d.id),
+    refresh: () => refreshDrawingGallery(),
+    'delete-all': () => clearAllDrawings()
+  });
   
   // Fetch drawings from server
   const drawings = await getSavedDrawings();
@@ -1089,22 +1101,22 @@ async function showDrawingGallery() {
     galleryHTML = `
       <div class="drawing-gallery">
         ${drawings.map(d => `
-          <div class="drawing-gallery-item" data-id="${d.id}">
+          <div class="drawing-gallery-item" data-id="${escapeHtml(d.id)}">
             <img src="${d.imageData}" alt="${escapeHtml(d.name)}" class="drawing-thumbnail" 
-                 onclick="loadDrawing('${d.id}')">
+                 data-action="load" data-id="${escapeHtml(d.id)}">
             <div class="drawing-gallery-info">
               <span class="drawing-gallery-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
               <span class="drawing-gallery-size">${d.width}×${d.height}</span>
             </div>
             <div class="drawing-gallery-actions">
-              <button class="btn-icon btn-icon-sm" onclick="loadDrawing('${d.id}')" title="Load">
+              <button class="btn-icon btn-icon-sm" data-action="load" data-id="${escapeHtml(d.id)}" title="Load">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="7 10 12 15 17 10"></polyline>
                   <line x1="12" y1="15" x2="12" y2="3"></line>
                 </svg>
               </button>
-              <button class="btn-icon btn-icon-sm btn-icon-danger" onclick="deleteDrawing('${d.id}')" title="Delete">
+              <button class="btn-icon btn-icon-sm btn-icon-danger" data-action="delete" data-id="${escapeHtml(d.id)}" title="Delete">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="3 6 5 6 21 6"></polyline>
                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -1124,15 +1136,15 @@ async function showDrawingGallery() {
       <div class="modal-content" style="max-width: 700px;">
         <div class="modal-header">
           <h3>Shared Drawings</h3>
-          <button class="modal-close" onclick="closeModal()">&times;</button>
+          <button class="modal-close" data-action="close">&times;</button>
         </div>
         <div class="modal-body">
           ${galleryHTML}
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="refreshDrawingGallery()">Refresh</button>
-          <button class="btn btn-secondary" onclick="closeModal()">Close</button>
-          ${drawings.length > 0 ? `<button class="btn btn-danger" onclick="clearAllDrawings()">Delete All</button>` : ''}
+          <button class="btn btn-secondary" data-action="refresh">Refresh</button>
+          <button class="btn btn-secondary" data-action="close">Close</button>
+          ${drawings.length > 0 ? `<button class="btn btn-danger" data-action="delete-all">Delete All</button>` : ''}
         </div>
       </div>
     `;
@@ -1270,3 +1282,25 @@ window.loadDrawing = loadDrawing;
 window.deleteDrawing = deleteDrawing;
 window.clearAllDrawings = clearAllDrawings;
 window.exportDrawingAsPng = exportDrawingAsPng;
+
+// Controls of #tab-canvas in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-canvas'), {
+  click: {
+    'apply-drawing-to-canvas': () => applyDrawingToCanvas(),
+    'show-save-drawing-dialog': () => showSaveDrawingDialog(),
+    'show-drawing-gallery': () => showDrawingGallery(),
+    'export-drawing-as-png': () => exportDrawingAsPng(),
+    'clear-drawing-canvas': () => clearDrawingCanvas(),
+    'select-draw-tool-pencil': (el, event) => selectDrawTool('pencil'),
+    'select-draw-tool-eraser': (el, event) => selectDrawTool('eraser'),
+    'select-draw-tool-line': (el, event) => selectDrawTool('line'),
+    'select-draw-tool-rect': (el, event) => selectDrawTool('rect'),
+    'select-draw-tool-ellipse': (el, event) => selectDrawTool('ellipse'),
+    'open-upload-file-input': (el, event) => { event.preventDefault(); document.getElementById('upload-file-input').click(); }
+  },
+  change: {
+    'toggle-live-draw-mode': () => toggleLiveDrawMode(),
+    'toggle-fill-mode': () => toggleFillMode(),
+    'toggle-draw-grid': () => toggleDrawGrid()
+  }
+}));

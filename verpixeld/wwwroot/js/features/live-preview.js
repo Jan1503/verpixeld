@@ -173,8 +173,12 @@ window.addEventListener('tabChanged', (e) => {
   }
 });
 
-// Expose globally
-window.togglePreview = togglePreview;
-window.startPreview = startPreview;
-window.stopPreview = stopPreview;
-window.setPreviewScale = setPreviewScale;
+// Controls of #tab-settings in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-settings'), {
+  click: {
+    'toggle-preview': () => togglePreview()
+  },
+  input: {
+    'set-preview-scale': (el, event) => setPreviewScale(el.value)
+  }
+}));

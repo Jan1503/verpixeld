@@ -78,7 +78,9 @@ async function updateNetworkShare() {
  * Delete a network share
  */
 async function deleteNetworkShare(id) {
-  if (!confirm('Delete this network share?')) return;
+  const share = networkShares.find(s => s.id === id);
+  const ok = await showConfirm({ title: 'Delete share', message: `Delete the network share "${share?.name || id}"? Files on the share are not touched.`, confirmText: 'Delete', type: 'danger' });
+  if (!ok) return;
   
   try {
     await api.del('/api/network/shares/' + id);
@@ -410,13 +412,11 @@ function showShareForm(shareId = null) {
     }
     title.textContent = '✏️ Edit Network Share';
     submitBtn.textContent = 'Update Share';
-    submitBtn.onclick = updateNetworkShare;
   } else {
     // Add mode
     editingShareId = null;
     title.textContent = '➕ Add SMB Share';
     submitBtn.textContent = 'Add Share';
-    submitBtn.onclick = addNetworkShare;
   }
   
   form.classList.add('visible');
@@ -501,34 +501,41 @@ function updateNetworkSharesUI() {
         <div class="network-share-url">${escapeHtml(share.displayUrl)}</div>
       </div>
       <div class="network-share-actions">
-        <button class="btn btn-small" onclick="browseNetworkVideos('${share.id}')" title="Browse videos">📂</button>
-        <button class="btn btn-small" onclick="testNetworkShare('${share.id}')" title="Test connection">🔌</button>
-        <button class="btn btn-small" onclick="showShareForm('${share.id}')" title="Edit">✏️</button>
-        <button class="btn btn-small btn-danger" onclick="deleteNetworkShare('${share.id}')" title="Delete">🗑️</button>
+        <button class="btn btn-small" data-action="browse" data-id="${escapeHtml(share.id)}" title="Browse videos">📂</button>
+        <button class="btn btn-small" data-action="test" data-id="${escapeHtml(share.id)}" title="Test connection">🔌</button>
+        <button class="btn btn-small" data-action="edit" data-id="${escapeHtml(share.id)}" title="Edit">✏️</button>
+        <button class="btn btn-small btn-danger" data-action="delete" data-id="${escapeHtml(share.id)}" title="Delete">🗑️</button>
       </div>
     </div>
   `).join('');
+  onAction(container, {
+    browse: d => browseNetworkVideos(d.id),
+    test: d => testNetworkShare(d.id),
+    edit: d => showShareForm(d.id),
+    delete: d => deleteNetworkShare(d.id)
+  });
 }
 
-// Expose functions globally
-window.fetchNetworkShares = fetchNetworkShares;
-window.addNetworkShare = addNetworkShare;
-window.updateNetworkShare = updateNetworkShare;
-window.deleteNetworkShare = deleteNetworkShare;
-window.testNetworkShare = testNetworkShare;
-window.browseNetworkVideos = browseNetworkVideos;
-window.playNetworkVideo = playNetworkVideo;
-window.playNetworkAudio = playNetworkAudio;
-window.showShareForm = showShareForm;
-window.hideShareForm = hideShareForm;
-window.hideVideoBrowser = hideVideoBrowser;
-window.refreshNetworkDirectory = refreshNetworkDirectory;
-window.clearNetworkCache = clearNetworkCache;
-window.handleNetworkSearchInput = handleNetworkSearchInput;
-window.filterNetworkBrowser = filterNetworkBrowser;
-window.clearNetworkSearch = clearNetworkSearch;
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
   fetchNetworkShares();
 });
+
+// Controls of #tab-media in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-media'), {
+  click: {
+    'show-share-form': () => showShareForm(),
+    'hide-share-form': () => hideShareForm(),
+    'refresh-network-directory': () => refreshNetworkDirectory(),
+    'clear-network-cache': () => clearNetworkCache(),
+    'hide-video-browser': () => hideVideoBrowser()
+  },
+  input: {
+    'handle-network-search-input': (el, event) => handleNetworkSearchInput(el.dataset.shareId, el)
+  },
+  // Enter in a field and the submit button both end here, once: add, or update in edit mode.
+  submit: {
+    'share-form': () => (editingShareId ? updateNetworkShare() : addNetworkShare())
+  }
+}));

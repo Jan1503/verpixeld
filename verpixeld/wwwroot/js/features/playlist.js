@@ -31,7 +31,7 @@ async function openPlaylistDialog() {
     <div class="modal-content" style="max-width: 640px;">
       <div class="modal-header">
         <h2>🔁 Automation — Rotate Scenes</h2>
-        <button class="modal-close" onclick="closePlaylistDialog()">✕</button>
+        <button class="modal-close" data-action="close">✕</button>
       </div>
       <div class="modal-body">
         <p class="help-text" style="margin-top:0;">
@@ -73,19 +73,30 @@ async function openPlaylistDialog() {
       </div>
       <div class="modal-footer" style="justify-content:space-between;">
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-small btn-secondary" onclick="playlistControl('previous')">⏮ Prev</button>
-          <button class="btn btn-small btn-secondary" onclick="playlistControl('next')">Next ⏭</button>
+          <button class="btn btn-small btn-secondary" data-action="control" data-cmd="previous">⏮ Prev</button>
+          <button class="btn btn-small btn-secondary" data-action="control" data-cmd="next">Next ⏭</button>
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-secondary" onclick="playlistControl('stop')">Stop</button>
-          <button class="btn btn-primary" onclick="savePlaylist(true)">Save &amp; Start</button>
-          <button class="btn btn-secondary" onclick="savePlaylist(false)">Save (don't start)</button>
+          <button class="btn btn-secondary" data-action="control" data-cmd="stop">Stop</button>
+          <button class="btn btn-primary" data-action="save-start">Save &amp; Start</button>
+          <button class="btn btn-secondary" data-action="save">Save (don't start)</button>
         </div>
       </div>
     </div>
   </div>`;
 
     document.body.insertAdjacentHTML('beforeend', html);
+    // one delegated listener for the dialog, including the rows rendered into it later
+    onAction(document.getElementById('playlist-modal'), {
+      close: () => closePlaylistDialog(),
+      control: d => playlistControl(d.cmd),
+      'save-start': () => savePlaylist(true),
+      save: () => savePlaylist(false),
+      up: d => playlistMove(Number(d.index), -1),
+      down: d => playlistMove(Number(d.index), 1),
+      remove: d => playlistRemove(Number(d.index)),
+      add: d => playlistAdd(d.name)
+    });
     ensurePlaylistStyles();
     document.getElementById('playlist-transition').value = window.playlistState.config.transition || 'Fade';
     renderPlaylistLists();
@@ -106,7 +117,7 @@ function renderPlaylistStatus() {
   if (!el) return;
   const s = window.playlistState;
   const running = s.isRunning
-    ? `<span style="color:#2ecc71;">● Running</span>` + (s.currentLayout ? ` — showing <strong>${s.currentLayout}</strong>` : '')
+    ? `<span style="color:#2ecc71;">● Running</span>` + (s.currentLayout ? ` — showing <strong>${escapeHtml(s.currentLayout)}</strong>` : '')
     : `<span style="color:#888;">○ Stopped</span>`;
   el.innerHTML = `<div style="font-size:13px;">${running}</div>`;
 }
@@ -124,9 +135,9 @@ function renderPlaylistLists() {
       <div class="playlist-row">
         <span class="playlist-name" title="${escapeHtml(name)}">${i + 1}. ${escapeHtml(name)}</span>
         <span class="playlist-actions">
-          <button class="btn-icon" title="Up" onclick="playlistMove(${i},-1)" ${i === 0 ? 'disabled' : ''}>▲</button>
-          <button class="btn-icon" title="Down" onclick="playlistMove(${i},1)" ${i === inc.length - 1 ? 'disabled' : ''}>▼</button>
-          <button class="btn-icon" title="Remove" onclick="playlistRemove(${i})">✕</button>
+          <button class="btn-icon" title="Up" data-action="up" data-index="${i}" ${i === 0 ? 'disabled' : ''}>▲</button>
+          <button class="btn-icon" title="Down" data-action="down" data-index="${i}" ${i === inc.length - 1 ? 'disabled' : ''}>▼</button>
+          <button class="btn-icon" title="Remove" data-action="remove" data-index="${i}">✕</button>
         </span>
       </div>`).join('');
   }
@@ -139,14 +150,13 @@ function renderPlaylistLists() {
       <div class="playlist-row">
         <span class="playlist-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
         <span class="playlist-actions">
-          <button class="btn-icon" title="Add" onclick="playlistAdd('${encodeURIComponent(name)}')">＋</button>
+          <button class="btn-icon" title="Add" data-action="add" data-name="${escapeHtml(name)}">＋</button>
         </span>
       </div>`).join('');
   }
 }
 
-function playlistAdd(encName) {
-  const name = decodeURIComponent(encName);
+function playlistAdd(name) {
   if (!window.playlistState.config.layouts.includes(name)) {
     window.playlistState.config.layouts.push(name);
     renderPlaylistLists();
@@ -239,9 +249,3 @@ function ensurePlaylistStyles() {
 }
 
 window.openPlaylistDialog = openPlaylistDialog;
-window.closePlaylistDialog = closePlaylistDialog;
-window.playlistAdd = playlistAdd;
-window.playlistRemove = playlistRemove;
-window.playlistMove = playlistMove;
-window.savePlaylist = savePlaylist;
-window.playlistControl = playlistControl;

@@ -104,11 +104,11 @@
     <div id="message" class="message"></div>
 
     <!-- Global Brightness Control (always visible) -->
-    <div class="global-controls-bar">
+    <div class="global-controls-bar" id="global-controls">
       <div class="brightness-control">
         <span class="brightness-icon">☀️</span>
         <input type="range" id="global-brightness" min="0" max="100" value="100"
-               class="brightness-slider" oninput="updateGlobalBrightness(this.value)">
+               class="brightness-slider" data-input="update-global-brightness">
         <span class="brightness-value" id="global-brightness-value">100%</span>
       </div>
       <div class="active-extensions" id="active-extensions">
@@ -128,21 +128,21 @@
             </div>
           </div>
           <div class="media-player-controls">
-            <button class="media-player-btn media-player-btn-small" id="media-shuffle-btn" onclick="toggleShuffleMode()" title="Shuffle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg></button>
-            <button class="media-player-btn" id="media-prev-btn" onclick="playPreviousTrack()" title="Previous"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2.5v14H6zM20 5v14L9.5 12z"/></svg></button>
-            <button class="media-player-btn mpb-play" id="media-pause-btn" onclick="toggleMediaPause()" title="Play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 4.5v15l12-7.5z"/></svg></button>
-            <button class="media-player-btn" id="media-next-btn" onclick="playNextTrack()" title="Next"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 5H18v14h-2.5zM4 5v14l10.5-7z"/></svg></button>
-            <button class="media-player-btn media-player-btn-small" id="media-repeat-btn" onclick="toggleRepeatMode()" title="Repeat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>
-            <button class="media-player-btn mpb-stop" id="media-stop-btn" onclick="stopMediaPlayback()" title="Stop"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+            <button class="media-player-btn media-player-btn-small" id="media-shuffle-btn" data-action="toggle-shuffle-mode" title="Shuffle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg></button>
+            <button class="media-player-btn" id="media-prev-btn" data-action="play-previous-track" title="Previous"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2.5v14H6zM20 5v14L9.5 12z"/></svg></button>
+            <button class="media-player-btn mpb-play" id="media-pause-btn" data-action="toggle-media-pause" title="Play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 4.5v15l12-7.5z"/></svg></button>
+            <button class="media-player-btn" id="media-next-btn" data-action="play-next-track" title="Next"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 5H18v14h-2.5zM4 5v14l10.5-7z"/></svg></button>
+            <button class="media-player-btn media-player-btn-small" id="media-repeat-btn" data-action="toggle-repeat-mode" title="Repeat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>
+            <button class="media-player-btn mpb-stop" id="media-stop-btn" data-action="stop-media-playback" title="Stop"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
           </div>
           <div class="media-player-volume">
-            <button class="media-player-btn media-player-btn-small" id="media-mute-btn" onclick="toggleMediaMute()" title="Mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg></button>
+            <button class="media-player-btn media-player-btn-small" id="media-mute-btn" data-action="toggle-media-mute" title="Mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg></button>
             <input type="range" class="media-player-volume-slider" id="media-volume-slider" min="0" max="100" value="70"
-                   style="--vol: 70%" oninput="mpbVolumeInput(this)">
+                   style="--vol: 70%" data-input="mpb-volume-input">
             <span class="mpb-vol-value" id="mpb-volume-value">70</span>
           </div>
-          <button class="favorite-toggle" id="media-favorite-btn" onclick="addCurrentToFavorites()" title="Add to favorites">☆</button>
-          <button class="media-player-close" id="media-player-close" onclick="hideMediaPlayerBar()" title="Hide player bar">✕</button>
+          <button class="favorite-toggle" id="media-favorite-btn" data-action="add-current-to-favorites" title="Add to favorites">☆</button>
+          <button class="media-player-close" id="media-player-close" data-action="hide-media-player-bar" title="Hide player bar">✕</button>
         </div>
         <div class="media-player-progress">
           <span class="media-player-time" id="media-player-time-pos">0:00</span>
@@ -156,36 +156,36 @@
     </div>
 
     <!-- Tab Navigation -->
-    <nav class="tab-navigation" role="tablist">
-      <button class="tab-btn active" data-tab="studio" onclick="switchTab('studio')" role="tab" aria-selected="true">
+    <nav class="tab-navigation" id="tab-navigation" role="tablist">
+      <button class="tab-btn active" data-tab="studio" data-action="switch-tab" role="tab" aria-selected="true">
         <span class="tab-btn-icon">🎛️</span>
         <span class="tab-btn-label">Studio</span>
       </button>
-      <button class="tab-btn" data-tab="schedule" onclick="switchTab('schedule')" role="tab" aria-selected="false">
+      <button class="tab-btn" data-tab="schedule" data-action="switch-tab" role="tab" aria-selected="false">
         <span class="tab-btn-icon">📅</span>
         <span class="tab-btn-label">Schedule</span>
       </button>
-      <button class="tab-btn" data-tab="canvas" onclick="switchTab('canvas')" role="tab" aria-selected="false">
+      <button class="tab-btn" data-tab="canvas" data-action="switch-tab" role="tab" aria-selected="false">
         <span class="tab-btn-icon">🎨</span>
         <span class="tab-btn-label">Create</span>
       </button>
-      <button class="tab-btn" data-tab="media" onclick="switchTab('media')" role="tab" aria-selected="false">
+      <button class="tab-btn" data-tab="media" data-action="switch-tab" role="tab" aria-selected="false">
         <span class="tab-btn-icon">📺</span>
         <span class="tab-btn-label">Media</span>
       </button>
-      <button class="tab-btn" data-tab="ai-art" onclick="switchTab('ai-art')" role="tab" aria-selected="false">
+      <button class="tab-btn" data-tab="ai-art" data-action="switch-tab" role="tab" aria-selected="false">
         <span class="tab-btn-icon">🤖</span>
         <span class="tab-btn-label">AI</span>
       </button>
-      <button class="tab-btn" data-tab="effects" onclick="switchTab('effects')" role="tab" aria-selected="false">
+      <button class="tab-btn" data-tab="effects" data-action="switch-tab" role="tab" aria-selected="false">
         <span class="tab-btn-icon">✨</span>
         <span class="tab-btn-label">Effects</span>
       </button>
-      <button class="tab-btn" data-tab="console" onclick="switchTab('console')" role="tab" aria-selected="false">
+      <button class="tab-btn" data-tab="console" data-action="switch-tab" role="tab" aria-selected="false">
         <span class="tab-btn-icon">🖥️</span>
         <span class="tab-btn-label">Console</span>
       </button>
-      <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')" role="tab" aria-selected="false">
+      <button class="tab-btn" data-tab="settings" data-action="switch-tab" role="tab" aria-selected="false">
         <span class="tab-btn-icon">⚙️</span>
         <span class="tab-btn-label">Settings</span>
       </button>
@@ -196,7 +196,7 @@
       <div class="alert-banner-inner">
         <span class="alert-banner-pulse"></span>
         <span class="alert-banner-text">📹 Camera Alert Active — <span id="alert-banner-remaining">0</span>s remaining</span>
-        <button class="alert-banner-dismiss" onclick="dismissAlert()">✋ Dismiss</button>
+        <button class="alert-banner-dismiss" data-action="dismiss-alert">✋ Dismiss</button>
       </div>
     </div>
 
@@ -244,8 +244,8 @@
               Scene schedule
             </h3>
             <div class="tab-section-actions">
-              <button id="new-schedule-btn" class="btn btn-small btn-primary" onclick="showNewScheduleDialog()">New Schedule</button>
-              <button id="refresh-schedules-btn" class="btn btn-small btn-secondary" onclick="fetchSchedules()">Refresh</button>
+              <button id="new-schedule-btn" class="btn btn-small btn-primary" data-action="show-new-schedule-dialog">New Schedule</button>
+              <button id="refresh-schedules-btn" class="btn btn-small btn-secondary" data-action="fetch-schedules">Refresh</button>
             </div>
           </div>
           <div class="tab-section-body">
@@ -268,7 +268,7 @@
             </h3>
             <div class="tab-section-actions">
               <span class="badge inactive" id="night-mode-badge">Off</span>
-              <button class="btn btn-small btn-primary" onclick="showNightModeConfig()">Configure</button>
+              <button class="btn btn-small btn-primary" data-action="show-night-mode-config">Configure</button>
             </div>
           </div>
           <div class="tab-section-body">
@@ -298,11 +298,11 @@
               Draw Mode
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small btn-primary" onclick="applyDrawingToCanvas()">Apply</button>
-              <button class="btn btn-small btn-secondary" onclick="showSaveDrawingDialog()">Save</button>
-              <button class="btn btn-small btn-secondary" onclick="showDrawingGallery()">Load</button>
-              <button class="btn btn-small btn-secondary" onclick="exportDrawingAsPng()">Export</button>
-              <button class="btn btn-small btn-danger" onclick="clearDrawingCanvas()">Clear</button>
+              <button class="btn btn-small btn-primary" data-action="apply-drawing-to-canvas">Apply</button>
+              <button class="btn btn-small btn-secondary" data-action="show-save-drawing-dialog">Save</button>
+              <button class="btn btn-small btn-secondary" data-action="show-drawing-gallery">Load</button>
+              <button class="btn btn-small btn-secondary" data-action="export-drawing-as-png">Export</button>
+              <button class="btn btn-small btn-danger" data-action="clear-drawing-canvas">Clear</button>
             </div>
           </div>
           <div class="tab-section-body">
@@ -316,7 +316,7 @@
               </div>
               <div class="draw-control-group draw-live-toggle">
                 <label class="live-mode-switch">
-                  <input type="checkbox" id="draw-live-mode" onchange="toggleLiveDrawMode()">
+                  <input type="checkbox" id="draw-live-mode" data-change="toggle-live-draw-mode">
                   <span class="live-mode-slider"></span>
                 </label>
                 <span class="live-mode-label">
@@ -330,26 +330,26 @@
             <div class="draw-toolbar">
               <div class="draw-toolbar-row">
                 <div class="draw-tools">
-                  <button class="draw-tool-btn active" data-tool="pencil" onclick="selectDrawTool('pencil')" title="Pencil">
+                  <button class="draw-tool-btn active" data-tool="pencil" data-action="select-draw-tool-pencil" title="Pencil">
                     <span class="tool-icon">✏️</span>
                   </button>
-                  <button class="draw-tool-btn" data-tool="eraser" onclick="selectDrawTool('eraser')" title="Eraser">
+                  <button class="draw-tool-btn" data-tool="eraser" data-action="select-draw-tool-eraser" title="Eraser">
                     <span class="tool-icon">🧽</span>
                   </button>
                   <span class="draw-tool-divider"></span>
-                  <button class="draw-tool-btn" data-tool="line" onclick="selectDrawTool('line')" title="Line">
+                  <button class="draw-tool-btn" data-tool="line" data-action="select-draw-tool-line" title="Line">
                     <span class="tool-icon">╱</span>
                   </button>
-                  <button class="draw-tool-btn" data-tool="rect" onclick="selectDrawTool('rect')" title="Rectangle">
+                  <button class="draw-tool-btn" data-tool="rect" data-action="select-draw-tool-rect" title="Rectangle">
                     <span class="tool-icon">▢</span>
                   </button>
-                  <button class="draw-tool-btn" data-tool="ellipse" onclick="selectDrawTool('ellipse')" title="Ellipse">
+                  <button class="draw-tool-btn" data-tool="ellipse" data-action="select-draw-tool-ellipse" title="Ellipse">
                     <span class="tool-icon">◯</span>
                   </button>
                 </div>
                 <div class="draw-shape-fill" id="draw-shape-fill-toggle">
                   <label class="draw-checkbox-label">
-                    <input type="checkbox" id="draw-fill-mode" onchange="toggleFillMode()">
+                    <input type="checkbox" id="draw-fill-mode" data-change="toggle-fill-mode">
                     Fill
                   </label>
                 </div>
@@ -380,7 +380,7 @@
               <div class="draw-canvas-info">
                 <span id="draw-canvas-size">384 × 192</span>
                 <label class="draw-checkbox-label">
-                  <input type="checkbox" id="draw-show-grid" onchange="toggleDrawGrid()">
+                  <input type="checkbox" id="draw-show-grid" data-change="toggle-draw-grid">
                   Show Grid
                 </label>
               </div>
@@ -396,8 +396,8 @@
               Image &amp; Video Upload
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small btn-primary" onclick="applyUploadedImage()">Apply</button>
-              <button class="btn btn-small btn-danger" onclick="clearUploadedImage()">Clear</button>
+              <button class="btn btn-small btn-primary" data-action="apply-uploaded-image">Apply</button>
+              <button class="btn btn-small btn-danger" data-action="clear-uploaded-image">Clear</button>
             </div>
           </div>
           <div class="tab-section-body">
@@ -411,10 +411,10 @@
             </div>
             <!-- Drop Zone -->
             <div class="upload-dropzone" id="upload-dropzone">
-              <input type="file" id="upload-file-input" accept="image/*,video/*" style="display:none" onchange="handleFileUpload(this)">
+              <input type="file" id="upload-file-input" accept="image/*,video/*" style="display:none" data-change="handle-file-upload">
               <div class="upload-dropzone-content" id="upload-dropzone-content">
                 <span class="upload-dropzone-icon">📁</span>
-                <span class="upload-dropzone-text">Drop an image or video here, or <a href="#" onclick="event.preventDefault(); document.getElementById('upload-file-input').click()">browse</a></span>
+                <span class="upload-dropzone-text">Drop an image or video here, or <a href="#" data-action="open-upload-file-input">browse</a></span>
                 <span class="upload-dropzone-hint">Supports JPG, PNG, GIF, WebP, MP4, WebM</span>
               </div>
             </div>
@@ -431,12 +431,12 @@
               <canvas id="upload-video-process" style="display:none"></canvas>
               <div class="upload-video-row">
                 <label class="upload-label">Frame:</label>
-                <input type="range" id="upload-video-seek" min="0" max="100" value="0" step="0.1" class="upload-slider" oninput="seekUploadVideo(this.value)">
+                <input type="range" id="upload-video-seek" min="0" max="100" value="0" step="0.1" class="upload-slider" data-input="seek-upload-video">
                 <span id="upload-video-time" class="upload-slider-value">0:00</span>
               </div>
               <div class="upload-video-row">
-                <button class="btn btn-small btn-secondary" onclick="streamUploadVideo()" id="upload-stream-btn">Stream to Display</button>
-                <button class="btn btn-small btn-danger" onclick="stopUploadVideoStream()" id="upload-stream-stop-btn" style="display:none">Stop</button>
+                <button class="btn btn-small btn-secondary" data-action="stream-upload-video" id="upload-stream-btn">Stream to Display</button>
+                <button class="btn btn-small btn-danger" data-action="stop-upload-video-stream" id="upload-stream-stop-btn" style="display:none">Stop</button>
                 <div class="upload-control-group" style="margin-left:auto">
                   <label for="upload-video-fps">FPS:</label>
                   <select id="upload-video-fps" class="upload-select">
@@ -463,8 +463,8 @@
               This browser
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small btn-primary" id="camera-start-btn" onclick="startCameraStream()">Start</button>
-              <button class="btn btn-small btn-danger" id="camera-stop-btn" onclick="stopCameraStream()" disabled>Stop</button>
+              <button class="btn btn-small btn-primary" id="camera-start-btn" data-action="start-camera-stream">Start</button>
+              <button class="btn btn-small btn-danger" id="camera-stop-btn" data-action="stop-camera-stream" disabled>Stop</button>
             </div>
           </div>
           <div class="tab-section-body">
@@ -573,9 +573,9 @@
               USB on the Pi
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small btn-primary" id="localcam-start-btn" onclick="startLocalCamera()">Stream</button>
-              <button class="btn btn-small btn-danger" id="localcam-stop-btn" onclick="stopLocalCamera()" style="display:none">Stop</button>
-              <button class="btn btn-small btn-secondary" onclick="captureLocalCameraFrame()">Snapshot</button>
+              <button class="btn btn-small btn-primary" id="localcam-start-btn" data-action="start-local-camera">Stream</button>
+              <button class="btn btn-small btn-danger" id="localcam-stop-btn" data-action="stop-local-camera" style="display:none">Stop</button>
+              <button class="btn btn-small btn-secondary" data-action="capture-local-camera-frame">Snapshot</button>
             </div>
           </div>
           <div class="tab-section-body">
@@ -585,7 +585,7 @@
                 <select id="localcam-device" class="ai-select">
                   <option value="">Detecting...</option>
                 </select>
-                <button class="btn btn-small btn-secondary" onclick="refreshLocalCamDevices()" title="Refresh devices">↻</button>
+                <button class="btn btn-small btn-secondary" data-action="refresh-local-cam-devices" title="Refresh devices">↻</button>
               </div>
               <div class="ai-control-group">
                 <label for="localcam-fps">FPS:</label>
@@ -640,7 +640,7 @@
                 </select>
               </div>
             </div>
-            <button class="btn btn-small btn-primary" onclick="saveLocalCamConfig()" style="margin-top:8px">Save Settings</button>
+            <button class="btn btn-small btn-primary" data-action="save-local-cam-config" style="margin-top:8px">Save Settings</button>
             <span class="localcam-status" id="localcam-status"></span>
           </div>
         </div>
@@ -674,7 +674,7 @@
                 <label for="alert-timeout">Auto-dismiss timeout:</label>
                 <div class="alert-timeout-control">
                   <input type="range" id="alert-timeout" min="5" max="120" step="5" value="30"
-                         oninput="document.getElementById('alert-timeout-value').textContent = this.value + 's'">
+                         data-input="alert-timeout">
                   <span id="alert-timeout-value">30s</span>
                 </div>
               </div>
@@ -690,9 +690,9 @@
                 </select>
               </div>
               <div class="alert-config-actions">
-                <button class="btn btn-small btn-primary" onclick="saveAlertConfig()">💾 Save Config</button>
-                <button class="btn btn-small btn-secondary" onclick="testAlertTrigger()">🔔 Test Trigger</button>
-                <button class="btn btn-small btn-danger" id="alert-dismiss-btn" onclick="dismissAlert()" style="display: none;">✋ Dismiss</button>
+                <button class="btn btn-small btn-primary" data-action="save-alert-config">💾 Save Config</button>
+                <button class="btn btn-small btn-secondary" data-action="test-alert-trigger">🔔 Test Trigger</button>
+                <button class="btn btn-small btn-danger" id="alert-dismiss-btn" data-action="dismiss-alert" style="display: none;">✋ Dismiss</button>
               </div>
             </div>
             
@@ -716,12 +716,12 @@
 
         <!-- AI Sub-Navigation -->
         <nav class="ai-subtab-nav">
-          <button class="ai-subtab-btn active" data-aisub="generate" onclick="switchAiSubtab('generate')">🎨 Generate</button>
-          <button class="ai-subtab-btn" data-aisub="stylize" onclick="switchAiSubtab('stylize')">✨ Stylize</button>
-          <button class="ai-subtab-btn" data-aisub="gallery" onclick="switchAiSubtab('gallery')">🖼️ Gallery</button>
-          <button class="ai-subtab-btn" data-aisub="voice" onclick="switchAiSubtab('voice')">🎤 Voice</button>
-          <button class="ai-subtab-btn" data-aisub="schedule" onclick="switchAiSubtab('schedule')">⏰ Auto-generate</button>
-          <button class="ai-subtab-btn" data-aisub="settings" onclick="switchAiSubtab('settings')">⚙️ Settings</button>
+          <button class="ai-subtab-btn active" data-aisub="generate" data-action="switch-ai-subtab-generate">🎨 Generate</button>
+          <button class="ai-subtab-btn" data-aisub="stylize" data-action="switch-ai-subtab-stylize">✨ Stylize</button>
+          <button class="ai-subtab-btn" data-aisub="gallery" data-action="switch-ai-subtab-gallery">🖼️ Gallery</button>
+          <button class="ai-subtab-btn" data-aisub="voice" data-action="switch-ai-subtab-voice">🎤 Voice</button>
+          <button class="ai-subtab-btn" data-aisub="schedule" data-action="switch-ai-subtab-schedule">⏰ Auto-generate</button>
+          <button class="ai-subtab-btn" data-aisub="settings" data-action="switch-ai-subtab-settings">⚙️ Settings</button>
         </nav>
 
         <!-- ── SUB: Generate ─────────────────────────────── -->
@@ -730,7 +730,7 @@
             <div class="tab-section-header">
               <h3 class="tab-section-title"><span class="tab-section-title-icon">🎨</span> Text-to-Image</h3>
               <div class="tab-section-actions">
-                <button class="btn btn-small btn-primary" onclick="generateAiImage()" id="ai-generate-btn">Generate</button>
+                <button class="btn btn-small btn-primary" data-action="generate-ai-image" id="ai-generate-btn">Generate</button>
               </div>
             </div>
             <div class="tab-section-body">
@@ -777,9 +777,9 @@
                 <canvas id="ai-preview-canvas" width="256" height="128"></canvas>
                 <div class="ai-preview-size" id="ai-preview-size"></div>
                 <div class="ai-preview-actions">
-                  <button class="btn btn-small btn-primary" onclick="applyAiImageToDisplay()">Apply to Display</button>
-                  <button class="btn btn-small btn-warning ai-dismiss-overlay-btn" style="display:none" onclick="dismissImageOverlay()">Dismiss from Display</button>
-                  <button class="btn btn-small btn-secondary" onclick="saveAiImageToGallery()">Save to Gallery</button>
+                  <button class="btn btn-small btn-primary" data-action="apply-ai-image-to-display">Apply to Display</button>
+                  <button class="btn btn-small btn-warning ai-dismiss-overlay-btn" style="display:none" data-action="dismiss-image-overlay">Dismiss from Display</button>
+                  <button class="btn btn-small btn-secondary" data-action="save-ai-image-to-gallery">Save to Gallery</button>
                 </div>
               </div>
             </div>
@@ -789,7 +789,7 @@
             <div class="tab-section-header">
               <h3 class="tab-section-title"><span class="tab-section-title-icon">📜</span> Recent Generations</h3>
               <div class="tab-section-actions">
-                <button class="btn btn-small btn-danger" onclick="clearAiHistory()">Clear</button>
+                <button class="btn btn-small btn-danger" data-action="clear-ai-history">Clear</button>
               </div>
             </div>
             <div class="tab-section-body">
@@ -806,16 +806,16 @@
             <div class="tab-section-header">
               <h3 class="tab-section-title"><span class="tab-section-title-icon">✨</span> Image-to-Image (Stylize)</h3>
               <div class="tab-section-actions">
-                <button class="btn btn-small btn-primary" onclick="generateAiEdit()" id="ai-edit-btn">Stylize</button>
+                <button class="btn btn-small btn-primary" data-action="generate-ai-edit" id="ai-edit-btn">Stylize</button>
               </div>
             </div>
             <div class="tab-section-body">
               <div class="ai-edit-upload">
                 <div class="upload-dropzone ai-edit-dropzone" id="ai-edit-dropzone">
-                  <input type="file" id="ai-edit-file-input" accept="image/*" style="display:none" onchange="handleAiEditFileUpload(this)">
+                  <input type="file" id="ai-edit-file-input" accept="image/*" style="display:none" data-change="handle-ai-edit-file-upload">
                   <div class="upload-dropzone-content" id="ai-edit-dropzone-content">
                     <span class="upload-dropzone-icon">🖼️</span>
-                    <span class="upload-dropzone-text">Drop a photo to stylize, or <a href="#" onclick="event.preventDefault(); document.getElementById('ai-edit-file-input').click()">browse</a></span>
+                    <span class="upload-dropzone-text">Drop a photo to stylize, or <a href="#" data-action="open-ai-edit-file-input">browse</a></span>
                   </div>
                 </div>
               </div>
@@ -853,9 +853,9 @@
                   </div>
                 </div>
                 <div class="ai-preview-actions">
-                  <button class="btn btn-small btn-primary" onclick="applyAiEditToDisplay()">Apply to Display</button>
-                  <button class="btn btn-small btn-warning ai-dismiss-overlay-btn" style="display:none" onclick="dismissImageOverlay()">Dismiss from Display</button>
-                  <button class="btn btn-small btn-secondary" onclick="saveAiEditToGallery()">Save to Gallery</button>
+                  <button class="btn btn-small btn-primary" data-action="apply-ai-edit-to-display">Apply to Display</button>
+                  <button class="btn btn-small btn-warning ai-dismiss-overlay-btn" style="display:none" data-action="dismiss-image-overlay">Dismiss from Display</button>
+                  <button class="btn btn-small btn-secondary" data-action="save-ai-edit-to-gallery">Save to Gallery</button>
                 </div>
               </div>
             </div>
@@ -869,8 +869,8 @@
             <div class="tab-section-header">
               <h3 class="tab-section-title"><span class="tab-section-title-icon">▶️</span> Slideshow</h3>
               <div class="tab-section-actions">
-                <button class="btn btn-small btn-primary" onclick="startGallerySlideshow()" id="gallery-slideshow-start">Start</button>
-                <button class="btn btn-small btn-danger" onclick="stopGallerySlideshow()" id="gallery-slideshow-stop" style="display:none">Stop</button>
+                <button class="btn btn-small btn-primary" data-action="start-gallery-slideshow" id="gallery-slideshow-start">Start</button>
+                <button class="btn btn-small btn-danger" data-action="stop-gallery-slideshow" id="gallery-slideshow-stop" style="display:none">Stop</button>
               </div>
             </div>
             <div class="tab-section-body">
@@ -914,7 +914,7 @@
                 <span class="gallery-count" id="gallery-count"></span>
               </h3>
               <div class="tab-section-actions">
-                <button class="btn btn-small btn-secondary" onclick="loadGallery()">Refresh</button>
+                <button class="btn btn-small btn-secondary" data-action="load-gallery">Refresh</button>
               </div>
             </div>
             <div class="tab-section-body">
@@ -923,11 +923,11 @@
                 <canvas id="gallery-preview-canvas" width="256" height="128"></canvas>
                 <div class="gallery-preview-info" id="gallery-preview-info"></div>
                 <div class="ai-preview-actions">
-                  <button class="btn btn-small btn-primary" onclick="applyGalleryPreviewToDisplay()">Apply to Display</button>
-                  <button class="btn btn-small btn-secondary" onclick="stylizeGalleryPreview()">Stylize</button>
-                  <button class="btn btn-small btn-warning ai-dismiss-overlay-btn" id="gallery-dismiss-overlay-btn" style="display:none" onclick="dismissImageOverlay()">Dismiss from Display</button>
-                  <button class="btn btn-small btn-danger" onclick="deleteGalleryPreviewImage()">Delete</button>
-                  <button class="btn btn-small btn-secondary" onclick="closeGalleryPreview()">Close</button>
+                  <button class="btn btn-small btn-primary" data-action="apply-gallery-preview-to-display">Apply to Display</button>
+                  <button class="btn btn-small btn-secondary" data-action="stylize-gallery-preview">Stylize</button>
+                  <button class="btn btn-small btn-warning ai-dismiss-overlay-btn" id="gallery-dismiss-overlay-btn" style="display:none" data-action="dismiss-image-overlay">Dismiss from Display</button>
+                  <button class="btn btn-small btn-danger" data-action="delete-gallery-preview-image">Delete</button>
+                  <button class="btn btn-small btn-secondary" data-action="close-gallery-preview">Close</button>
                 </div>
               </div>
               <!-- Image Grid -->
@@ -945,8 +945,8 @@
             <div class="tab-section-header">
               <h3 class="tab-section-title"><span class="tab-section-title-icon">🎤</span> Voice Commands</h3>
               <div class="tab-section-actions">
-                <button class="btn btn-small btn-primary" onclick="startVoiceListening()" id="voice-start-btn">Start Listening</button>
-                <button class="btn btn-small btn-danger" onclick="stopVoiceListening()" id="voice-stop-btn" style="display:none">Stop</button>
+                <button class="btn btn-small btn-primary" data-action="start-voice-listening" id="voice-start-btn">Start Listening</button>
+                <button class="btn btn-small btn-danger" data-action="stop-voice-listening" id="voice-stop-btn" style="display:none">Stop</button>
               </div>
             </div>
             <div class="tab-section-body">
@@ -968,12 +968,12 @@
               </div>
               <!-- Manual Trigger (Push-to-Talk) -->
               <div class="voice-manual-trigger">
-                <button class="btn btn-primary voice-trigger-btn" onclick="manualVoiceTrigger()" id="voice-trigger-btn">
+                <button class="btn btn-primary voice-trigger-btn" data-action="manual-voice-trigger" id="voice-trigger-btn">
                   🎤 Push to Talk
                 </button>
                 <span class="voice-trigger-hint">Click and speak your image prompt</span>
               </div>
-              <p class="voice-settings-hint">Speech key, microphone and TTS live in <a href="#" onclick="event.preventDefault(); switchAiSubtab('settings')">Settings</a>.</p>
+              <p class="voice-settings-hint">Speech key, microphone and TTS live in <a href="#" data-action="switch-ai-subtab-settings-2">Settings</a>.</p>
             </div>
           </div>
         </div>
@@ -989,7 +989,7 @@
                 <div class="ai-controls">
                   <div class="ai-control-group">
                     <label class="ai-checkbox-label">
-                      <input type="checkbox" id="ai-schedule-enabled" onchange="toggleAiSchedule()">
+                      <input type="checkbox" id="ai-schedule-enabled" data-change="toggle-ai-schedule">
                       Enable auto-generation
                     </label>
                   </div>
@@ -1033,8 +1033,8 @@
                   </div>
                 </div>
                 <div class="ai-schedule-actions">
-                  <button class="btn btn-small btn-primary" onclick="saveAiSchedule()">Save</button>
-                  <button class="btn btn-small btn-secondary" onclick="runAiScheduleNow()" id="ai-schedule-run-btn">Run now</button>
+                  <button class="btn btn-small btn-primary" data-action="save-ai-schedule">Save</button>
+                  <button class="btn btn-small btn-secondary" data-action="run-ai-schedule-now" id="ai-schedule-run-btn">Run now</button>
                   <span class="ai-schedule-status" id="ai-schedule-status"></span>
                 </div>
                 <div class="ai-schedule-meta" id="ai-schedule-meta">
@@ -1059,7 +1059,7 @@
                 <div class="ai-controls">
                   <div class="ai-control-group">
                     <label for="ai-provider">Provider:</label>
-                    <select id="ai-provider" class="ai-select" onchange="toggleAiProviderFields()">
+                    <select id="ai-provider" class="ai-select" data-change="toggle-ai-provider-fields">
                       <option value="azure" selected>Azure OpenAI</option>
                       <option value="openai">OpenAI (Image only)</option>
                     </select>
@@ -1190,11 +1190,11 @@
                   <div class="settings-row">
                     <label for="voice-audio-device">Device</label>
                     <div class="ai-voice-control-with-btn">
-                      <select id="voice-audio-device" class="ai-select" onchange="onAudioDeviceChange()">
+                      <select id="voice-audio-device" class="ai-select" data-change="on-audio-device-change">
                         <option value="">System Default</option>
                         <option value="__custom__">Custom device path...</option>
                       </select>
-                      <button class="btn btn-small btn-secondary" onclick="refreshLocalCamDevices()" title="Refresh device list">↻</button>
+                      <button class="btn btn-small btn-secondary" data-action="refresh-local-cam-devices" title="Refresh device list">↻</button>
                     </div>
                     <span class="settings-hint">USB mic on the Pi, or a custom ALSA path</span>
                   </div>
@@ -1335,8 +1335,8 @@
                   <div class="settings-row">
                     <label>Wake word</label>
                     <div class="voice-keyword-upload">
-                      <input type="file" id="voice-keyword-file" accept=".table" style="display:none" onchange="uploadKeywordModel(this)">
-                      <button class="btn btn-small btn-secondary" onclick="document.getElementById('voice-keyword-file').click()">Upload .table file</button>
+                      <input type="file" id="voice-keyword-file" accept=".table" style="display:none" data-change="upload-keyword-model">
+                      <button class="btn btn-small btn-secondary" data-action="open-voice-keyword-file">Upload .table file</button>
                       <span class="voice-keyword-status" id="voice-keyword-status">No model loaded</span>
                     </div>
                     <span class="settings-hint">optional Azure Custom Keyword model so “Hey Pixel” works without Push to Talk</span>
@@ -1345,7 +1345,7 @@
               </div>
             </div>
 
-            <button class="btn btn-small btn-primary" onclick="saveAllAiSettings()">Save All Settings</button>
+            <button class="btn btn-small btn-primary" data-action="save-all-ai-settings">Save All Settings</button>
             <span class="ai-config-status" id="ai-config-status"></span>
             <span class="voice-config-status" id="voice-config-status"></span>
           </div>
@@ -1380,7 +1380,7 @@
               </div>
               <div class="media-canvas-selector">
                 <label for="media-audio-track">Audio track:</label>
-                <select id="media-audio-track" class="media-select" onchange="setMediaAudioTrack(this.value)">
+                <select id="media-audio-track" class="media-select" data-change="set-media-audio-track">
                   <option value="0">1</option>
                 </select>
               </div>
@@ -1388,13 +1388,13 @@
                 <span class="media-sync-label" title="Adjust if audio/video are out of sync. Positive = delay audio, negative = delay video">⏱️ A/V Sync</span>
                 <input type="range" id="media-sync-slider" class="media-sync-slider" 
                        min="-2000" max="2000" value="0" step="20"
-                       oninput="var ms=+this.value; document.getElementById('media-sync-value').textContent = ms===0?'0ms':(ms>0?'+'+ms:ms)+'ms'"
-                       onchange="setAudioSync(this.value)">
+                       data-input="show-media-sync"
+                       data-change="set-audio-sync">
                 <span class="media-sync-value" id="media-sync-value">0ms</span>
               </div>
               <div class="media-scale-section" id="media-scale-section">
                 <span class="media-sync-label" title="Video scaling algorithm. 'Area' and 'Gauss' are softer, good for LED matrices and camera streams">🔍 Scale</span>
-                <select id="media-scale-filter" class="media-select" onchange="setScaleFilter(this.value)">
+                <select id="media-scale-filter" class="media-select" data-change="set-scale-filter">
                   <option value="auto">Auto</option>
                   <option value="fast_bilinear">Fast Bilinear</option>
                   <option value="bilinear">Bilinear</option>
@@ -1422,31 +1422,31 @@
 
         <!-- ── Media Sub-Navigation ── -->
         <div class="media-nav" id="media-nav">
-          <button class="media-nav-btn active" data-media-page="favorites" onclick="switchMediaPage('favorites')">
+          <button class="media-nav-btn active" data-media-page="favorites" data-action="switch-media-page-favorites">
             <span class="media-nav-icon">⭐</span>
             <span class="media-nav-label">Favorites</span>
           </button>
-          <button class="media-nav-btn" data-media-page="local" onclick="switchMediaPage('local')">
+          <button class="media-nav-btn" data-media-page="local" data-action="switch-media-page-local">
             <span class="media-nav-icon">📂</span>
             <span class="media-nav-label">Local</span>
           </button>
-          <button class="media-nav-btn" data-media-page="network" onclick="switchMediaPage('network')">
+          <button class="media-nav-btn" data-media-page="network" data-action="switch-media-page-network">
             <span class="media-nav-icon">🌐</span>
             <span class="media-nav-label">Network</span>
           </button>
-          <button class="media-nav-btn" data-media-page="youtube" onclick="switchMediaPage('youtube')">
+          <button class="media-nav-btn" data-media-page="youtube" data-action="switch-media-page-youtube">
             <span class="media-nav-icon">📺</span>
             <span class="media-nav-label">Streams</span>
           </button>
-          <button class="media-nav-btn" data-media-page="radio" onclick="switchMediaPage('radio')">
+          <button class="media-nav-btn" data-media-page="radio" data-action="switch-media-page-radio">
             <span class="media-nav-icon">📻</span>
             <span class="media-nav-label">Radio</span>
           </button>
-          <button class="media-nav-btn" data-media-page="music" onclick="switchMediaPage('music')">
+          <button class="media-nav-btn" data-media-page="music" data-action="switch-media-page-music">
             <span class="media-nav-icon">🎵</span>
             <span class="media-nav-label">Music</span>
           </button>
-          <button class="media-nav-btn" data-media-page="tools" onclick="switchMediaPage('tools')">
+          <button class="media-nav-btn" data-media-page="tools" data-action="switch-media-page-tools">
             <span class="media-nav-icon">🔧</span>
             <span class="media-nav-label">Tools</span>
           </button>
@@ -1463,9 +1463,9 @@
                 <h3>⭐ Favorites <span class="favorites-count">(0)</span></h3>
                 <div class="autoplay-controls">
                   <span class="autoplay-status" id="autoplay-status" style="display:none;"></span>
-                  <button class="autoplay-btn" id="autoplay-shuffle-btn" onclick="event.stopPropagation(); toggleAutoPlayShuffle()" title="Shuffle">🔀</button>
-                  <button class="autoplay-btn" id="autoplay-skip-btn" onclick="event.stopPropagation(); skipAutoPlay()" title="Skip" style="display:none;">⏭</button>
-                  <button class="autoplay-btn" id="autoplay-toggle-btn" onclick="event.stopPropagation(); toggleAutoPlay()" title="Auto-Play All">▶ Auto</button>
+                  <button class="autoplay-btn" id="autoplay-shuffle-btn" data-action="toggle-auto-play-shuffle" title="Shuffle">🔀</button>
+                  <button class="autoplay-btn" id="autoplay-skip-btn" data-action="skip-auto-play" title="Skip" style="display:none;">⏭</button>
+                  <button class="autoplay-btn" id="autoplay-toggle-btn" data-action="toggle-auto-play" title="Auto-Play All">▶ Auto</button>
                 </div>
                 <span class="expand-icon">▼</span>
               </div>
@@ -1478,7 +1478,7 @@
             <div class="history-section expanded" style="flex: 1; min-width: 300px;">
               <div class="history-header">
                 <h3>🕐 Recently Played <span class="history-count">(0)</span></h3>
-                <button class="history-clear-btn" onclick="event.stopPropagation(); clearHistory()">Clear</button>
+                <button class="history-clear-btn" data-action="clear-history">Clear</button>
                 <span class="expand-icon">▼</span>
               </div>
               <div class="history-content">
@@ -1496,7 +1496,7 @@
 
           <div class="radio-toolbar">
             <label class="radio-sleep">😴 Sleep
-              <select id="radio-sleep" class="media-select" onchange="radioSetSleep(this.value)">
+              <select id="radio-sleep" class="media-select" data-change="radio-set-sleep">
                 <option value="0">Off</option>
                 <option value="15">15 min</option>
                 <option value="30">30 min</option>
@@ -1508,12 +1508,12 @@
               <span id="radio-sleep-left" class="text-muted"></span>
             </label>
             <label class="radio-check" title="Song titles need a second connection to the station">
-              <input type="checkbox" id="radio-titles-toggle" checked onchange="radioSetTitles(this.checked)"> Song titles
+              <input type="checkbox" id="radio-titles-toggle" checked data-change="radio-set-titles"> Song titles
             </label>
             <span class="radio-toolbar-spacer"></span>
-            <button class="btn btn-small" onclick="radioExport()" title="Download your stations as JSON">⬇ Export</button>
+            <button class="btn btn-small" data-action="radio-export" title="Download your stations as JSON">⬇ Export</button>
             <label class="btn btn-small" style="margin:0" title="Add stations from a JSON export">⬆ Import
-              <input type="file" accept=".json,application/json" style="display:none" onchange="radioImport(this)">
+              <input type="file" accept=".json,application/json" style="display:none" data-change="radio-import">
             </label>
           </div>
 
@@ -1526,7 +1526,7 @@
                 <div id="radio-stations" class="radio-list"></div>
                 <details class="radio-add">
                   <summary>+ Add a station by its stream address</summary>
-                  <form onsubmit="radioAddManual(event)">
+                  <form data-submit="radio-add-manual">
                     <input id="radio-add-name" class="form-control" placeholder="Name" required>
                     <input id="radio-add-url" class="form-control" placeholder="https://stream.example/live.mp3" type="url" required>
                     <input id="radio-add-logo" class="form-control" placeholder="Logo address (optional)" type="url">
@@ -1535,7 +1535,7 @@
                 </details>
                 <div class="radio-recent-head">
                   <h4>🕐 Recently played</h4>
-                  <button class="history-clear-btn" onclick="radioClearRecent()">Clear</button>
+                  <button class="history-clear-btn" data-action="radio-clear-recent">Clear</button>
                 </div>
                 <div id="radio-recent" class="radio-chips"></div>
               </div>
@@ -1547,7 +1547,7 @@
                 <span class="text-muted" style="font-size:0.8rem">via radio-browser.info</span>
               </div>
               <div class="tab-section-body">
-                <form class="radio-search" onsubmit="event.preventDefault(); radioSearch()">
+                <form class="radio-search" data-submit="radio-search">
                   <input id="radio-q" class="form-control" placeholder="Station name" autocomplete="off">
                   <input id="radio-tag" class="form-control" placeholder="Genre (rock, jazz, news…)" autocomplete="off">
                   <select id="radio-country" class="media-select"><option value="">All countries</option></select>
@@ -1571,12 +1571,12 @@
               <div class="tab-section-header">
                 <h3 class="tab-section-title"><span class="tab-section-title-icon">⏰</span> Alarm clock</h3>
                 <div class="tab-section-actions">
-                  <button class="btn btn-small btn-danger" id="radio-alarm-stop" style="display:none" onclick="radioAlarmStop()">Stop ringing</button>
-                  <button class="btn btn-small btn-primary" onclick="radioAlarmEdit('')">+ Alarm</button>
+                  <button class="btn btn-small btn-danger" id="radio-alarm-stop" style="display:none" data-action="radio-alarm-stop">Stop ringing</button>
+                  <button class="btn btn-small btn-primary" data-action="radio-alarm-edit">+ Alarm</button>
                 </div>
               </div>
               <div class="tab-section-body">
-                <form id="radio-alarm-form" class="radio-alarm-form" style="display:none" onsubmit="radioAlarmSubmit(event)">
+                <form id="radio-alarm-form" class="radio-alarm-form" style="display:none" data-submit="radio-alarm-submit">
                   <div class="radio-alarm-row">
                     <input type="time" id="radio-alarm-time" class="form-control" required>
                     <input id="radio-alarm-label" class="form-control" placeholder="Label (optional)">
@@ -1591,7 +1591,7 @@
                   <div class="radio-alarm-row">
                     <select id="radio-alarm-station" class="media-select"></select>
                     <label>🔊 <input type="range" id="radio-alarm-volume" min="5" max="100" value="40"
-                      oninput="document.getElementById('radio-alarm-volume-val').textContent=this.value+'%'">
+                      data-input="show-alarm-volume">
                       <span id="radio-alarm-volume-val">40%</span></label>
                     <label>Fade in <select id="radio-alarm-fade" class="media-select">
                       <option value="0">no</option><option value="1">1 min</option><option value="3">3 min</option>
@@ -1600,7 +1600,7 @@
                   </div>
                   <div class="radio-alarm-row">
                     <button class="btn btn-small btn-primary" type="submit">Save alarm</button>
-                    <button class="btn btn-small" type="button" onclick="radioAlarmCancel()">Cancel</button>
+                    <button class="btn btn-small" type="button" data-action="radio-alarm-cancel">Cancel</button>
                   </div>
                 </form>
                 <div id="radio-alarms" class="radio-list"></div>
@@ -1611,7 +1611,7 @@
               <div class="tab-section-header">
                 <h3 class="tab-section-title"><span class="tab-section-title-icon">🎶</span> Songs</h3>
                 <div class="tab-section-actions">
-                  <button class="btn btn-small" onclick="radioRememberCurrent()" title="Remember what is playing">♥ Remember current</button>
+                  <button class="btn btn-small" data-action="radio-remember-current" title="Remember what is playing">♥ Remember current</button>
                 </div>
               </div>
               <div class="tab-section-body">
@@ -1619,7 +1619,7 @@
                 <div id="radio-songs-saved" class="radio-songs"></div>
                 <div class="radio-recent-head">
                   <h4>📻 Heard on the radio</h4>
-                  <button class="history-clear-btn" onclick="radioClearHeard()">Clear</button>
+                  <button class="history-clear-btn" data-action="radio-clear-heard">Clear</button>
                 </div>
                 <div id="radio-songs-heard" class="radio-songs"></div>
               </div>
@@ -1636,11 +1636,11 @@
               <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
                 <label class="btn btn-small btn-primary" style="margin: 0;">
                   📤 Upload Video
-                  <input type="file" accept=".mp4,.webm,.mkv,.avi,.mov,.flv" onchange="uploadMediaVideo(this)" style="display: none;">
+                  <input type="file" accept=".mp4,.webm,.mkv,.avi,.mov,.flv" data-change="upload-media-video" style="display: none;">
                 </label>
                 <label class="btn btn-small btn-primary" style="margin: 0;">
                   📤 Upload Audio
-                  <input type="file" accept=".mp3,.wav,.flac,.ogg,.aac,.m4a" onchange="uploadAudioFile(this)" style="display: none;">
+                  <input type="file" accept=".mp3,.wav,.flac,.ogg,.aac,.m4a" data-change="upload-audio-file" style="display: none;">
                 </label>
                 <span class="text-muted" style="font-size: 0.85rem;">Browse folders like Network Shares. Uploads need a writable Media/Videos or Media/Audio folder.</span>
               </div>
@@ -1649,12 +1649,12 @@
                   <h4 id="local-media-browser-title">📂 Media</h4>
                   <div class="network-browser-actions">
                     <span id="local-media-status" class="cache-status"></span>
-                    <button class="btn btn-small" onclick="browseLocalMedia(document.getElementById('local-media-browser').dataset.currentPath || '', true)" title="Refresh">🔄</button>
+                    <button class="btn btn-small" data-action="browse-local-media" title="Refresh">🔄</button>
                   </div>
                 </div>
                 <div class="network-search-box" id="local-media-search-box">
                   <input type="text" id="local-media-search-input" placeholder="🔍 Filter current folder..."
-                         oninput="filterLocalMediaBrowser(this.value)" autocomplete="off">
+                         data-input="filter-local-media-browser" autocomplete="off">
                 </div>
                 <div class="network-video-list local-media-list" id="local-media-list">
                   <div class="network-empty-state"><span class="loading">⏳ Loading...</span></div>
@@ -1675,7 +1675,7 @@
                 Network Shares
               </h3>
               <div class="tab-section-actions">
-                <button class="btn btn-small btn-primary" onclick="showShareForm()">+ Add Share</button>
+                <button class="btn btn-small btn-primary" data-action="show-share-form">+ Add Share</button>
               </div>
             </div>
             <div class="tab-section-body">
@@ -1685,7 +1685,7 @@
               <!-- Add/Edit Share Form -->
               <div id="network-share-form" class="network-share-form">
                 <h4 id="share-form-title">➕ Add Network Share</h4>
-                <form id="network-share-form-inner" onsubmit="event.preventDefault(); document.getElementById('share-form-submit').click();" autocomplete="off">
+                <form id="network-share-form-inner" data-submit="share-form" autocomplete="off">
                   <div class="form-row">
                     <div class="form-group">
                       <label for="share-name">Name</label>
@@ -1719,8 +1719,8 @@
                     </div>
                   </div>
                   <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="hideShareForm()">Cancel</button>
-                    <button type="submit" class="btn btn-primary" id="share-form-submit" onclick="addNetworkShare(); return false;">Add Share</button>
+                    <button type="button" class="btn btn-secondary" data-action="hide-share-form">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="share-form-submit">Add Share</button>
                   </div>
                 </form>
               </div>
@@ -1740,15 +1740,15 @@
                   <h4 id="network-browser-title">📂 Videos</h4>
                   <div class="network-browser-actions">
                     <span id="network-cache-status" class="cache-status"></span>
-                    <button class="btn btn-small" onclick="refreshNetworkDirectory()" title="Refresh from network (bypass cache)">🔄</button>
-                    <button class="btn btn-small" onclick="clearNetworkCache()" title="Clear all directory cache">🗑️ Cache</button>
-                    <button class="btn btn-small btn-secondary" onclick="hideVideoBrowser()">Close</button>
+                    <button class="btn btn-small" data-action="refresh-network-directory" title="Refresh from network (bypass cache)">🔄</button>
+                    <button class="btn btn-small" data-action="clear-network-cache" title="Clear all directory cache">🗑️ Cache</button>
+                    <button class="btn btn-small btn-secondary" data-action="hide-video-browser">Close</button>
                   </div>
                 </div>
                 <!-- Filter Box -->
                 <div class="network-search-box" id="network-search-box" style="display: none;">
                   <input type="text" id="network-search-input" placeholder="🔍 Filter current folder..." 
-                         oninput="handleNetworkSearchInput(this.dataset.shareId, this)" autocomplete="off">
+                         data-input="handle-network-search-input" autocomplete="off">
                 </div>
                 <div class="network-video-list" id="network-video-list"></div>
               </div>
@@ -1780,8 +1780,8 @@
               </div>
               <div id="youtube-controls">
                 <div class="youtube-input-row">
-                  <input type="text" id="youtube-url" class="form-control" placeholder="YouTube, HTTP, RTSP stream URL..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();playYouTubeVideo();}">
-                  <button class="btn btn-primary" onclick="playYouTubeVideo()">▶ Play</button>
+                  <input type="text" id="youtube-url" class="form-control" placeholder="YouTube, HTTP, RTSP stream URL..." autocomplete="off" data-keydown="youtube-enter">
+                  <button class="btn btn-primary" data-action="play-youtube-video">▶ Play</button>
                 </div>
                 <div class="youtube-info" id="youtube-info" style="display: none;">
                   <div class="youtube-thumbnail" id="youtube-thumbnail"></div>
@@ -1816,13 +1816,13 @@
             </div>
             <div class="tab-section-body">
               <div class="youtube-input-row">
-                <input type="text" id="music-search-input" class="form-control" placeholder="Search for a song, artist or album..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();searchMusic();}">
-                <button class="btn btn-primary" onclick="searchMusic()">🔍 Search</button>
+                <input type="text" id="music-search-input" class="form-control" placeholder="Search for a song, artist or album..." autocomplete="off" data-keydown="music-search-enter">
+                <button class="btn btn-primary" data-action="search-music">🔍 Search</button>
               </div>
               <div class="music-search-options" style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
                 <div class="music-mode-toggle">
-                  <button class="music-mode-btn active" id="music-mode-songs" onclick="setMusicMode('songs')">🎵 Songs</button>
-                  <button class="music-mode-btn" id="music-mode-videos" onclick="setMusicMode('videos')">🎬 Music Videos</button>
+                  <button class="music-mode-btn active" id="music-mode-songs" data-action="set-music-mode-songs">🎵 Songs</button>
+                  <button class="music-mode-btn" id="music-mode-videos" data-action="set-music-mode-videos">🎬 Music Videos</button>
                 </div>
                 <label class="music-audio-only-label" id="music-audio-only-wrapper" style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: var(--color-text-secondary, #aaa); cursor: pointer;">
                   <input type="checkbox" id="music-audio-only" style="cursor: pointer;">
@@ -1851,8 +1851,8 @@
                 Audio Visualizer
               </h3>
               <div class="tab-section-actions" id="visualizer-actions">
-                <button class="btn btn-small btn-primary" id="visualizer-start-btn" onclick="startVisualizer()">Start Visualizer</button>
-                <button class="btn btn-small btn-danger" id="visualizer-stop-btn" onclick="stopVisualizer()" disabled>Stop</button>
+                <button class="btn btn-small btn-primary" id="visualizer-start-btn" data-action="start-visualizer">Start Visualizer</button>
+                <button class="btn btn-small btn-danger" id="visualizer-stop-btn" data-action="stop-visualizer" disabled>Stop</button>
               </div>
               <span class="tab-section-collapse-icon">▼</span>
             </div>
@@ -1879,14 +1879,14 @@
                 
                 <div class="visualizer-control-group">
                   <label for="visualizer-mode">Mode:</label>
-                  <select id="visualizer-mode" class="visualizer-select" onchange="onVisualizerModeChange()">
+                  <select id="visualizer-mode" class="visualizer-select" data-change="on-visualizer-mode-change">
                     <!-- Populated by JS -->
                   </select>
                 </div>
                 
                 <div class="visualizer-control-group">
                   <label for="visualizer-color">Colors:</label>
-                  <select id="visualizer-color" class="visualizer-select" onchange="onVisualizerModeChange()">
+                  <select id="visualizer-color" class="visualizer-select" data-change="on-visualizer-mode-change">
                     <!-- Populated by JS -->
                   </select>
                 </div>
@@ -1897,13 +1897,13 @@
                 <div class="visualizer-slider-group">
                   <label>Sensitivity:</label>
                   <input type="range" id="visualizer-sensitivity" min="0.2" max="3.0" step="0.1" value="1.0"
-                         oninput="onSensitivityChange(this.value)">
+                         data-input="on-sensitivity-change">
                   <span id="visualizer-sensitivity-value">1.0x</span>
                 </div>
                 <div class="visualizer-slider-group">
                   <label>Smoothing:</label>
                   <input type="range" id="visualizer-smoothing" min="0" max="0.9" step="0.05" value="0.7"
-                         oninput="onSmoothingChange(this.value)">
+                         data-input="on-smoothing-change">
                   <span id="visualizer-smoothing-value">70%</span>
                 </div>
               </div>
@@ -1930,12 +1930,12 @@
             <div class="tab-section-body" id="media-music-section">
               <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 0.75rem;">MOD music replaces video audio for authentic demoscene experience</p>
               <div class="media-music-controls">
-                <select id="media-mod-select" class="media-select" onchange="selectModFile(this.value)">
+                <select id="media-mod-select" class="media-select" data-change="select-mod-file">
                   <option value="">-- No music --</option>
                 </select>
                 <label class="btn btn-small btn-secondary">
                   📤 Upload MOD
-                  <input type="file" accept=".mod,.xm,.s3m,.it,.stm,.mtm" onchange="uploadModFile(this)" style="display: none;">
+                  <input type="file" accept=".mod,.xm,.s3m,.it,.stm,.mtm" data-change="upload-mod-file" style="display: none;">
                 </label>
               </div>
             </div>
@@ -2028,16 +2028,15 @@
           </div>
           <div class="tab-section-body" style="padding: 0;">
             <div class="console-toolbar">
-              <input type="text" class="console-filter" placeholder="🔍 Filter logs..." 
-                     oninput="filterConsoleLogs(this.value)" autocomplete="off">
-              <select class="console-level-filter" onchange="filterConsoleLevel(this.value)" title="Show only warnings and errors, or errors only">
+              <input type="text" class="console-filter" placeholder="🔍 Filter logs..." data-input="filter" autocomplete="off">
+              <select class="console-level-filter" data-change="level" title="Show only warnings and errors, or errors only">
                 <option value="all">All levels</option>
                 <option value="warn">Warnings + errors</option>
                 <option value="error">Errors only</option>
               </select>
-              <button class="console-toolbar-btn" id="console-pause-btn" onclick="toggleConsolePause()">⏸ Pause</button>
-              <button class="console-toolbar-btn" onclick="clearConsoleLog()">🗑️ Clear</button>
-              <button class="console-toolbar-btn" onclick="scrollConsoleToBottom()">⬇ Bottom</button>
+              <button class="console-toolbar-btn" id="console-pause-btn" data-action="pause">⏸ Pause</button>
+              <button class="console-toolbar-btn" data-action="clear">🗑️ Clear</button>
+              <button class="console-toolbar-btn" data-action="bottom">⬇ Bottom</button>
               <div class="console-status">
                 <div class="console-autoscroll active" id="console-autoscroll" title="Auto-scroll active"></div>
               </div>
@@ -2063,7 +2062,7 @@
           </div>
           <div class="tab-section-body">
             <p style="margin-bottom: 0.75rem;">
-              <button type="button" class="btn btn-secondary" id="output-enabled-btn" onclick="toggleHardwareOutput()">Pause output</button>
+              <button type="button" class="btn btn-secondary" id="output-enabled-btn" data-action="toggle-hardware-output">Pause output</button>
               <span class="settings-hint" id="output-enabled-hint">Frames are sent to the panel. Pause this to let a desktop streamer drive the wall without quitting verpixeld. The browser preview keeps running. A restart sends again.</span>
             </p>
             <p class="settings-hint" id="output-mode-hint" style="margin-bottom: 0.75rem;">
@@ -2073,35 +2072,35 @@
             </p>
             <div class="output-mode-picker" id="output-mode-picker">
               <label class="output-mode-card" data-mode="network">
-                <input type="radio" name="output-mode" value="network" onchange="selectOutputPanel(this.value)">
+                <input type="radio" name="output-mode" value="network" data-change="select-output-panel">
                 <span class="output-mode-title">Network</span>
                 <span class="output-mode-desc">UDP → RP2350 panel</span>
                 <span class="output-mode-badge output-mode-badge-live">Live</span>
                 <span class="output-mode-badge output-mode-badge-saved">Next start</span>
               </label>
               <label class="output-mode-card" data-mode="hdmi">
-                <input type="radio" name="output-mode" value="hdmi" onchange="selectOutputPanel(this.value)">
+                <input type="radio" name="output-mode" value="hdmi" data-change="select-output-panel">
                 <span class="output-mode-title">HDMI</span>
                 <span class="output-mode-desc">Framebuffer / sender card</span>
                 <span class="output-mode-badge output-mode-badge-live">Live</span>
                 <span class="output-mode-badge output-mode-badge-saved">Next start</span>
               </label>
               <label class="output-mode-card" data-mode="spi">
-                <input type="radio" name="output-mode" value="spi" onchange="selectOutputPanel(this.value)">
+                <input type="radio" name="output-mode" value="spi" data-change="select-output-panel">
                 <span class="output-mode-title">SPI</span>
                 <span class="output-mode-desc">SPI master → RP2040</span>
                 <span class="output-mode-badge output-mode-badge-live">Live</span>
                 <span class="output-mode-badge output-mode-badge-saved">Next start</span>
               </label>
               <label class="output-mode-card" data-mode="gpio">
-                <input type="radio" name="output-mode" value="gpio" onchange="selectOutputPanel(this.value)">
+                <input type="radio" name="output-mode" value="gpio" data-change="select-output-panel">
                 <span class="output-mode-title">Hardware</span>
                 <span class="output-mode-desc">rpi-rgb-led-matrix GPIO</span>
                 <span class="output-mode-badge output-mode-badge-live">Live</span>
                 <span class="output-mode-badge output-mode-badge-saved">Next start</span>
               </label>
               <label class="output-mode-card" data-mode="simulation">
-                <input type="radio" name="output-mode" value="simulation" onchange="selectOutputPanel(this.value)">
+                <input type="radio" name="output-mode" value="simulation" data-change="select-output-panel">
                 <span class="output-mode-title">Simulation</span>
                 <span class="output-mode-desc">Preview only, no hardware</span>
                 <span class="output-mode-badge output-mode-badge-live">Live</span>
@@ -2120,7 +2119,7 @@
               Global
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small btn-primary" onclick="saveAppSettings()">Save</button>
+              <button class="btn btn-small btn-primary" data-action="save-app-settings">Save</button>
             </div>
             <span class="tab-section-collapse-icon">▼</span>
           </div>
@@ -2164,9 +2163,9 @@
               Network
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small" data-switch-output="network" onclick="requestOutputSwitch('network')">Use this output</button>
-              <button class="btn btn-small" onclick="applyNetworkConfig(false)">Apply (live)</button>
-              <button class="btn btn-small btn-primary" onclick="applyNetworkConfig(true)">Save</button>
+              <button class="btn btn-small" data-switch-output="network" data-action="request-output-switch-network">Use this output</button>
+              <button class="btn btn-small" data-action="apply-network-live">Apply (live)</button>
+              <button class="btn btn-small btn-primary" data-action="save-network-config">Save</button>
             </div>
             <span class="tab-section-collapse-icon">▼</span>
           </div>
@@ -2190,12 +2189,12 @@
                 <input type="hidden" id="net-panel-id" value="">
                 <div class="net-bound" id="net-bound" hidden>
                   <span id="net-bound-label"></span>
-                  <button type="button" class="btn btn-small" onclick="unbindPanel()">Unbind</button>
+                  <button type="button" class="btn btn-small" data-action="unbind-panel">Unbind</button>
                 </div>
                 <div class="net-clone-block">
                   <div class="settings-hint" style="margin: 0.75rem 0 0.4rem;">More panels</div>
                   <div id="net-clone-list" class="net-clone-list"></div>
-                  <button type="button" class="btn btn-small" onclick="addCloneRow()">Add panel</button>
+                  <button type="button" class="btn btn-small" data-action="add-clone-row">Add panel</button>
                 </div>
               </div>
               <div class="settings-group">
@@ -2230,8 +2229,8 @@
               <div class="net-layout-head">
                 <h4 class="settings-group-title">Arrangement</h4>
                 <div class="net-layout-actions">
-                  <button type="button" class="btn btn-small" onclick="arrangePanels('row')">Side by side</button>
-                  <button type="button" class="btn btn-small" onclick="arrangePanels('stack')">Stack</button>
+                  <button type="button" class="btn btn-small" data-action="arrange-panels-row">Side by side</button>
+                  <button type="button" class="btn btn-small" data-action="arrange-panels-stack">Stack</button>
                 </div>
               </div>
               <div id="net-layout-board" class="net-layout-board"></div>
@@ -2246,14 +2245,14 @@
                 From Docker, type the IP under More panels — the container cannot scan the LAN.
               </p>
               <div class="settings-row settings-row-actions">
-                <button type="button" class="btn btn-small btn-primary" id="net-scan-btn" onclick="scanPanels()">Scan LAN</button>
+                <button type="button" class="btn btn-small btn-primary" id="net-scan-btn" data-action="scan-panels">Scan LAN</button>
               </div>
               <div id="net-scan-status" class="settings-hint" style="margin: 0.5rem 0;"></div>
               <div id="net-panel-list" class="net-panel-list"></div>
             </div>
 
             <label class="draw-checkbox-label" style="margin-top: 1rem;" title="Off sends a neutral curve to the panel. The tuned curves stay saved.">
-              <input type="checkbox" id="seam-enabled" checked onchange="toggleSeamEnabled(this.checked)">
+              <input type="checkbox" id="seam-enabled" checked data-change="toggle-seam-enabled">
               Seam correction on (off = neutral, curves stay saved)
             </label>
 
@@ -2266,26 +2265,26 @@
                 8-bit and 14-bit each have their own curve — switching the tab forces the panel into that depth so you match what you see. The 9-point curve remaps 8-bit source on those columns. Gain/lift still apply after the curve (set them to 1.0 / 0 while matching). Grey preview fills the wall from this host — firmware <code>t f</code> bypasses the curve.
               </p>
               <div class="seam-bit-tabs" role="tablist">
-                <button type="button" class="seam-bit-tab active" data-seam-bits="14" onclick="selectSeamBits(14)">14-bit</button>
-                <button type="button" class="seam-bit-tab" data-seam-bits="8" onclick="selectSeamBits(8)">8-bit</button>
+                <button type="button" class="seam-bit-tab active" data-seam-bits="14" data-action="select-seam-bits-14">14-bit</button>
+                <button type="button" class="seam-bit-tab" data-seam-bits="8" data-action="select-seam-bits-8">8-bit</button>
               </div>
               <p class="settings-hint" id="seam-mode-hint">Panel follows this tab while you edit. Leaving Settings returns to canvas depth.</p>
               <div class="seam-preview-row">
                 <label for="seam-grey">Wall grey</label>
                 <input type="range" id="seam-grey" min="0" max="255" value="128">
                 <span id="seam-grey-val" class="settings-value">off</span>
-                <button class="btn btn-small" type="button" onclick="setSeamPreview(-1)">Preview off</button>
+                <button class="btn btn-small" type="button" data-action="seam-preview-off">Preview off</button>
               </div>
               <div class="seam-curve-head">
                 <span class="seam-curve-title">Tone curve (shared by all seam columns)</span>
-                <button class="btn btn-small" type="button" onclick="resetSeamCurve()">Reset curve</button>
-                <button class="btn btn-small" type="button" onclick="resetSeamGainLift()">Gain/lift → 1 / 0</button>
+                <button class="btn btn-small" type="button" data-action="reset-seam-curve">Reset curve</button>
+                <button class="btn btn-small" type="button" data-action="reset-seam-gain-lift">Gain/lift → 1 / 0</button>
               </div>
               <canvas id="seam-curve-plot" class="seam-curve-plot" width="512" height="128"></canvas>
               <div id="seam-knots" class="seam-knots"></div>
               <div class="settings-row settings-row-actions">
-                <button class="btn btn-small" onclick="applySeam(false)">Apply (live)</button>
-                <button class="btn btn-small btn-primary" onclick="applySeam(true)">Save seams</button>
+                <button class="btn btn-small" data-action="apply-seam-live">Apply (live)</button>
+                <button class="btn btn-small btn-primary" data-action="save-seam">Save seams</button>
               </div>
               <div id="seam-rows"></div>
             </div>
@@ -2301,8 +2300,8 @@
               HDMI
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small" data-switch-output="hdmi" onclick="requestOutputSwitch('hdmi')">Use this output</button>
-              <button class="btn btn-small btn-primary" onclick="saveHdmiSettings()">Save</button>
+              <button class="btn btn-small" data-switch-output="hdmi" data-action="request-output-switch-hdmi">Use this output</button>
+              <button class="btn btn-small btn-primary" data-action="save-hdmi-settings">Save</button>
             </div>
             <span class="tab-section-collapse-icon">▼</span>
           </div>
@@ -2376,8 +2375,8 @@
               SPI
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small" data-switch-output="spi" onclick="requestOutputSwitch('spi')">Use this output</button>
-              <button class="btn btn-small btn-primary" onclick="saveSpiSettings()">Save</button>
+              <button class="btn btn-small" data-switch-output="spi" data-action="request-output-switch-spi">Use this output</button>
+              <button class="btn btn-small btn-primary" data-action="save-spi-settings">Save</button>
             </div>
             <span class="tab-section-collapse-icon">▼</span>
           </div>
@@ -2432,8 +2431,8 @@
               Hardware (rpi-rgb-led-matrix)
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small" data-switch-output="gpio" onclick="requestOutputSwitch('gpio')">Use this output</button>
-              <button class="btn btn-small btn-primary" onclick="saveMatrixConfig()">Save</button>
+              <button class="btn btn-small" data-switch-output="gpio" data-action="request-output-switch-gpio">Use this output</button>
+              <button class="btn btn-small btn-primary" data-action="save-matrix-config">Save</button>
             </div>
             <span class="tab-section-collapse-icon">▼</span>
           </div>
@@ -2610,7 +2609,7 @@
               Simulation
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small btn-primary" data-switch-output="simulation" onclick="requestOutputSwitch('simulation')">Use this output</button>
+              <button class="btn btn-small btn-primary" data-switch-output="simulation" data-action="request-output-switch-simulation">Use this output</button>
             </div>
             <span class="tab-section-collapse-icon">▼</span>
           </div>
@@ -2630,8 +2629,8 @@
               Image Correction
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small" id="reset-imgcorr-btn" onclick="resetImageCorrection()">Reset</button>
-              <button class="btn btn-small btn-primary" id="save-imgcorr-btn" onclick="saveImageCorrection()">Save</button>
+              <button class="btn btn-small" id="reset-imgcorr-btn" data-action="reset-image-correction">Reset</button>
+              <button class="btn btn-small btn-primary" id="save-imgcorr-btn" data-action="save-image-correction">Save</button>
             </div>
             <span class="tab-section-collapse-icon">▼</span>
           </div>
@@ -2644,7 +2643,7 @@
                 <h4 class="settings-group-title">Tone &amp; Levels</h4>
                 <div class="settings-row">
                   <label for="ic-curve">Curve</label>
-                  <select id="ic-curve" class="settings-select" onchange="onImageCorrectionInput()">
+                  <select id="ic-curve" class="settings-select" data-change="image-correction">
                     <option value="none">none (linear)</option>
                     <option value="gamma">gamma</option>
                     <option value="cie1931">cie1931</option>
@@ -2654,19 +2653,19 @@
                 <div class="settings-row">
                   <label for="ic-gamma">Gamma <span id="ic-gamma-val">2.20</span></label>
                   <input type="range" id="ic-gamma" min="0.5" max="4" step="0.05" value="2.2"
-                         oninput="onImageCorrectionInput()">
+                         data-input="image-correction">
                   <span class="settings-hint">when curve = gamma</span>
                 </div>
                 <div class="settings-row">
                   <label for="ic-contrast">Contrast <span id="ic-contrast-val">1.00</span></label>
                   <input type="range" id="ic-contrast" min="0.5" max="2.5" step="0.05" value="1"
-                         oninput="onImageCorrectionInput()">
+                         data-input="image-correction">
                   <span class="settings-hint">&gt;1 more contrast</span>
                 </div>
                 <div class="settings-row">
                   <label for="ic-brightness">Brightness <span id="ic-brightness-val">1.00</span></label>
                   <input type="range" id="ic-brightness" min="0.1" max="2" step="0.05" value="1"
-                         oninput="onImageCorrectionInput()">
+                         data-input="image-correction">
                   <span class="settings-hint">master multiplier</span>
                 </div>
               </div>
@@ -2675,19 +2674,19 @@
                 <div class="settings-row">
                   <label for="ic-gainr">Gain R <span id="ic-gainr-val">1.00</span></label>
                   <input type="range" id="ic-gainr" min="0" max="2" step="0.02" value="1"
-                         oninput="onImageCorrectionInput()">
+                         data-input="image-correction">
                   <span class="settings-hint">red</span>
                 </div>
                 <div class="settings-row">
                   <label for="ic-gaing">Gain G <span id="ic-gaing-val">1.00</span></label>
                   <input type="range" id="ic-gaing" min="0" max="2" step="0.02" value="1"
-                         oninput="onImageCorrectionInput()">
+                         data-input="image-correction">
                   <span class="settings-hint">green</span>
                 </div>
                 <div class="settings-row">
                   <label for="ic-gainb">Gain B <span id="ic-gainb-val">1.00</span></label>
                   <input type="range" id="ic-gainb" min="0" max="2" step="0.02" value="1"
-                         oninput="onImageCorrectionInput()">
+                         data-input="image-correction">
                   <span class="settings-hint">blue</span>
                 </div>
               </div>
@@ -2704,7 +2703,7 @@
               <span class="badge badge-small" id="preview-sim-badge" style="display: none; margin-left: 0.5rem;">SIM</span>
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small btn-primary" id="preview-toggle-btn" onclick="togglePreview()">Start</button>
+              <button class="btn btn-small btn-primary" id="preview-toggle-btn" data-action="toggle-preview">Start</button>
             </div>
             <span class="tab-section-collapse-icon">▼</span>
           </div>
@@ -2720,7 +2719,7 @@
             </div>
             <div style="display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 0.75rem;">
               <label for="preview-scale" style="font-size: 0.8rem; color: #888; white-space: nowrap;">Scale:</label>
-              <input type="range" id="preview-scale" min="1" max="4" step="0.5" value="1" style="width: 120px;" oninput="setPreviewScale(this.value)">
+              <input type="range" id="preview-scale" min="1" max="4" step="0.5" value="1" style="width: 120px;" data-input="set-preview-scale">
               <span id="preview-scale-label" style="font-size: 0.8rem; color: #888; min-width: 2.5rem;">1x</span>
             </div>
             <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 0.25rem; font-size: 0.8rem; color: #888;">
@@ -2737,8 +2736,8 @@
               Audio Output & Bluetooth
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small btn-secondary" onclick="scanPixTone()">Scan audio boards</button>
-              <button class="btn btn-small btn-secondary" onclick="refreshAudioStatus()">Refresh</button>
+              <button class="btn btn-small btn-secondary" data-action="scan-pix-tone">Scan audio boards</button>
+              <button class="btn btn-small btn-secondary" data-action="refresh-audio-status">Refresh</button>
             </div>
             <span class="tab-section-collapse-icon">▼</span>
           </div>
@@ -2761,21 +2760,21 @@
                     <label for="pixtone-host">Address</label>
                     <div class="settings-inline">
                       <input id="pixtone-host" class="settings-input" type="text" inputmode="decimal" placeholder="192.168.10.225" autocomplete="off">
-                      <button class="btn btn-small btn-primary" type="button" onclick="usePixToneHost()">Use</button>
+                      <button class="btn btn-small btn-primary" type="button" data-action="use-pix-tone-host">Use</button>
                     </div>
                     <span class="settings-hint">Shown on the display. The page is <code>http://&lt;ip&gt;:5000/</code>.</span>
                   </div>
                   <div class="settings-row">
                     <label for="pixtone-volume">Volume</label>
                     <div class="settings-inline">
-                      <input id="pixtone-volume" type="range" min="0" max="100" value="70" oninput="setBoardVolume(this.value)">
+                      <input id="pixtone-volume" type="range" min="0" max="100" value="70" data-input="set-board-volume">
                       <span id="pixtone-volume-label" class="pixtone-volume-label">70%</span>
                     </div>
                   </div>
                   <div class="settings-row">
                     <label for="pixtone-mute">Mute</label>
                     <label class="toggle-switch">
-                      <input id="pixtone-mute" type="checkbox" onchange="toggleBoardMute()">
+                      <input id="pixtone-mute" type="checkbox" data-change="toggle-board-mute">
                       <span class="toggle-slider"></span>
                     </label>
                   </div>
@@ -2785,14 +2784,14 @@
                   <div class="settings-row">
                     <label for="pixtone-wall">Wall image</label>
                     <label class="toggle-switch">
-                      <input id="pixtone-wall" type="checkbox" onchange="setWallPreview(this.checked)">
+                      <input id="pixtone-wall" type="checkbox" data-change="set-wall-preview">
                       <span class="toggle-slider"></span>
                     </label>
                     <span class="settings-hint">Preview on the board while audio is playing.</span>
                   </div>
                   <div class="settings-row">
                     <label for="pixtone-fps">Frame rate</label>
-                    <select id="pixtone-fps" class="settings-select" onchange="setPreviewFps(this.value)">
+                    <select id="pixtone-fps" class="settings-select" data-change="set-preview-fps">
                       <option value="4">4 fps</option>
                       <option value="8">8 fps</option>
                       <option value="15">15 fps</option>
@@ -2803,7 +2802,7 @@
                   </div>
                   <div class="settings-row">
                     <label for="pixtone-width">Width</label>
-                    <select id="pixtone-width" class="settings-select" onchange="setPreviewWidth(this.value)">
+                    <select id="pixtone-width" class="settings-select" data-change="set-preview-width">
                       <option value="160">160 · 2.8"</option>
                       <option value="240">240</option>
                       <option value="480" selected>480 · 3.5"</option>
@@ -2813,7 +2812,7 @@
                   <div class="settings-row">
                     <label for="pixtone-fill">Ausschnitt</label>
                     <label class="toggle-switch">
-                      <input id="pixtone-fill" type="checkbox" onchange="setPreviewFill(this.checked)">
+                      <input id="pixtone-fill" type="checkbox" data-change="set-preview-fill">
                       <span class="toggle-slider"></span>
                     </label>
                     <span class="settings-hint">Center of the wall, twice as tall. The 3.5" display only.</span>
@@ -2841,7 +2840,7 @@
               <div class="bluetooth-subsection">
                 <div class="bluetooth-subsection-header">
                   <h5>🔍 Find New Devices</h5>
-                  <button class="btn btn-small btn-primary" onclick="scanBluetoothDevices()" id="bluetooth-scan-btn">
+                  <button class="btn btn-small btn-primary" data-action="scan-bluetooth-devices" id="bluetooth-scan-btn">
                     Scan
                   </button>
                 </div>
@@ -2870,8 +2869,8 @@
               Home Assistant
             </h3>
             <div class="tab-section-actions">
-              <button class="btn btn-small btn-secondary" onclick="testHaToast()">Test toast on wall</button>
-              <button class="btn btn-small btn-primary" onclick="saveHomeAssistant()">Save &amp; reconnect</button>
+              <button class="btn btn-small btn-secondary" data-action="test-ha-toast">Test toast on wall</button>
+              <button class="btn btn-small btn-primary" data-action="save-home-assistant">Save &amp; reconnect</button>
             </div>
             <span class="tab-section-collapse-icon">▼</span>
           </div>
@@ -3068,8 +3067,8 @@
                 <input type="password" id="cert-password" class="settings-input" placeholder="Enter certificate password">
               </div>
               <div class="settings-row settings-row-actions">
-                <button class="btn btn-small btn-primary" onclick="uploadCertificate()">Upload Certificate</button>
-                <button class="btn btn-small btn-secondary" onclick="regenerateCertificate()">Regenerate Self-Signed</button>
+                <button class="btn btn-small btn-primary" data-action="upload-certificate">Upload Certificate</button>
+                <button class="btn btn-small btn-secondary" data-action="regenerate-certificate">Regenerate Self-Signed</button>
               </div>
             </div>
           </div>
@@ -3094,7 +3093,7 @@
                 if those changed, restart the process. Video/native plugins may need a restart if they pin the old ALC.
               </p>
               <div class="settings-row settings-row-actions">
-                <button type="button" class="btn btn-small btn-primary" id="plugin-reload-btn" onclick="reloadPlugins()">Reload plugins</button>
+                <button type="button" class="btn btn-small btn-primary" id="plugin-reload-btn" data-action="reload-plugins">Reload plugins</button>
                 <span class="settings-hint" id="plugin-reload-status"></span>
               </div>
             </div>
@@ -3141,7 +3140,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <h2 id="filter-form-title">Add Filter</h2>
-          <button class="modal-close" onclick="hideFilterForm()">✕</button>
+          <button class="modal-close" data-action="hide-filter-form">✕</button>
         </div>
         <div class="modal-body" id="filter-form-body">
           <div id="filter-form"></div>
@@ -3157,7 +3156,7 @@
       <div class="brightness-expanded-content">
         <div class="brightness-expanded-header">
           <h4>Brightness Settings</h4>
-          <button class="btn btn-small btn-ghost" onclick="toggleQuickSettingsExpand()">Close</button>
+          <button class="btn btn-small btn-ghost" data-action="toggle-quick-settings-expand">Close</button>
         </div>
         <div id="canvas-brightness-controls-modal" class="canvas-brightness-section">
           <!-- Per-canvas brightness sliders will be added here dynamically -->
@@ -3176,16 +3175,16 @@
   <script src="/js/utils/helpers.js"></script>
   <script src="/js/ui/toast.js"></script>
   <script src="/js/ui/modal.js"></script>
-  <script src="/js/ui/theme.js"></script>
+  <script type="module" src="/js/ui/theme.js"></script>
   <script src="/js/ui/tabs.js"></script>
   <script src="/js/ui/navigation.js"></script>
   
   <!-- Modular JS - Features -->
   <script src="/js/features/draw-mode.js"></script>
-  <script src="/js/features/night-mode.js"></script>
-  <script src="/js/features/scheduler.js"></script>
-  <script src="/js/features/canvas-stack.js"></script>
-  <script src="/js/features/brightness.js"></script>
+  <script type="module" src="/js/features/night-mode.js"></script>
+  <script type="module" src="/js/features/scheduler.js"></script>
+  <script type="module" src="/js/features/canvas-stack.js"></script>
+  <script type="module" src="/js/features/brightness.js"></script>
   <!-- Site Footer -->
   <footer class="app-footer">
     <div class="footer-inner">
@@ -3202,26 +3201,26 @@
   </footer>
 
   <script src="/js/features/saved-layouts.js"></script>
-  <script src="/js/features/playlist.js"></script>
-  <script src="/js/features/canvas-editor.js"></script>
+  <script type="module" src="/js/features/playlist.js"></script>
+  <script type="module" src="/js/features/canvas-editor.js"></script>
   <script src="/js/features/layer-editor.js"></script>
   <script src="/js/features/system-control.js"></script>
   <script src="/js/features/filter-management.js"></script>
   <script src="/js/features/extension-management.js"></script>
-  <script src="/js/features/game-input.js"></script>
+  <script type="module" src="/js/features/game-input.js"></script>
   <script src="/js/features/layout-management.js"></script>
-  <script src="/js/features/camera-stream.js"></script>
+  <script type="module" src="/js/features/camera-stream.js"></script>
   <script src="/js/features/media-player.js"></script>
-  <script src="/js/features/network-shares.js"></script>
-  <script src="/js/features/audio-output.js"></script>
-  <script src="/js/features/favorites.js"></script>
-  <script src="/js/features/radio.js"></script>
+  <script type="module" src="/js/features/network-shares.js"></script>
+  <script type="module" src="/js/features/audio-output.js"></script>
+  <script type="module" src="/js/features/favorites.js"></script>
+  <script type="module" src="/js/features/radio.js"></script>
   <script src="/js/features/visualizer.js"></script>
-  <script src="/js/features/console-log.js"></script>
-  <script src="/js/features/image-upload.js"></script>
-  <script src="/js/features/ai-art.js"></script>
+  <script type="module" src="/js/features/console-log.js"></script>
+  <script type="module" src="/js/features/image-upload.js"></script>
+  <script type="module" src="/js/features/ai-art.js"></script>
   <script src="/js/features/voice-commands.js"></script>
-  <script src="/js/features/live-preview.js"></script>
+  <script type="module" src="/js/features/live-preview.js"></script>
   <script src="/js/features/settings.js"></script>
   <script src="/js/core/init.js"></script>
 </body>

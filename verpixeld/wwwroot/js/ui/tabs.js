@@ -141,7 +141,6 @@ function mpbInitScrub() {
   const bar = document.getElementById('media-progress-bar');
   if (!bar || bar.dataset.scrub) return;
   bar.dataset.scrub = '1';
-  bar.removeAttribute('onclick');
   bar.addEventListener('pointerdown', ev => {
     const s = window.mediaState || {};
     if (!s.isRunning || !(s.videoDuration > 0) || s.seekingSupported === false) return;
@@ -254,7 +253,10 @@ function updateMediaPlayerBar() {
   const artKey = playing
     ? [s.currentVideo, s.currentAudio, s.networkFilePath, s.radioStationName, s.lastPlayedYouTubeTitle].join('|')
     : null;
-  if (artKey !== mpbArtKey) mpbLoadArt(artKey);
+  if (artKey !== mpbArtKey) {
+    mpbLoadArt(artKey);
+    window.refreshFavoriteStar?.();
+  }
 
   // Icon
   if (iconEl) {
@@ -648,11 +650,9 @@ function initCollapsibleSections() {
     
     // Add click handler directly to header (no cloning needed since we track init state)
     header.addEventListener('click', (e) => {
-      // Stop propagation to prevent any parent handlers
-      e.stopPropagation();
-      
+      // No stopPropagation: header buttons (data-action) are handled by delegation further up.
       // Don't toggle if clicking on action buttons or their children
-      if (e.target.closest('.tab-section-actions')) {
+      if (e.target.closest('.tab-section-actions, button, input, select, a')) {
         return;
       }
       
@@ -691,3 +691,18 @@ window.navigateToSection = navigateToSection;
 window.tabState = tabState;
 window.toggleCollapsibleSection = toggleCollapsibleSection;
 window.initCollapsibleSections = initCollapsibleSections;
+
+// Controls of #media-player-bar in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('media-player-bar'), {
+  input: {
+    'mpb-volume-input': (el, event) => mpbVolumeInput(el)
+  },
+  click: {
+    'hide-media-player-bar': () => hideMediaPlayerBar()
+  }
+}));
+
+// Tab bar in index.html: each button carries its tab id in data-tab.
+onReady(() => wire(document.getElementById('tab-navigation'), {
+  click: { 'switch-tab': el => switchTab(el.dataset.tab) }
+}));

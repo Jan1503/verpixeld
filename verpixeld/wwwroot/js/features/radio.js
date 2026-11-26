@@ -87,11 +87,11 @@ function renderRadioNow() {
         <div class="radio-now-sub">${radioMeta(s)}${n.icyBitrate && !s.bitrate ? ` · ${n.icyBitrate}k` : ''}</div>
       </div>
       <div class="radio-now-actions">
-        <button class="btn btn-small" onclick="radioStep(-1)" title="Previous station">⏮</button>
-        <button class="btn btn-small btn-danger" onclick="radioStop()" title="Stop">⏹</button>
-        <button class="btn btn-small" onclick="radioStep(1)" title="Next station">⏭</button>
-        ${n.saved ? '' : `<button class="btn btn-small btn-primary" onclick="radioSaveCurrent()" title="Save station">⭐ Save</button>`}
-        ${n.streamTitle ? `<button class="btn btn-small" onclick="radioRememberCurrent()" title="Remember this song">♥</button>` : ''}
+        <button class="btn btn-small" data-action="radio-step" data-dir="-1" title="Previous station">⏮</button>
+        <button class="btn btn-small btn-danger" data-action="radio-stop" title="Stop">⏹</button>
+        <button class="btn btn-small" data-action="radio-step" data-dir="1" title="Next station">⏭</button>
+        ${n.saved ? '' : `<button class="btn btn-small btn-primary" data-action="radio-save-current" title="Save station">⭐ Save</button>`}
+        ${n.streamTitle ? `<button class="btn btn-small" data-action="radio-remember-current" title="Remember this song">♥</button>` : ''}
         ${s.homepage ? `<a class="btn btn-small" href="${radioEsc(s.homepage)}" target="_blank" rel="noopener noreferrer" title="Station website">🌐</a>` : ''}
       </div>
     </div>
@@ -141,19 +141,19 @@ function renderRadioStations() {
   }
   list.innerHTML = radioState.stations.map((s, i) => `
     <div class="radio-item ${i === radioState.current ? 'active' : ''}" data-id="${radioEsc(s.id)}">
-      <button class="radio-item-play" onclick="radioPlaySaved('${radioEsc(s.id)}')" title="Play">
+      <button class="radio-item-play" data-action="radio-play-saved" data-id="${radioEsc(s.id)}" title="Play">
         ${radioLogo(s.favicon, 40)}
         <span class="radio-item-overlay">${i === radioState.current ? '♪' : '▶'}</span>
       </button>
-      <div class="radio-item-text" onclick="radioPlaySaved('${radioEsc(s.id)}')">
+      <div class="radio-item-text" data-action="radio-play-saved" data-id="${radioEsc(s.id)}">
         <div class="radio-item-name">${radioEsc(s.name)}</div>
         <div class="radio-item-meta">${radioMeta(s)}${s.playCount ? ` · played ${s.playCount}×` : ''}</div>
       </div>
       <div class="radio-item-actions">
-        <button class="btn btn-small" onclick="radioMove('${radioEsc(s.id)}', -1)" title="Up" ${i === 0 ? 'disabled' : ''}>↑</button>
-        <button class="btn btn-small" onclick="radioMove('${radioEsc(s.id)}', 1)" title="Down" ${i === radioState.stations.length - 1 ? 'disabled' : ''}>↓</button>
-        <button class="btn btn-small" onclick="radioRename('${radioEsc(s.id)}')" title="Rename">✏️</button>
-        <button class="btn btn-small btn-danger" onclick="radioRemove('${radioEsc(s.id)}')" title="Remove">🗑</button>
+        <button class="btn btn-small" data-action="radio-move" data-id="${radioEsc(s.id)}" data-dir="-1" title="Up" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button class="btn btn-small" data-action="radio-move" data-id="${radioEsc(s.id)}" data-dir="1" title="Down" ${i === radioState.stations.length - 1 ? 'disabled' : ''}>↓</button>
+        <button class="btn btn-small" data-action="radio-rename" data-id="${radioEsc(s.id)}" title="Rename">✏️</button>
+        <button class="btn btn-small btn-danger" data-action="radio-remove" data-id="${radioEsc(s.id)}" title="Remove">🗑</button>
       </div>
     </div>`).join('');
 }
@@ -176,16 +176,18 @@ async function radioMove(id, delta) {
 async function radioRename(id) {
   const s = radioState.stations.find(x => x.id === id);
   if (!s) return;
-  const name = prompt('Station name', s.name);
-  if (name === null || !name.trim()) return;
-  try { await api.put(`/api/radio/stations/${encodeURIComponent(id)}`, { name: name.trim() }); }
+  const name = await showPrompt({ title: 'Rename station', value: s.name, confirmText: 'Rename' });
+  if (!name) return;
+  try { await api.put(`/api/radio/stations/${encodeURIComponent(id)}`, { name }); }
   catch (e) { window.toast.error('Radio', e.message); }
   loadRadioStations();
 }
 
 async function radioRemove(id) {
   const s = radioState.stations.find(x => x.id === id);
-  if (!s || !confirm(`Remove "${s.name}" from your stations?`)) return;
+  if (!s) return;
+  const ok = await showConfirm({ title: 'Remove station', message: `Remove "${s.name}" from your stations?`, confirmText: 'Remove', type: 'danger' });
+  if (!ok) return;
   try { await api.del(`/api/radio/stations/${encodeURIComponent(id)}`); }
   catch (e) { window.toast.error('Radio', e.message); }
   loadRadioStations();
@@ -238,7 +240,7 @@ async function loadRadioRecent() {
     if (!box) return;
     const list = r.stations || [];
     box.innerHTML = list.length === 0 ? '<span class="text-muted">Nothing yet.</span>' :
-      list.map((s, i) => `<button class="radio-chip" onclick="radioPlayRecent(${i})" title="${radioEsc(s.name)}">${radioLogo(s.favicon, 18)} ${radioEsc(s.name)}</button>`).join('');
+      list.map((s, i) => `<button class="radio-chip" data-action="radio-play-recent" data-index="${i}" title="${radioEsc(s.name)}">${radioLogo(s.favicon, 18)} ${radioEsc(s.name)}</button>`).join('');
     radioState.recent = list;
   } catch { /* ignore */ }
 }
@@ -275,7 +277,7 @@ async function loadRadioFilters() {
       const box = document.getElementById('radio-tags');
       if (box) {
         box.innerHTML = (r.tags || []).slice(0, 40).map(t =>
-          `<button class="radio-chip" data-tag="${radioEsc(t.name)}" onclick="radioPickTag(this.dataset.tag)">${radioEsc(t.name)}</button>`).join('');
+          `<button class="radio-chip" data-tag="${radioEsc(t.name)}" data-action="radio-pick-tag">${radioEsc(t.name)}</button>`).join('');
       }
       radioState.tagsLoaded = true;
     } catch { /* offline */ }
@@ -325,19 +327,19 @@ function renderRadioResults(hasMore) {
     x.url.toLowerCase() === (s.url || '').toLowerCase());
   box.innerHTML = radioState.results.map((s, i) => `
     <div class="radio-item">
-      <button class="radio-item-play" onclick="radioPlayResult(${i})" title="Listen">
+      <button class="radio-item-play" data-action="radio-play-result" data-index="${i}" title="Listen">
         ${radioLogo(s.favicon, 40)}<span class="radio-item-overlay">▶</span>
       </button>
-      <div class="radio-item-text" onclick="radioPlayResult(${i})">
+      <div class="radio-item-text" data-action="radio-play-result" data-index="${i}">
         <div class="radio-item-name">${radioEsc(s.name)}</div>
         <div class="radio-item-meta">${radioMeta(s)}${s.votes ? ` · 👍 ${s.votes}` : ''}</div>
       </div>
       <div class="radio-item-actions">
         ${isSaved(s) ? '<span class="radio-saved">✓ saved</span>'
-          : `<button class="btn btn-small btn-primary" onclick="radioSaveResult(${i})" title="Save">⭐</button>`}
+          : `<button class="btn btn-small btn-primary" data-action="radio-save-result" data-index="${i}" title="Save">⭐</button>`}
       </div>
     </div>`).join('') +
-    (hasMore ? `<button class="btn btn-small radio-more" onclick="radioSearch(true)">Load more</button>` : '');
+    (hasMore ? `<button class="btn btn-small radio-more" data-action="radio-search-more">Load more</button>` : '');
 }
 
 function radioPlayResult(i) {
@@ -379,7 +381,7 @@ async function radioImport(input) {
   try {
     const list = JSON.parse(await file.text());
     if (!Array.isArray(list)) throw new Error('Expected a list of stations');
-    const replace = confirm('Replace your saved stations? Cancel adds the new ones instead.');
+    const replace = await showConfirm({ title: 'Import stations', message: `Import ${list.length} stations: replace your saved stations, or add them to the list?`, confirmText: 'Replace', cancelText: 'Add to list' });
     const r = await api.post(`/api/radio/import?replace=${replace}`, list);
     window.toast.success('Radio', `${r.added} stations imported`);
   } catch (e) {
@@ -451,16 +453,16 @@ function renderRadioAlarms() {
     return `
     <div class="radio-item ${a.enabled ? 'active' : ''}">
       <label class="radio-alarm-switch" title="On / off">
-        <input type="checkbox" ${a.enabled ? 'checked' : ''} onchange="radioAlarmEnable('${radioEsc(a.id)}', this.checked)">
+        <input type="checkbox" ${a.enabled ? 'checked' : ''} data-change="radio-alarm-enable" data-id="${radioEsc(a.id)}">
       </label>
-      <div class="radio-item-text" onclick="radioAlarmEdit('${radioEsc(a.id)}')">
+      <div class="radio-item-text" data-action="radio-alarm-edit" data-id="${radioEsc(a.id)}">
         <div class="radio-item-name">${time} <span class="radio-alarm-days">${radioDaysText(a.days)}</span>${a.label ? ' · ' + radioEsc(a.label) : ''}</div>
         <div class="radio-item-meta">📻 ${radioEsc(stationName(a.stationId))} · 🔊 ${a.volume}% · fade ${a.fadeMinutes} min · next: ${radioEsc(nextText)}</div>
       </div>
       <div class="radio-item-actions">
-        <button class="btn btn-small" onclick="radioAlarmTest('${radioEsc(a.id)}')" title="Ring now">▶</button>
-        <button class="btn btn-small" onclick="radioAlarmEdit('${radioEsc(a.id)}')" title="Edit">✏️</button>
-        <button class="btn btn-small btn-danger" onclick="radioAlarmDelete('${radioEsc(a.id)}')" title="Delete">🗑</button>
+        <button class="btn btn-small" data-action="radio-alarm-test" data-id="${radioEsc(a.id)}" title="Ring now">▶</button>
+        <button class="btn btn-small" data-action="radio-alarm-edit" data-id="${radioEsc(a.id)}" title="Edit">✏️</button>
+        <button class="btn btn-small btn-danger" data-action="radio-alarm-delete" data-id="${radioEsc(a.id)}" title="Delete">🗑</button>
       </div>
     </div>`;
   }).join('');
@@ -525,7 +527,8 @@ async function radioAlarmEnable(id, on) {
 }
 
 async function radioAlarmDelete(id) {
-  if (!confirm('Delete this alarm?')) return;
+  const ok = await showConfirm({ title: 'Delete alarm', message: 'Delete this alarm?', confirmText: 'Delete', type: 'danger' });
+  if (!ok) return;
   try { await api.del(`/api/alarms/${encodeURIComponent(id)}`); } catch (e) { window.toast.error('Alarm', e.message); }
   loadRadioAlarms();
 }
@@ -554,15 +557,15 @@ function radioSongRow(s, saved) {
   const at = new Date(s.at);
   const when = at.toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   const action = saved
-    ? `<button class="btn btn-small btn-danger" onclick="radioForgetSong('${radioEsc(s.id)}')" title="Forget">🗑</button>`
-    : `<button class="btn btn-small" data-title="${radioEsc(s.title)}" data-source="${radioEsc(s.source || '')}" onclick="radioRememberSong(this.dataset.title, this.dataset.source)" title="Remember">♥</button>`;
+    ? `<button class="btn btn-small btn-danger" data-action="radio-forget-song" data-id="${radioEsc(s.id)}" title="Forget">🗑</button>`
+    : `<button class="btn btn-small" data-title="${radioEsc(s.title)}" data-source="${radioEsc(s.source || '')}" data-action="radio-remember-song" title="Remember">♥</button>`;
   return `
     <div class="radio-song">
       <div class="radio-song-text">
         <div class="radio-song-title">${radioEsc(s.title)}</div>
         <div class="radio-item-meta">${radioEsc(when)}${s.source ? ' · ' + radioEsc(s.source) : ''}</div>
       </div>
-      <button class="btn btn-small" data-title="${radioEsc(s.title)}" onclick="radioFindSong(this.dataset.title)" title="Find on YouTube Music">🔍</button>
+      <button class="btn btn-small" data-title="${radioEsc(s.title)}" data-action="radio-find-song" title="Find on YouTube Music">🔍</button>
       ${action}
     </div>`;
 }
@@ -604,7 +607,8 @@ async function radioForgetSong(id) {
 }
 
 async function radioClearHeard() {
-  if (!confirm('Clear the list of songs heard?')) return;
+  const ok = await showConfirm({ title: 'Clear songs heard', message: 'Clear the list of songs heard?', confirmText: 'Clear', type: 'danger' });
+  if (!ok) return;
   try { await api.del('/api/songs/history'); } catch { /* ignore */ }
   loadRadioSongs();
 }
@@ -616,3 +620,49 @@ function radioFindSong(title) {
   if (input) input.value = String(title || '').replace(/\s*·.*$/, '');
   if (typeof searchMusic === 'function') searchMusic();
 }
+
+// Controls of #tab-media in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-media'), {
+  change: {
+    'radio-set-sleep': (el, event) => radioSetSleep(el.value),
+    'radio-set-titles': (el, event) => radioSetTitles(el.checked),
+    'radio-import': (el, event) => radioImport(el),
+    'radio-alarm-enable': el => radioAlarmEnable(el.dataset.id, el.checked)
+  },
+  click: {
+    'radio-export': () => radioExport(),
+    'radio-clear-recent': () => radioClearRecent(),
+    'radio-alarm-stop': () => radioAlarmStop(),
+    // radioAlarmEdit('') opens an empty form for a new alarm
+    'radio-alarm-edit': el => radioAlarmEdit(el.dataset.id || ''),
+    'radio-alarm-cancel': () => radioAlarmCancel(),
+    'radio-remember-current': () => radioRememberCurrent(),
+    'radio-clear-heard': () => radioClearHeard(),
+    // rendered lists: now playing, stations, recent, tags, search results, alarms, songs
+    'radio-step': el => radioStep(Number(el.dataset.dir)),
+    'radio-stop': () => radioStop(),
+    'radio-save-current': () => radioSaveCurrent(),
+    'radio-play-saved': el => radioPlaySaved(el.dataset.id),
+    'radio-move': el => radioMove(el.dataset.id, Number(el.dataset.dir)),
+    'radio-rename': el => radioRename(el.dataset.id),
+    'radio-remove': el => radioRemove(el.dataset.id),
+    'radio-play-recent': el => radioPlayRecent(Number(el.dataset.index)),
+    'radio-pick-tag': el => radioPickTag(el.dataset.tag),
+    'radio-play-result': el => radioPlayResult(Number(el.dataset.index)),
+    'radio-save-result': el => radioSaveResult(Number(el.dataset.index)),
+    'radio-search-more': () => radioSearch(true),
+    'radio-alarm-test': el => radioAlarmTest(el.dataset.id),
+    'radio-alarm-delete': el => radioAlarmDelete(el.dataset.id),
+    'radio-forget-song': el => radioForgetSong(el.dataset.id),
+    'radio-remember-song': el => radioRememberSong(el.dataset.title, el.dataset.source),
+    'radio-find-song': el => radioFindSong(el.dataset.title)
+  },
+  submit: {
+    'radio-add-manual': (el, event) => radioAddManual(event),
+    'radio-search': (el, event) => { event.preventDefault(); radioSearch(); },
+    'radio-alarm-submit': (el, event) => radioAlarmSubmit(event)
+  }
+}));
+
+// Still called from classic scripts.
+window.radioPageShown = radioPageShown;

@@ -518,3 +518,28 @@ if (document.readyState === 'loading') {
 } else {
   initVoiceCommands();
 }
+
+// Controls of #tab-ai-art in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-ai-art'), {
+  click: {
+    'start-voice-listening': () => startVoiceListening(),
+    'stop-voice-listening': () => stopVoiceListening(),
+    'manual-voice-trigger': () => manualVoiceTrigger(),
+    'refresh-local-cam-devices': () => refreshLocalCamDevices()
+  },
+  change: {
+    'on-audio-device-change': () => onAudioDeviceChange(),
+    'upload-keyword-model': (el, event) => uploadKeywordModel(el)
+  }
+}));
+
+// Controls of #tab-canvas in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-canvas'), {
+  click: {
+    'start-local-camera': () => startLocalCamera(),
+    'stop-local-camera': () => stopLocalCamera(),
+    'capture-local-camera-frame': () => captureLocalCameraFrame(),
+    'refresh-local-cam-devices': () => refreshLocalCamDevices(),
+    'save-local-cam-config': () => saveLocalCamConfig()
+  }
+}));

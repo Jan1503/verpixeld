@@ -862,9 +862,9 @@ function renderPanelList(panels) {
         <div class="net-panel-meta">${meta}</div>
       </div>
       <div class="net-panel-actions">
-        <button type="button" class="btn btn-small" onclick="identifyScannedPanel(${i})">Identify</button>
-        <button type="button" class="btn btn-small" onclick="cloneScannedPanel(${i})">Clone</button>
-        <button type="button" class="btn btn-small btn-primary" onclick="useScannedPanel(${i})">Use</button>
+        <button type="button" class="btn btn-small" data-action="identify-panel" data-index="${i}">Identify</button>
+        <button type="button" class="btn btn-small" data-action="clone-panel" data-index="${i}">Clone</button>
+        <button type="button" class="btn btn-small btn-primary" data-action="use-panel" data-index="${i}">Use</button>
       </div>
     </div>`;
   }).join('');
@@ -954,7 +954,7 @@ function renderCloneRows(clones) {
     <div class="net-clone-row" data-panel-id="${escapeHtml(p.panelId || '')}" data-x="${Number(p.x) || 0}" data-y="${Number(p.y) || 0}">
       <input type="text" class="settings-input" data-clone-host value="${escapeHtml(p.host || '')}" placeholder="192.168.1.51" autocomplete="off">
       <input type="number" class="settings-input" data-clone-port min="1" max="65535" value="${p.port || 7777}">
-      <button type="button" class="btn btn-small" onclick="removeCloneRow(${i})">Remove</button>
+      <button type="button" class="btn btn-small" data-action="remove-clone-row" data-index="${i}">Remove</button>
     </div>`).join('');
   hostEl.querySelectorAll('[data-clone-host], [data-clone-port]').forEach(input => {
     input.addEventListener('change', () => renderLayoutBoard());
@@ -1593,3 +1593,53 @@ window.addEventListener('pagehide', () => {
   if (seamPreviewOn) setSeamPreview(-1);
   releaseSeamMode();
 });
+
+// Controls of #tab-settings in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-settings'), {
+  click: {
+    'toggle-hardware-output': () => toggleHardwareOutput(),
+    'save-app-settings': () => saveAppSettings(),
+    'request-output-switch-network': (el, event) => requestOutputSwitch('network'),
+    'apply-network-live': (el, event) => applyNetworkConfig(false),
+    'save-network-config': (el, event) => applyNetworkConfig(true),
+    'unbind-panel': () => unbindPanel(),
+    'add-clone-row': () => addCloneRow(),
+    'arrange-panels-row': (el, event) => arrangePanels('row'),
+    'arrange-panels-stack': (el, event) => arrangePanels('stack'),
+    'scan-panels': () => scanPanels(),
+    'select-seam-bits-14': (el, event) => selectSeamBits(14),
+    'select-seam-bits-8': (el, event) => selectSeamBits(8),
+    'seam-preview-off': (el, event) => setSeamPreview(-1),
+    'reset-seam-curve': () => resetSeamCurve(),
+    'reset-seam-gain-lift': () => resetSeamGainLift(),
+    'apply-seam-live': (el, event) => applySeam(false),
+    'save-seam': (el, event) => applySeam(true),
+    'request-output-switch-hdmi': (el, event) => requestOutputSwitch('hdmi'),
+    'save-hdmi-settings': () => saveHdmiSettings(),
+    'request-output-switch-spi': (el, event) => requestOutputSwitch('spi'),
+    'save-spi-settings': () => saveSpiSettings(),
+    'request-output-switch-gpio': (el, event) => requestOutputSwitch('gpio'),
+    'save-matrix-config': () => saveMatrixConfig(),
+    'request-output-switch-simulation': (el, event) => requestOutputSwitch('simulation'),
+    'reset-image-correction': () => resetImageCorrection(),
+    'save-image-correction': () => saveImageCorrection(),
+    'test-ha-toast': () => testHaToast(),
+    'save-home-assistant': () => saveHomeAssistant(),
+    'upload-certificate': () => uploadCertificate(),
+    'regenerate-certificate': () => regenerateCertificate(),
+    'reload-plugins': () => reloadPlugins(),
+    // rendered lists inside the tab
+    'identify-panel': el => identifyScannedPanel(Number(el.dataset.index)),
+    'clone-panel': el => cloneScannedPanel(Number(el.dataset.index)),
+    'use-panel': el => useScannedPanel(Number(el.dataset.index)),
+    'remove-clone-row': el => removeCloneRow(Number(el.dataset.index))
+  },
+  change: {
+    'select-output-panel': (el, event) => selectOutputPanel(el.value),
+    'toggle-seam-enabled': (el, event) => toggleSeamEnabled(el.checked),
+    'image-correction': () => onImageCorrectionInput()
+  },
+  input: {
+    'image-correction': () => onImageCorrectionInput()
+  }
+}));

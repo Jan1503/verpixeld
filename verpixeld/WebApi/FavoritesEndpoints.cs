@@ -13,6 +13,136 @@ public static class FavoritesEndpoints
     private static ILogger Log = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
 
     /// <summary>
+    ///     The media playing now (or, when stopped, the last played) as a favorite item, or null when there is none.
+    ///     Shared by "add current to favorites" and "is the current media a favorite".
+    /// </summary>
+    private static FavoriteItem? DescribeCurrentMedia(MediaPlayerService mediaService, NetworkShareService shareService, string? name)
+    {
+        FavoriteItem? item = null;
+        // Determine what's currently playing
+        // Priority: check audio first, then video type (YouTube vs network vs local),
+        // then fall back to last-played state
+        
+        // Check if currently playing audio (takes priority - audio state is explicit)
+        if (mediaService.IsAudioPlayback && mediaService.CurrentAudio != null)
+        {
+            if (mediaService.NetworkShareName != null)
+            {
+                // Network audio - no AV sync needed for audio-only
+                item = new FavoriteItem
+                {
+                    Type = MediaItemType.NetworkAudio,
+                    Name = name ?? mediaService.CurrentAudio,
+                    NetworkUrl = MediaPath.Redact(mediaService.LastPlayedAudioUrl),
+                    NetworkShareId = shareService.FindShareId(mediaService.NetworkShareName),
+                    NetworkShareName = mediaService.NetworkShareName,
+                    NetworkFilePath = mediaService.NetworkFilePath,
+                    NetworkProtocol = mediaService.NetworkProtocol,
+                    AvSyncOffset = 0
+                };
+            }
+            else
+            {
+                // Local audio - no AV sync needed for audio-only
+                item = new FavoriteItem
+                {
+                    Type = MediaItemType.LocalAudio,
+                    Name = name ?? mediaService.CurrentAudio,
+                    LocalPath = MediaLibrary.ToRelative(mediaService.CurrentSource, video: false) ?? mediaService.CurrentAudio,
+                    AvSyncOffset = 0
+                };
+            }
+        }
+        // Check if currently playing YouTube (NetworkShareName == "YouTube" while video is running)
+        else if (mediaService.IsRunning && !string.IsNullOrEmpty(mediaService.LastPlayedYouTubeUrl) 
+                 && mediaService.NetworkShareName == "YouTube")
+        {
+            item = new FavoriteItem
+            {
+                Type = MediaItemType.YouTube,
+                Name = name ?? mediaService.LastPlayedYouTubeTitle ?? "YouTube Video",
+                YouTubeUrl = mediaService.LastPlayedYouTubeUrl,
+                Thumbnail = mediaService.CurrentYouTubeInfo?.Thumbnail,
+                AvSyncOffset = mediaService.AudioSyncOffsetMs,
+                ScaleFilter = mediaService.ScaleFilter
+            };
+        }
+        else if (mediaService.CurrentVideo != null)
+        {
+            // Video (network or local)
+            if (mediaService.NetworkShareName != null && mediaService.NetworkShareName != "YouTube")
+            {
+                // Network video (includes generic HTTP/RTSP streams)
+                item = new FavoriteItem
+                {
+                    Type = MediaItemType.NetworkVideo,
+                    Name = name ?? Path.GetFileName(mediaService.NetworkFilePath ?? mediaService.CurrentVideo),
+                    NetworkUrl = MediaPath.Redact(mediaService.NetworkVideoUrl),
+                    NetworkShareId = shareService.FindShareId(mediaService.NetworkShareName),
+                    NetworkShareName = mediaService.NetworkShareName,
+                    NetworkFilePath = mediaService.NetworkFilePath,
+                    NetworkProtocol = mediaService.NetworkProtocol,
+                    AudioTrack = mediaService.AudioStreamIndex,
+                    AvSyncOffset = mediaService.AudioSyncOffsetMs,
+                    ScaleFilter = mediaService.ScaleFilter
+                };
+            }
+            else
+            {
+                // Local video
+                item = new FavoriteItem
+                {
+                    Type = MediaItemType.LocalVideo,
+                    Name = name ?? mediaService.CurrentVideo,
+                    LocalPath = MediaLibrary.ToRelative(mediaService.CurrentSource, video: true) ?? mediaService.CurrentVideo,
+                    AudioTrack = mediaService.AudioStreamIndex,
+                    AvSyncOffset = mediaService.AudioSyncOffsetMs,
+                    ScaleFilter = mediaService.ScaleFilter
+                };
+            }
+        }
+        // Nothing currently playing - check last-played state for stopped media
+        else if (!string.IsNullOrEmpty(mediaService.LastPlayedYouTubeUrl))
+        {
+            // Last played was YouTube (stopped but URL preserved for replay)
+            item = new FavoriteItem
+            {
+                Type = MediaItemType.YouTube,
+                Name = name ?? mediaService.LastPlayedYouTubeTitle ?? "YouTube Video",
+                YouTubeUrl = mediaService.LastPlayedYouTubeUrl,
+                Thumbnail = mediaService.CurrentYouTubeInfo?.Thumbnail,
+                AvSyncOffset = mediaService.AudioSyncOffsetMs,
+                ScaleFilter = mediaService.ScaleFilter
+            };
+        }
+        else if (!string.IsNullOrEmpty(mediaService.LastPlayedAudio))
+        {
+            // Last played was audio - no AV sync needed for audio-only
+            if (mediaService.LastPlayedWasNetwork && !string.IsNullOrEmpty(mediaService.LastPlayedAudioUrl))
+            {
+                item = new FavoriteItem
+                {
+                    Type = MediaItemType.NetworkAudio,
+                    Name = name ?? mediaService.LastPlayedAudio,
+                    NetworkUrl = MediaPath.Redact(mediaService.LastPlayedAudioUrl),
+                    AvSyncOffset = 0
+                };
+            }
+            else
+            {
+                item = new FavoriteItem
+                {
+                    Type = MediaItemType.LocalAudio,
+                    Name = name ?? mediaService.LastPlayedAudio,
+                    LocalPath = mediaService.LastPlayedAudio,
+                    AvSyncOffset = 0
+                };
+            }
+        }
+        return item;
+    }
+
+    /// <summary>
     ///     Play a single auto-play item using the appropriate media service method
     /// </summary>
     private static async Task PlayAutoPlayItem(AutoPlayItem item, FavoritesService favoritesService, MediaPlayerService mediaService, NetworkShareService shareService)
@@ -186,130 +316,18 @@ public static class FavoritesEndpoints
             });
         });
 
+        // Is the media playing now already a favorite? Drives the star in the player bar.
+        group.MapGet("/current", () =>
+        {
+            var item = DescribeCurrentMedia(mediaService, shareService, null);
+            var favorite = item == null ? null : favoritesService.FindFavorite(item);
+            return Results.Json(new { success = true, hasMedia = item != null, favoriteId = favorite?.Id, favoriteName = favorite?.Name });
+        });
+
         // Add current playing as favorite
         group.MapPost("/add-current", (string? name) =>
         {
-            // Determine what's currently playing
-            // Priority: check audio first, then video type (YouTube vs network vs local),
-            // then fall back to last-played state
-            FavoriteItem? item = null;
-            
-            // Check if currently playing audio (takes priority - audio state is explicit)
-            if (mediaService.IsAudioPlayback && mediaService.CurrentAudio != null)
-            {
-                if (mediaService.NetworkShareName != null)
-                {
-                    // Network audio - no AV sync needed for audio-only
-                    item = new FavoriteItem
-                    {
-                        Type = MediaItemType.NetworkAudio,
-                        Name = name ?? mediaService.CurrentAudio,
-                        NetworkUrl = MediaPath.Redact(mediaService.LastPlayedAudioUrl),
-                        NetworkShareId = shareService.FindShareId(mediaService.NetworkShareName),
-                        NetworkShareName = mediaService.NetworkShareName,
-                        NetworkFilePath = mediaService.NetworkFilePath,
-                        NetworkProtocol = mediaService.NetworkProtocol,
-                        AvSyncOffset = 0
-                    };
-                }
-                else
-                {
-                    // Local audio - no AV sync needed for audio-only
-                    item = new FavoriteItem
-                    {
-                        Type = MediaItemType.LocalAudio,
-                        Name = name ?? mediaService.CurrentAudio,
-                        LocalPath = MediaLibrary.ToRelative(mediaService.CurrentSource, video: false) ?? mediaService.CurrentAudio,
-                        AvSyncOffset = 0
-                    };
-                }
-            }
-            // Check if currently playing YouTube (NetworkShareName == "YouTube" while video is running)
-            else if (mediaService.IsRunning && !string.IsNullOrEmpty(mediaService.LastPlayedYouTubeUrl) 
-                     && mediaService.NetworkShareName == "YouTube")
-            {
-                item = new FavoriteItem
-                {
-                    Type = MediaItemType.YouTube,
-                    Name = name ?? mediaService.LastPlayedYouTubeTitle ?? "YouTube Video",
-                    YouTubeUrl = mediaService.LastPlayedYouTubeUrl,
-                    Thumbnail = mediaService.CurrentYouTubeInfo?.Thumbnail,
-                    AvSyncOffset = mediaService.AudioSyncOffsetMs,
-                    ScaleFilter = mediaService.ScaleFilter
-                };
-            }
-            else if (mediaService.CurrentVideo != null)
-            {
-                // Video (network or local)
-                if (mediaService.NetworkShareName != null && mediaService.NetworkShareName != "YouTube")
-                {
-                    // Network video (includes generic HTTP/RTSP streams)
-                    item = new FavoriteItem
-                    {
-                        Type = MediaItemType.NetworkVideo,
-                        Name = name ?? Path.GetFileName(mediaService.NetworkFilePath ?? mediaService.CurrentVideo),
-                        NetworkUrl = MediaPath.Redact(mediaService.NetworkVideoUrl),
-                        NetworkShareId = shareService.FindShareId(mediaService.NetworkShareName),
-                        NetworkShareName = mediaService.NetworkShareName,
-                        NetworkFilePath = mediaService.NetworkFilePath,
-                        NetworkProtocol = mediaService.NetworkProtocol,
-                        AudioTrack = mediaService.AudioStreamIndex,
-                        AvSyncOffset = mediaService.AudioSyncOffsetMs,
-                        ScaleFilter = mediaService.ScaleFilter
-                    };
-                }
-                else
-                {
-                    // Local video
-                    item = new FavoriteItem
-                    {
-                        Type = MediaItemType.LocalVideo,
-                        Name = name ?? mediaService.CurrentVideo,
-                        LocalPath = MediaLibrary.ToRelative(mediaService.CurrentSource, video: true) ?? mediaService.CurrentVideo,
-                        AudioTrack = mediaService.AudioStreamIndex,
-                        AvSyncOffset = mediaService.AudioSyncOffsetMs,
-                        ScaleFilter = mediaService.ScaleFilter
-                    };
-                }
-            }
-            // Nothing currently playing - check last-played state for stopped media
-            else if (!string.IsNullOrEmpty(mediaService.LastPlayedYouTubeUrl))
-            {
-                // Last played was YouTube (stopped but URL preserved for replay)
-                item = new FavoriteItem
-                {
-                    Type = MediaItemType.YouTube,
-                    Name = name ?? mediaService.LastPlayedYouTubeTitle ?? "YouTube Video",
-                    YouTubeUrl = mediaService.LastPlayedYouTubeUrl,
-                    Thumbnail = mediaService.CurrentYouTubeInfo?.Thumbnail,
-                    AvSyncOffset = mediaService.AudioSyncOffsetMs,
-                    ScaleFilter = mediaService.ScaleFilter
-                };
-            }
-            else if (!string.IsNullOrEmpty(mediaService.LastPlayedAudio))
-            {
-                // Last played was audio - no AV sync needed for audio-only
-                if (mediaService.LastPlayedWasNetwork && !string.IsNullOrEmpty(mediaService.LastPlayedAudioUrl))
-                {
-                    item = new FavoriteItem
-                    {
-                        Type = MediaItemType.NetworkAudio,
-                        Name = name ?? mediaService.LastPlayedAudio,
-                        NetworkUrl = MediaPath.Redact(mediaService.LastPlayedAudioUrl),
-                        AvSyncOffset = 0
-                    };
-                }
-                else
-                {
-                    item = new FavoriteItem
-                    {
-                        Type = MediaItemType.LocalAudio,
-                        Name = name ?? mediaService.LastPlayedAudio,
-                        LocalPath = mediaService.LastPlayedAudio,
-                        AvSyncOffset = 0
-                    };
-                }
-            }
+            var item = DescribeCurrentMedia(mediaService, shareService, name);
 
             if (item == null)
             {

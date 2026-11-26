@@ -81,19 +81,26 @@ async function displaySavedLayouts(layouts) {
     </div>
     
     <div class="card-footer">
-      <button class="btn btn-small btn-primary" onclick="loadSavedLayout('${escapeHtml(layout.name)}')">Load</button>
+      <button class="btn btn-small btn-primary" data-action="load" data-name="${escapeHtml(layout.name)}">Load</button>
       ${!isDefault ?
-      `<button class="btn btn-small btn-secondary" onclick="setAsDefaultLayout('${escapeHtml(layout.name)}')">Set Default</button>` :
-      `<button class="btn btn-small btn-warning" onclick="clearDefaultLayout('${escapeHtml(layout.name)}')">Clear Default</button>`
+      `<button class="btn btn-small btn-secondary" data-action="set-default" data-name="${escapeHtml(layout.name)}">Set Default</button>` :
+      `<button class="btn btn-small btn-warning" data-action="clear-default" data-name="${escapeHtml(layout.name)}">Clear Default</button>`
       }
-      <button class="btn btn-small" onclick="viewLayoutDetails('${escapeHtml(layout.name)}')">Details</button>
-      <button class="btn btn-small btn-danger" onclick="deleteSavedLayout('${escapeHtml(layout.name)}')">Delete</button>
+      <button class="btn btn-small" data-action="details" data-name="${escapeHtml(layout.name)}">Details</button>
+      <button class="btn btn-small btn-danger" data-action="delete" data-name="${escapeHtml(layout.name)}">Delete</button>
     </div>
   </div>
 `;
   }).join('');
 
   container.innerHTML = html;
+  onAction(container, {
+    load: d => loadSavedLayout(d.name),
+    'set-default': d => setAsDefaultLayout(d.name),
+    'clear-default': d => clearDefaultLayout(d.name),
+    details: d => viewLayoutDetails(d.name),
+    delete: d => deleteSavedLayout(d.name)
+  });
 }
 
 /**
@@ -119,7 +126,7 @@ async function showSaveLayoutDialog() {
       
       <div class="modal-header">
         <h2>${ICONS.SAVE} Save current scene</h2>
-        <button class="modal-close" onclick="closeSaveLayoutModal()">${ICONS.CLOSE}</button>
+        <button class="modal-close" data-action="close">${ICONS.CLOSE}</button>
       </div>
       
       <div class="modal-body">
@@ -163,8 +170,8 @@ async function showSaveLayoutDialog() {
       </div>
       
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeSaveLayoutModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="confirmSaveLayout()">${ICONS.SAVE} Save scene</button>
+        <button class="btn btn-secondary" data-action="close">Cancel</button>
+        <button class="btn btn-primary" data-action="save">${ICONS.SAVE} Save scene</button>
       </div>
       
     </div>
@@ -172,6 +179,10 @@ async function showSaveLayoutDialog() {
 `;
 
     document.body.insertAdjacentHTML('beforeend', html);
+    onAction(document.getElementById('save-layout-modal'), {
+      close: () => closeSaveLayoutModal(),
+      save: () => confirmSaveLayout()
+    });
 
   } catch (error) {
     console.error('Error showing save dialog:', error);
@@ -364,7 +375,7 @@ async function viewLayoutDetails(layoutName) {
       
       <div class="modal-header">
         <h2>${ICONS.DETAILS} Scene details</h2>
-        <button class="modal-close" onclick="closeLayoutDetailsModal()">${ICONS.CLOSE}</button>
+        <button class="modal-close" data-action="close">${ICONS.CLOSE}</button>
       </div>
       
       <div class="modal-body">
@@ -418,8 +429,8 @@ async function viewLayoutDetails(layoutName) {
       </div>
       
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeLayoutDetailsModal()">Close</button>
-        <button class="btn btn-primary" onclick="closeLayoutDetailsModal(); loadSavedLayout('${escapeHtml(layout.name)}')">
+        <button class="btn btn-secondary" data-action="close">Close</button>
+        <button class="btn btn-primary" data-action="load" data-name="${escapeHtml(layout.name)}">
           Load this scene
         </button>
       </div>
@@ -429,6 +440,10 @@ async function viewLayoutDetails(layoutName) {
 `;
 
     document.body.insertAdjacentHTML('beforeend', html);
+    onAction(document.getElementById('layout-details-modal'), {
+      close: () => closeLayoutDetailsModal(),
+      load: d => { closeLayoutDetailsModal(); loadSavedLayout(d.name); }
+    });
 
   } catch (error) {
     console.error('Error viewing layout details:', error);

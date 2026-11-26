@@ -776,3 +776,14 @@ if (document.readyState === 'loading') {
 } else {
   CameraStream.init();
 }
+
+// Controls of #tab-canvas in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-canvas'), {
+  click: {
+    'start-camera-stream': () => startCameraStream(),
+    'stop-camera-stream': () => stopCameraStream()
+  }
+}));
+
+// Still called from classic scripts.
+window.updateCameraTargetCanvases = updateCameraTargetCanvases;

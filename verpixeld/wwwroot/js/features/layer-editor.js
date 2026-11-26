@@ -251,11 +251,11 @@ function buildStudioBodyHtml() {
         <span class="le-rot-note" id="le-rot-note"></span>
         <span style="flex:1"></span>
         <span class="le-menu">
-          <button class="btn btn-small btn-secondary" onclick="leToggleScenes(event)">📋 Saved Scenes ▾</button>
+          <button class="btn btn-small btn-secondary" data-action="le-scenes-menu">📋 Saved Scenes ▾</button>
           <div class="le-dropdown le-dropdown-right" id="le-scenes-menu" hidden></div>
         </span>
-        <button class="btn btn-small btn-secondary" onclick="leSaveScene()">💾 Save Scene</button>
-        <button class="btn btn-small btn-secondary" onclick="openPlaylistDialog()">🔁 Automation</button>
+        <button class="btn btn-small btn-secondary" data-action="le-save-scene">💾 Save Scene</button>
+        <button class="btn btn-small btn-secondary" data-action="le-automation">🔁 Automation</button>
       </div>
       <p class="le-hint" id="le-first-run" style="margin:0 0 8px;">Pick a canvas, assign content, then save a scene. Automation is above; clock times are under Schedule.</p>
       <p class="le-hint" id="le-size-hint" hidden style="margin:0 0 10px;color:#ffb74d;">Canvases are still smaller than the wall — select one and click Fill wall. They are not stretched automatically.</p>
@@ -263,23 +263,23 @@ function buildStudioBodyHtml() {
         <aside class="le-pane le-layers" id="le-layers"></aside>
         <div class="le-center">
           <div class="le-toolbar">
-            <button class="btn btn-small btn-primary" onclick="layerEditorAdd()">+ Add</button>
-            <button class="btn btn-small btn-secondary" onclick="layerEditorFillWall()" title="Stretch the selected canvas to the full wall">Fill wall</button>
-            <button class="btn btn-small btn-secondary" onclick="layerEditorDuplicate()" title="Duplicate selected canvas">Duplicate</button>
-            <button class="btn btn-small btn-secondary" id="le-undo-btn" onclick="leUndo()" title="Undo (Ctrl+Z)" disabled>Undo</button>
-            <button class="btn btn-small btn-secondary" id="le-redo-btn" onclick="leRedo()" title="Redo (Ctrl+Y)" disabled>Redo</button>
+            <button class="btn btn-small btn-primary" data-action="le-add">+ Add</button>
+            <button class="btn btn-small btn-secondary" data-action="le-fill-wall" title="Stretch the selected canvas to the full wall">Fill wall</button>
+            <button class="btn btn-small btn-secondary" data-action="le-duplicate" title="Duplicate selected canvas">Duplicate</button>
+            <button class="btn btn-small btn-secondary" id="le-undo-btn" data-action="le-undo" title="Undo (Ctrl+Z)" disabled>Undo</button>
+            <button class="btn btn-small btn-secondary" id="le-redo-btn" data-action="le-redo" title="Redo (Ctrl+Y)" disabled>Redo</button>
             <span class="le-menu">
-              <button class="btn btn-small btn-secondary" onclick="leToggleNew(event)">✨ New ▾</button>
+              <button class="btn btn-small btn-secondary" data-action="le-new-menu">✨ New ▾</button>
               <div class="le-dropdown" id="le-new-menu" hidden>
-                <button onclick="leApplyProfile('fullscreen')">Blank (Full Screen)</button>
-                <button onclick="leApplyProfile('headercontent')">Header + Content</button>
-                <button onclick="leApplyProfile('threepanel')">Three Panel</button>
-                <button onclick="leApplyProfile('splitview')">Split View</button>
-                <button onclick="leApplyProfile('dashboard')">Dashboard 2×2</button>
+                <button data-action="le-profile" data-profile="fullscreen">Blank (Full Screen)</button>
+                <button data-action="le-profile" data-profile="headercontent">Header + Content</button>
+                <button data-action="le-profile" data-profile="threepanel">Three Panel</button>
+                <button data-action="le-profile" data-profile="splitview">Split View</button>
+                <button data-action="le-profile" data-profile="dashboard">Dashboard 2×2</button>
               </div>
             </span>
-            <button class="btn btn-small btn-secondary" id="le-draw-btn" onclick="layerEditorToggleDraw()" title="Draw a new canvas on the stage">Draw</button>
-            <label class="le-check" title="Snap moves to the grid. Arrows nudge 1px, Shift+Arrow by the grid."><input type="checkbox" id="le-snap" ${layerEditor.snap ? 'checked' : ''} onchange="layerEditor.snap=this.checked"> Snap ${layerEditor.grid}px</label>
+            <button class="btn btn-small btn-secondary" id="le-draw-btn" data-action="le-draw" title="Draw a new canvas on the stage">Draw</button>
+            <label class="le-check" title="Snap moves to the grid. Arrows nudge 1px, Shift+Arrow by the grid."><input type="checkbox" id="le-snap" ${layerEditor.snap ? 'checked' : ''} data-change="le-snap"> Snap ${layerEditor.grid}px</label>
             <span class="le-readout" id="le-readout"></span>
           </div>
           <div class="le-stage-wrap">
@@ -307,6 +307,7 @@ async function mountStudio() {
   } catch (e) { /* defaults */ }
 
   panel.innerHTML = buildStudioBodyHtml();
+  wireStudio(panel);
   _studioMounted = true;
   layerEditor.open = true;
   leLoadLocks();
@@ -335,6 +336,75 @@ async function mountStudio() {
   document.addEventListener('click', leCloseMenus);
   document.addEventListener('keydown', leOnKey);
   window.addEventListener('resize', leFitStage);
+}
+
+// Every control of the Studio (toolbar, inspector, content list, quick params, scenes menu), by marker.
+function wireStudio(panel) {
+  const index = el => Number(el.dataset.index);
+  wire(panel, {
+    click: {
+      'le-scenes-menu': (el, ev) => leToggleScenes(ev),
+      'le-save-scene': () => leSaveScene(),
+      'le-automation': () => openPlaylistDialog(),
+      'le-add': () => layerEditorAdd(),
+      'le-fill-wall': () => layerEditorFillWall(),
+      'le-duplicate': () => layerEditorDuplicate(),
+      'le-undo': () => leUndo(),
+      'le-redo': () => leRedo(),
+      'le-new-menu': (el, ev) => leToggleNew(ev),
+      'le-draw': () => layerEditorToggleDraw(),
+      'le-rename': () => layerEditorRename(),
+      'le-remove': () => layerEditorRemove(),
+      'le-align': el => layerEditorAlign(el.dataset.align),
+      'le-fit': el => layerEditorFit(el.dataset.fit),
+      'le-z': el => layerEditorZ(el.dataset.dir),
+      'le-params': el => contentToggleParams(index(el)),
+      'le-full-params': el => contentFullParams(index(el)),
+      'le-replace': () => contentChangeSingle(),
+      'le-clear': () => contentClear(),
+      'le-content-add': () => contentAdd(),
+      'le-content-media': () => contentAddMedia(),
+      'le-content-camera': () => contentAddCamera(),
+      'le-apply': el => contentApply(index(el)),
+      'le-step-duplicate': el => contentDuplicate(index(el)),
+      'le-step-move': el => contentMove(index(el), Number(el.dataset.dir)),
+      'le-step-remove': el => contentRemove(index(el)),
+      'le-params-save': el => contentSaveParams(index(el)),
+      'le-full-editor': (el, ev) => { ev.preventDefault(); editExtensionParameters(el.dataset.name); },
+      // entity / place pickers rendered by renderField in the quick params
+      'ha-pick': el => haPickEntity(el.dataset.field, el.dataset.domain, el.dataset.multi === 'true'),
+      'geo-pick': el => geoPickPlace(el.dataset.field)
+    },
+    change: {
+      'le-snap': el => { layerEditor.snap = el.checked; },
+      'le-transform': () => leApplyTransform(),
+      'le-locked': el => layerEditorSetLocked(el.checked),
+      'le-aspect': el => layerEditorSetAspect(el.checked),
+      'le-appear-commit': el => leCommitAppear(el.dataset.prop),
+      'le-bits': el => layerEditorSetPanelBits(el.value),
+      'le-transparent': el => layerEditorSetTransparent(el.checked),
+      'le-rotation': () => contentRotationSettings()
+    },
+    input: {
+      'le-opacity': el => layerEditorSetOpacity(el.value),
+      'le-brightness': el => layerEditorSetBrightness(el.value)
+    },
+    pointerdown: {
+      'le-appear-start': () => leCaptureAppear()
+    }
+  });
+  // The two dropdowns move to <body> while open (leShowMenu, so they overlay the page): they get
+  // their own listener, which travels with them; the panel's must not handle them as well.
+  wire(document.getElementById('le-scenes-menu'), {
+    click: {
+      'le-scene-open': el => leOpenScene(el.dataset.name),
+      'le-scene-default': el => leSceneDefault(el.dataset.name),
+      'le-scene-delete': el => leSceneDelete(el.dataset.name)
+    }
+  });
+  wire(document.getElementById('le-new-menu'), {
+    click: { 'le-profile': el => leApplyProfile(el.dataset.profile) }
+  });
 }
 
 function refreshStudioDisplay(w, h) {
@@ -580,41 +650,41 @@ function renderInspector() {
     <div class="le-insp-head">
       <strong class="le-insp-name">${escapeHtml(c.name)}</strong>
       <span class="le-insp-actions">
-        ${isSys ? '' : `<button class="le-ico" title="Duplicate" onclick="layerEditorDuplicate()">⧉</button>`}
-        ${isStd || isSys ? '' : `<button class="le-ico" title="Rename" onclick="layerEditorRename()">✎</button>`}
-        ${isStd || isSys ? '' : `<button class="le-ico le-ico-danger" title="Remove canvas" onclick="layerEditorRemove()">🗑</button>`}
+        ${isSys ? '' : `<button class="le-ico" title="Duplicate" data-action="le-duplicate">⧉</button>`}
+        ${isStd || isSys ? '' : `<button class="le-ico" title="Rename" data-action="le-rename">✎</button>`}
+        ${isStd || isSys ? '' : `<button class="le-ico le-ico-danger" title="Remove canvas" data-action="le-remove">🗑</button>`}
       </span>
     </div>
 
     <div class="le-section">
       <div class="le-section-title">Transform</div>
       <div class="le-grid4">
-        <label><span class="le-axis">X</span><input type="number" id="le-x" value="${c.x}" onchange="leApplyTransform()"${dis}></label>
-        <label><span class="le-axis">Y</span><input type="number" id="le-y" value="${c.y}" onchange="leApplyTransform()"${dis}></label>
-        <label><span class="le-axis">W</span><input type="number" id="le-w" value="${c.width}" onchange="leApplyTransform()"${dis}></label>
-        <label><span class="le-axis">H</span><input type="number" id="le-h" value="${c.height}" onchange="leApplyTransform()"${dis}></label>
+        <label><span class="le-axis">X</span><input type="number" id="le-x" value="${c.x}" data-change="le-transform"${dis}></label>
+        <label><span class="le-axis">Y</span><input type="number" id="le-y" value="${c.y}" data-change="le-transform"${dis}></label>
+        <label><span class="le-axis">W</span><input type="number" id="le-w" value="${c.width}" data-change="le-transform"${dis}></label>
+        <label><span class="le-axis">H</span><input type="number" id="le-h" value="${c.height}" data-change="le-transform"${dis}></label>
       </div>
       <div class="le-checks">
-        <label class="le-check"><input type="checkbox" ${locked ? 'checked' : ''} onchange="layerEditorSetLocked(this.checked)"> Lock position &amp; size</label>
-        <label class="le-check"><input type="checkbox" ${aspect ? 'checked' : ''} ${locked ? 'disabled' : ''} onchange="layerEditorSetAspect(this.checked)"> Lock aspect</label>
+        <label class="le-check"><input type="checkbox" ${locked ? 'checked' : ''} data-change="le-locked"> Lock position &amp; size</label>
+        <label class="le-check"><input type="checkbox" ${aspect ? 'checked' : ''} ${locked ? 'disabled' : ''} data-change="le-aspect"> Lock aspect</label>
       </div>
       ${overlap ? `<p class="le-overlap-hint">${overlap}</p>` : ''}
       <div class="le-align">
         <span class="le-sel-lbl">Align</span>
-        <button class="le-preset" title="Left" onclick="layerEditorAlign('left')"${dis}>⟸</button>
-        <button class="le-preset" title="Center H" onclick="layerEditorAlign('hcenter')"${dis}>⬌</button>
-        <button class="le-preset" title="Right" onclick="layerEditorAlign('right')"${dis}>⟹</button>
-        <button class="le-preset" title="Top" onclick="layerEditorAlign('top')"${dis}>⇑</button>
-        <button class="le-preset" title="Center V" onclick="layerEditorAlign('vcenter')"${dis}>⬍</button>
-        <button class="le-preset" title="Bottom" onclick="layerEditorAlign('bottom')"${dis}>⇓</button>
+        <button class="le-preset" title="Left" data-action="le-align" data-align="left"${dis}>⟸</button>
+        <button class="le-preset" title="Center H" data-action="le-align" data-align="hcenter"${dis}>⬌</button>
+        <button class="le-preset" title="Right" data-action="le-align" data-align="right"${dis}>⟹</button>
+        <button class="le-preset" title="Top" data-action="le-align" data-align="top"${dis}>⇑</button>
+        <button class="le-preset" title="Center V" data-action="le-align" data-align="vcenter"${dis}>⬍</button>
+        <button class="le-preset" title="Bottom" data-action="le-align" data-align="bottom"${dis}>⇓</button>
       </div>
       <div class="le-align">
         <span class="le-sel-lbl">Fit</span>
-        <button class="le-preset" onclick="layerEditorFit('full')"${dis}>Full</button>
-        <button class="le-preset" onclick="layerEditorFit('top')"${dis}>Top</button>
-        <button class="le-preset" onclick="layerEditorFit('bottom')"${dis}>Bottom</button>
-        <button class="le-preset" onclick="layerEditorFit('center')"${dis}>Center</button>
-        <button class="le-preset" onclick="layerEditorFit('corner')"${dis}>Corner</button>
+        <button class="le-preset" data-action="le-fit" data-fit="full"${dis}>Full</button>
+        <button class="le-preset" data-action="le-fit" data-fit="top"${dis}>Top</button>
+        <button class="le-preset" data-action="le-fit" data-fit="bottom"${dis}>Bottom</button>
+        <button class="le-preset" data-action="le-fit" data-fit="center"${dis}>Center</button>
+        <button class="le-preset" data-action="le-fit" data-fit="corner"${dis}>Corner</button>
       </div>
     </div>
 
@@ -622,29 +692,29 @@ function renderInspector() {
       <div class="le-section-title">Appearance</div>
       <div class="le-row">
         <span class="le-sel-lbl">Opacity</span>
-        <input type="range" id="le-opacity" min="0" max="100" value="${pct}" onpointerdown="leCaptureAppear()" oninput="layerEditorSetOpacity(this.value)" onchange="leCommitAppear('opacity')">
+        <input type="range" id="le-opacity" min="0" max="100" value="${pct}" data-pointerdown="le-appear-start" data-input="le-opacity" data-change="le-appear-commit" data-prop="opacity">
         <span id="le-opacity-val" class="le-sel-lbl">${pct}%</span>
       </div>
       <div class="le-row">
         <span class="le-sel-lbl">Brightness</span>
-        <input type="range" id="le-bright" min="0" max="100" value="${bright}" onpointerdown="leCaptureAppear()" oninput="layerEditorSetBrightness(this.value)" onchange="leCommitAppear('brightness')">
+        <input type="range" id="le-bright" min="0" max="100" value="${bright}" data-pointerdown="le-appear-start" data-input="le-brightness" data-change="le-appear-commit" data-prop="brightness">
         <span id="le-bright-val" class="le-sel-lbl">${bright}%</span>
       </div>
       <div class="le-row">
         <span class="le-sel-lbl">Panel depth</span>
-        <select id="le-bits" title="Network wall only. The panel uses the highest depth of the visible canvases." onchange="layerEditorSetPanelBits(this.value)">
+        <select id="le-bits" title="Network wall only. The panel uses the highest depth of the visible canvases." data-change="le-bits">
           <option value="14" ${(c.panelColorBits ?? 14) !== 8 ? 'selected' : ''}>14-bit (video)</option>
           <option value="8" ${(c.panelColorBits ?? 14) === 8 ? 'selected' : ''}>8-bit (fast)</option>
         </select>
       </div>
       <div class="le-row">
         <span class="le-sel-lbl">Z-order ${c.zOrder}</span>
-        <button class="le-ico" onclick="layerEditorZ('up')" title="Bring forward">▲</button>
-        <button class="le-ico" onclick="layerEditorZ('down')" title="Send back">▼</button>
+        <button class="le-ico" data-action="le-z" data-dir="up" title="Bring forward">▲</button>
+        <button class="le-ico" data-action="le-z" data-dir="down" title="Send back">▼</button>
       </div>
       <div class="le-checks">
         <label class="le-check" title="Transparent background reveals the layer beneath. The extension needs a transparent background colour.">
-          <input type="checkbox" ${c.transparentBackground ? 'checked' : ''} onchange="layerEditorSetTransparent(this.checked)"> Transparent background
+          <input type="checkbox" ${c.transparentBackground ? 'checked' : ''} data-change="le-transparent"> Transparent background
         </label>
       </div>
     </div>
@@ -1135,9 +1205,13 @@ async function layerEditorRemove() {
     if (typeof showMessage === 'function') showMessage(`'${name}' can't be removed`, 'info');
     return;
   }
-  // NOTE: don't delegate to removeOverlayCanvas() — its confirm dialog calls the global closeModal(),
-  // which removes ALL .modal-overlay elements (including this editor). Do it inline with a native confirm.
-  if (!window.confirm(`Remove overlay canvas "${name}"?\nThis deletes the canvas and any content on it.`)) return;
+  const ok = await showConfirm({
+    title: 'Remove canvas',
+    message: `Remove the canvas "${name}"? This deletes the canvas and any content on it.`,
+    confirmText: 'Remove',
+    type: 'danger'
+  });
+  if (!ok) return;
   try {
     await window.api.post('/api/canvas/' + encodeURIComponent(name) + '/remove');
     if (typeof showMessage === 'function') showMessage(`Canvas '${name}' removed`, 'success');
@@ -1276,8 +1350,8 @@ async function layerEditorRename() {
     if (typeof showMessage === 'function') showMessage(`'${name}' can't be renamed`, 'info');
     return;
   }
-  const newName = window.prompt('Rename canvas', name);
-  if (!newName || newName.trim() === '' || newName === name) return;
+  const newName = await showPrompt({ title: 'Rename canvas', value: name, confirmText: 'Rename' });
+  if (!newName || newName === name) return;
   try {
     const res = await window.api.put('/api/canvas/' + encodeURIComponent(name) + '/rename', { newName: newName.trim() });
     if (res && res.success === false) {
@@ -1307,7 +1381,8 @@ async function leLoadScene() {
   try {
     const r = await window.api.get('/api/layout/current');
     const el = document.getElementById('le-scene');
-    if (el) el.textContent = r?.data?.displayName || r?.data?.profile || '';
+    // the saved scene on display, else the bare profile it was built from
+    if (el) el.textContent = r?.data?.scene || r?.data?.displayName || r?.data?.profile || '';
   } catch (e) { /* ignore */ }
 }
 
@@ -1319,24 +1394,28 @@ function leSaveScene() {
     <div class="modal-content" style="max-width:480px;">
       <div class="modal-header">
         <h2>💾 Save Scene</h2>
-        <button class="modal-close" onclick="leSaveSceneClose()">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button>
+        <button class="modal-close" data-action="close">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button>
       </div>
       <div class="modal-body">
         <div style="margin-bottom:12px;">
           <label for="le-scene-name">Scene name</label>
-          <input type="text" id="le-scene-name" value="${cur.replace(/"/g, '&quot;')}" placeholder="My Scene">
+          <input type="text" id="le-scene-name" value="${escapeHtml(cur)}" placeholder="My Scene">
         </div>
         <label class="checkbox-label"><input type="checkbox" id="le-scene-default"> <span>📌 Set as default (loads on startup)</span></label>
         <label class="checkbox-label"><input type="checkbox" id="le-scene-filters"> <span>🎨 Include active filters</span></label>
         <label class="checkbox-label"><input type="checkbox" id="le-scene-brightness" checked> <span>🔆 Apply this scene's brightness when loading</span></label>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="leSaveSceneClose()">Cancel</button>
-        <button class="btn btn-primary" onclick="leSaveSceneConfirm()">Save Scene</button>
+        <button class="btn btn-secondary" data-action="close">Cancel</button>
+        <button class="btn btn-primary" data-action="save">Save Scene</button>
       </div>
     </div>
   </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
+  onAction(document.getElementById('le-savescene-modal'), {
+    close: () => leSaveSceneClose(),
+    save: () => leSaveSceneConfirm()
+  });
   setTimeout(() => document.getElementById('le-scene-name')?.focus(), 50);
 }
 
@@ -1462,12 +1541,12 @@ async function leRenderScenes() {
     const list = r.data || [];
     if (!list.length) { m.innerHTML = '<div class="le-hint" style="padding:6px">No scenes saved yet. Use 💾 Save Scene.</div>'; return; }
     m.innerHTML = list.map(l => {
-      const nm = (l.name || '').replace(/'/g, "\\'");
+      const nm = escapeHtml(l.name || '');
       return `<div class="le-scene-row">
-        <button class="le-scene-load" title="Load scene" onclick="leOpenScene('${nm}')">${l.isDefault ? '★ ' : ''}${l.name}</button>
+        <button class="le-scene-load" title="Load scene" data-action="le-scene-open" data-name="${nm}">${l.isDefault ? '★ ' : ''}${nm}</button>
         <span class="le-scene-acts">
-          <button class="le-ico" title="Set as default" onclick="leSceneDefault('${nm}')">★</button>
-          <button class="le-ico le-ico-danger" title="Delete scene" onclick="leSceneDelete('${nm}')">🗑</button>
+          <button class="le-ico" title="Set as default" data-action="le-scene-default" data-name="${nm}">★</button>
+          <button class="le-ico le-ico-danger" title="Delete scene" data-action="le-scene-delete" data-name="${nm}">🗑</button>
         </span>
       </div>`;
     }).join('');
@@ -1498,12 +1577,23 @@ async function leSceneDelete(name) {
 }
 
 async function leApplyProfile(profile) {
-  leHideMenu(document.getElementById('le-new-menu'));
+  const menu = document.getElementById('le-new-menu');
+  const label = menu?.querySelector(`[data-profile="${profile}"]`)?.textContent.trim() || profile;
+  leHideMenu(menu);
+  // Replaces every canvas and stops all content, like loading a scene, so ask the same way.
+  const ok = await showConfirm({
+    title: 'New layout',
+    message: `Start a new "${label}" layout? All canvases and their content are replaced; save the current scene first if you want to keep it.`,
+    confirmText: 'Start new',
+    cancelText: 'Cancel',
+    type: 'warning'
+  });
+  if (!ok) return;
   try {
     await window.api.post('/api/layout/apply/' + profile, {});
     await refreshLayerEditor();
     leLoadScene();
-    if (typeof showMessage === 'function') showMessage('New ' + profile + ' layout', 'success');
+    if (typeof showMessage === 'function') showMessage(`New layout: ${label}`, 'success');
   } catch (e) {
     if (typeof showMessage === 'function') showMessage('Failed: ' + (e.message || e), 'error');
   }
@@ -1549,27 +1639,27 @@ function renderContentSection() {
     if (s.single && s.single.extensionName) {
       host.innerHTML =
         `<div class="le-content-row">
-           <span class="le-content-name">${s.single.extensionName}</span>
+           <span class="le-content-name">${escapeHtml(s.single.extensionName)}</span>
            <span class="playlist-actions">
-             <button class="btn-icon" title="Quick parameters" onclick="contentToggleParams(0)">⚙</button>
-             <button class="btn-icon" title="Full editor (lists, tables, actions)" onclick="contentFullParams(0)">⊞</button>
-             <button class="btn-icon" title="Replace content" onclick="contentChangeSingle()">⇄</button>
-             <button class="btn-icon" title="Remove" onclick="contentClear()">✕</button>
+             <button class="btn-icon" title="Quick parameters" data-action="le-params" data-index="0">⚙</button>
+             <button class="btn-icon" title="Full editor (lists, tables, actions)" data-action="le-full-params" data-index="0">⊞</button>
+             <button class="btn-icon" title="Replace content" data-action="le-replace">⇄</button>
+             <button class="btn-icon" title="Remove" data-action="le-clear">✕</button>
            </span>
          </div>
          <div id="le-params-0" class="le-params"></div>
          <div class="le-add-row">
-           <button class="btn btn-small btn-secondary" onclick="contentAdd()">+ Add</button>
-           <button class="btn btn-small btn-secondary le-add-media" onclick="contentAddMedia()">🎬 Media</button>
-           <button class="btn btn-small btn-secondary" onclick="contentAddCamera()">📷 Camera</button>
+           <button class="btn btn-small btn-secondary" data-action="le-content-add">+ Add</button>
+           <button class="btn btn-small btn-secondary le-add-media" data-action="le-content-media">🎬 Media</button>
+           <button class="btn btn-small btn-secondary" data-action="le-content-camera">📷 Camera</button>
          </div>`;
     } else {
       host.innerHTML =
         `<p class="le-hint">No content yet.</p>
          <div class="le-add-row">
-           <button class="btn btn-small btn-primary" onclick="contentAdd()">+ Add</button>
-           <button class="btn btn-small btn-secondary le-add-media" onclick="contentAddMedia()">🎬 Media</button>
-           <button class="btn btn-small btn-secondary" onclick="contentAddCamera()">📷 Camera</button>
+           <button class="btn btn-small btn-primary" data-action="le-content-add">+ Add</button>
+           <button class="btn btn-small btn-secondary le-add-media" data-action="le-content-media">🎬 Media</button>
+           <button class="btn btn-small btn-secondary" data-action="le-content-camera">📷 Camera</button>
          </div>`;
     }
     return;
@@ -1578,10 +1668,10 @@ function renderContentSection() {
   const rotating = steps.length > 1;
   const head = rotating
     ? `<div class="le-rotate-head">
-         <label class="le-check"><input type="checkbox" id="le-rot-enabled" ${s.isRunning ? 'checked' : ''} onchange="contentRotationSettings()"> Rotate</label>
-         <label class="le-sel-lbl">every <input type="number" id="le-rot-interval" min="2" max="3600" value="${s.interval}" style="width:54px" onchange="contentRotationSettings()">s</label>
-         <select id="le-rot-transition" onchange="contentRotationSettings()"><option value="Fade">Fade</option><option value="Instant">Instant</option></select>
-         <label class="le-check"><input type="checkbox" id="le-rot-loop" ${s.loop ? 'checked' : ''} onchange="contentRotationSettings()"> Loop</label>
+         <label class="le-check"><input type="checkbox" id="le-rot-enabled" ${s.isRunning ? 'checked' : ''} data-change="le-rotation"> Rotate</label>
+         <label class="le-sel-lbl">every <input type="number" id="le-rot-interval" min="2" max="3600" value="${s.interval}" style="width:54px" data-change="le-rotation">s</label>
+         <select id="le-rot-transition" data-change="le-rotation"><option value="Fade">Fade</option><option value="Instant">Instant</option></select>
+         <label class="le-check"><input type="checkbox" id="le-rot-loop" ${s.loop ? 'checked' : ''} data-change="le-rotation"> Loop</label>
        </div>`
     : `<p class="le-hint">Add another item below to rotate this canvas.</p>`;
 
@@ -1589,18 +1679,18 @@ function renderContentSection() {
     const isStream = (st.type === 'media' || st.type === 'camera');
     const sicon = st.type === 'camera' ? '📷 ' : (st.type === 'media' ? '🎬 ' : '');
     const cfgBtn = isStream
-      ? `<button class="btn-icon" title="Show on display" onclick="contentApply(${i})">▶</button>`
-      : `<button class="btn-icon" title="Show on display & quick-edit parameters" onclick="contentToggleParams(${i})">⚙</button>
-         <button class="btn-icon" title="Full editor (lists, tables, actions)" onclick="contentFullParams(${i})">⊞</button>`;
+      ? `<button class="btn-icon" title="Show on display" data-action="le-apply" data-index="${i}">▶</button>`
+      : `<button class="btn-icon" title="Show on display & quick-edit parameters" data-action="le-params" data-index="${i}">⚙</button>
+         <button class="btn-icon" title="Full editor (lists, tables, actions)" data-action="le-full-params" data-index="${i}">⊞</button>`;
     return `
     <div class="playlist-row${i === s.activeIndex ? ' le-active' : ''}">
-      <span class="playlist-name" title="${(st.detail || '').replace(/"/g, '&quot;')}">${i === s.activeIndex ? '▶ ' : ''}${i + 1}. ${sicon}${st.extension}${st.detail ? ` <span class="le-step-detail">${st.detail}</span>` : ''}</span>
+      <span class="playlist-name" title="${escapeHtml(st.detail || '')}">${i === s.activeIndex ? '▶ ' : ''}${i + 1}. ${sicon}${escapeHtml(st.extension)}${st.detail ? ` <span class="le-step-detail">${escapeHtml(st.detail)}</span>` : ''}</span>
       <span class="playlist-actions">
         ${cfgBtn}
-        <button class="btn-icon" title="Duplicate" onclick="contentDuplicate(${i})">⧉</button>
-        <button class="btn-icon" title="Up" onclick="contentMove(${i},-1)" ${i === 0 ? 'disabled' : ''}>▲</button>
-        <button class="btn-icon" title="Down" onclick="contentMove(${i},1)" ${i === steps.length - 1 ? 'disabled' : ''}>▼</button>
-        <button class="btn-icon" title="Remove" onclick="contentRemove(${i})">✕</button>
+        <button class="btn-icon" title="Duplicate" data-action="le-step-duplicate" data-index="${i}">⧉</button>
+        <button class="btn-icon" title="Up" data-action="le-step-move" data-index="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button>
+        <button class="btn-icon" title="Down" data-action="le-step-move" data-index="${i}" data-dir="1" ${i === steps.length - 1 ? 'disabled' : ''}>▼</button>
+        <button class="btn-icon" title="Remove" data-action="le-step-remove" data-index="${i}">✕</button>
       </span>
     </div>
     <div id="le-params-${i}" class="le-params"></div>`;
@@ -1609,9 +1699,9 @@ function renderContentSection() {
   host.innerHTML = head +
     `<div class="playlist-list">${rows}</div>
      <div class="le-add-row">
-       <button class="btn btn-small btn-secondary" onclick="contentAdd()">+ Add</button>
-       <button class="btn btn-small btn-secondary le-add-media" onclick="contentAddMedia()">🎬 Media</button>
-       <button class="btn btn-small btn-secondary" onclick="contentAddCamera()">📷 Camera</button>
+       <button class="btn btn-small btn-secondary" data-action="le-content-add">+ Add</button>
+       <button class="btn btn-small btn-secondary le-add-media" data-action="le-content-media">🎬 Media</button>
+       <button class="btn btn-small btn-secondary" data-action="le-content-camera">📷 Camera</button>
      </div>`;
   const tsel = document.getElementById('le-rot-transition');
   if (tsel) tsel.value = s.transition;
@@ -1675,17 +1765,21 @@ async function contentAddMedia() {
   const html = `
   <div class="modal-overlay" id="le-media-modal" style="z-index:10010;">
     <div class="modal-content" style="max-width:460px;">
-      <div class="modal-header"><h2>🎬 Add Media</h2><button class="modal-close" onclick="leMediaClose()">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button></div>
+      <div class="modal-header"><h2>🎬 Add Media</h2><button class="modal-close" data-action="close">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button></div>
       <div class="modal-body" id="le-media-body">
         <p class="le-hint">Scanning the media folder recursively. On a large NAS library this can take a while — please wait.</p>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="leMediaClose()">Cancel</button>
+        <button class="btn btn-secondary" data-action="close">Cancel</button>
         <span id="le-media-add-slot"></span>
       </div>
     </div>
   </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
+  onAction(document.getElementById('le-media-modal'), {
+    close: () => leMediaClose(),
+    add: () => leMediaAdd()
+  });
 
   let videos = [];
   try {
@@ -1698,12 +1792,12 @@ async function contentAddMedia() {
   if (!body) { setAddMediaBusy(false); return; }
 
   if (videos.length) {
-    const opts = videos.map(v => `<option value="${String(v).replace(/"/g, '&quot;')}">${v}</option>`).join('');
+    const opts = videos.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
     body.innerHTML = `<label class="le-sel-lbl">Video file</label>
        <select id="le-media-file" style="width:100%;margin:4px 0 10px;">${opts}</select>
        <label class="checkbox-label"><input type="checkbox" id="le-media-loop" checked> <span>Loop while shown</span></label>
        <p class="le-hint" style="margin-top:10px;">Note: one media stream plays at a time across the display.</p>`;
-    if (addSlot) addSlot.innerHTML = '<button class="btn btn-primary" onclick="leMediaAdd()">Add</button>';
+    if (addSlot) addSlot.innerHTML = '<button class="btn btn-primary" data-action="add">Add</button>';
   } else {
     body.innerHTML = `<p class="le-hint">No videos found. Bind the library at /app/Media or upload files in the Media tab.</p>`;
   }
@@ -1756,15 +1850,19 @@ async function contentAddCamera() {
   const html = `
   <div class="modal-overlay" id="le-cam-modal" style="z-index:10010;">
     <div class="modal-content" style="max-width:460px;">
-      <div class="modal-header"><h2>📷 Add Camera</h2><button class="modal-close" onclick="leCamClose()">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button></div>
+      <div class="modal-header"><h2>📷 Add Camera</h2><button class="modal-close" data-action="close">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button></div>
       <div class="modal-body">${body}<p class="le-hint" style="margin-top:10px;">USB device and effects are configured on the Create tab. Assign the canvas here. One camera stream plays at a time.</p></div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="leCamClose()">Cancel</button>
-        ${devices.length ? '<button class="btn btn-primary" onclick="leCamAdd()">Add</button>' : ''}
+        <button class="btn btn-secondary" data-action="close">Cancel</button>
+        ${devices.length ? '<button class="btn btn-primary" data-action="add">Add</button>' : ''}
       </div>
     </div>
   </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
+  onAction(document.getElementById('le-cam-modal'), {
+    close: () => leCamClose(),
+    add: () => leCamAdd()
+  });
 }
 
 function leCamClose() { document.getElementById('le-cam-modal')?.remove(); }
@@ -1865,10 +1963,10 @@ async function contentToggleParams(i) {
 
   try {
     host.innerHTML = leBuildParamForm(ext, config, i) +
-      `<div class="le-params-actions"><button class="btn btn-small btn-primary" onclick="contentSaveParams(${i})">Save</button></div>`;
+      `<div class="le-params-actions"><button class="btn btn-small btn-primary" data-action="le-params-save" data-index="${i}">Save</button></div>`;
   } catch (e) {
     console.error('[studio] render params failed', e);
-    host.innerHTML = `<p class="le-hint">Couldn't render parameters inline. <a href="#" onclick="editExtensionParameters('${(s.name || '').replace(/'/g, "\\'")}');return false;">Open full editor</a></p>`;
+    host.innerHTML = `<p class="le-hint">Couldn't render parameters inline. <a href="#" data-action="le-full-editor" data-name="${escapeHtml(s.name || '')}">Open full editor</a></p>`;
     return;
   }
 

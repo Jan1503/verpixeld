@@ -39,16 +39,16 @@ function initFavorites() {
   
   if (favHeader) {
     favHeader.addEventListener('click', (e) => {
-      // Don't toggle if clicking on clear button
-      if (e.target.classList.contains('history-clear-btn')) return;
-      toggleSection('favorites');
+      // Buttons in the header (shuffle, skip, auto-play, clear) do their own thing, not toggle the section.
+      if (e.target.closest('button')) return;
+      toggleFavoritesSection('favorites');
     });
   }
   if (histHeader) {
     histHeader.addEventListener('click', (e) => {
-      // Don't toggle if clicking on clear button
-      if (e.target.classList.contains('history-clear-btn')) return;
-      toggleSection('history');
+      // Buttons in the header (shuffle, skip, auto-play, clear) do their own thing, not toggle the section.
+      if (e.target.closest('button')) return;
+      toggleFavoritesSection('history');
     });
   }
   
@@ -61,7 +61,7 @@ function initFavorites() {
 /**
  * Toggle section expand/collapse
  */
-function toggleSection(section) {
+function toggleFavoritesSection(section) {
   favoritesState.expanded[section] = !favoritesState.expanded[section];
   updateSectionStates();
 }
@@ -118,8 +118,6 @@ function renderFavorites() {
   const container = document.querySelector('.favorites-list');
   const countEl = document.querySelector('.favorites-count');
   
-  console.log('[FAVORITES] renderFavorites called, container:', container, 'favorites count:', favoritesState.favorites.length);
-  
   if (!container) {
     console.warn('[FAVORITES] Favorites container not found!');
     return;
@@ -146,7 +144,7 @@ function renderFavorites() {
   container.innerHTML = favoritesState.favorites.map(fav => {
     const isNowPlaying = isAutoPlaying && fav.id === currentAutoPlayId;
     return `
-    <div class="favorite-item${isNowPlaying ? ' now-playing' : ''}" data-id="${fav.id}" onclick="playFavorite('${fav.id}')">
+    <div class="favorite-item${isNowPlaying ? ' now-playing' : ''}" data-id="${escapeHtml(fav.id)}" data-action="play">
       ${isNowPlaying ? '<div class="now-playing-indicator"><span></span><span></span><span></span></div>' : ''}
       <div class="item-thumbnail">
         ${fav.thumbnail 
@@ -165,11 +163,17 @@ function renderFavorites() {
         </div>
       </div>
       <div class="item-actions">
-        <button class="item-action-btn" onclick="event.stopPropagation(); editFavorite('${fav.id}')" title="Edit">✏️</button>
-        <button class="item-action-btn danger" onclick="event.stopPropagation(); removeFavorite('${fav.id}')" title="Remove">🗑️</button>
+        <button class="item-action-btn" data-action="edit" data-id="${escapeHtml(fav.id)}" title="Edit">✏️</button>
+        <button class="item-action-btn danger" data-action="remove" data-id="${escapeHtml(fav.id)}" title="Remove">🗑️</button>
       </div>
     </div>`;
   }).join('');
+  // one delegated listener: the buttons carry their own action, so a button click never also plays the item
+  onAction(container, {
+    play: d => playFavorite(d.id),
+    edit: d => editFavorite(d.id),
+    remove: d => removeFavorite(d.id)
+  });
 }
 
 /**
@@ -178,8 +182,6 @@ function renderFavorites() {
 function renderHistory() {
   const container = document.querySelector('.history-list');
   const countEl = document.querySelector('.history-count');
-  
-  console.log('[FAVORITES] renderHistory called, container:', container, 'history count:', favoritesState.history.length);
   
   if (!container) {
     console.warn('[FAVORITES] History container not found!');
@@ -202,7 +204,7 @@ function renderHistory() {
   }
   
   container.innerHTML = favoritesState.history.map((item, index) => `
-    <div class="history-item" data-index="${index}" onclick="playHistoryItem(${index})">
+    <div class="history-item" data-index="${index}" data-action="play">
       <div class="item-thumbnail">
         ${item.thumbnail 
           ? `<img src="${escapeHtml(item.thumbnail)}" alt="${escapeHtml(item.name)}">`
@@ -217,11 +219,16 @@ function renderHistory() {
         </div>
       </div>
       <div class="item-actions">
-        <button class="item-action-btn" onclick="event.stopPropagation(); addHistoryToFavorites(${index})" title="Add to favorites">⭐</button>
-        <button class="item-action-btn danger" onclick="event.stopPropagation(); removeHistoryItem(${index})" title="Remove">✕</button>
+        <button class="item-action-btn" data-action="favorite" data-index="${index}" title="Add to favorites">⭐</button>
+        <button class="item-action-btn danger" data-action="remove" data-index="${index}" title="Remove">✕</button>
       </div>
     </div>
   `).join('');
+  onAction(container, {
+    play: d => playHistoryItem(Number(d.index)),
+    favorite: d => addHistoryToFavorites(Number(d.index)),
+    remove: d => removeHistoryItem(Number(d.index))
+  });
 }
 
 /**
@@ -360,12 +367,15 @@ async function playFavorite(id) {
  * Remove a favorite
  */
 async function removeFavorite(id) {
-  if (!confirm('Remove from favorites?')) return;
+  const fav = favoritesState.favorites.find(f => f.id === id);
+  const ok = await showConfirm({ title: 'Remove favorite', message: `Remove "${fav?.name || 'this item'}" from your favorites?`, confirmText: 'Remove', type: 'danger' });
+  if (!ok) return;
   
   try {
     await api.del(`/api/favorites/${id}`);
     window.toast?.success('Favorites', 'Removed from favorites');
-    fetchFavorites();
+    await fetchFavorites();
+    refreshFavoriteStar();
   } catch (error) {
     console.error('Failed to remove favorite:', error);
     window.toast?.error('Favorites', error.message);
@@ -375,11 +385,11 @@ async function removeFavorite(id) {
 /**
  * Edit a favorite (rename)
  */
-function editFavorite(id) {
+async function editFavorite(id) {
   const fav = favoritesState.favorites.find(f => f.id === id);
   if (!fav) return;
-  
-  const newName = prompt('Enter new name:', fav.name);
+
+  const newName = await showPrompt({ title: 'Rename favorite', value: fav.name, confirmText: 'Rename' });
   if (!newName || newName === fav.name) return;
   
   updateFavorite(id, newName);
@@ -448,7 +458,7 @@ async function addHistoryToFavorites(index) {
   const item = favoritesState.history[index];
   if (!item) return;
   
-  const name = prompt('Enter name for favorite:', item.name);
+  const name = await showPrompt({ title: 'Add to favorites', message: 'Name for the favorite', value: item.name, confirmText: 'Add' });
   if (!name) return;
   
   try {
@@ -478,7 +488,8 @@ async function removeHistoryItem(index) {
  * Clear all history
  */
 async function clearHistory() {
-  if (!confirm('Clear all play history?')) return;
+  const ok = await showConfirm({ title: 'Clear history', message: 'Clear the whole play history?', confirmText: 'Clear', type: 'danger' });
+  if (!ok) return;
   
   try {
     await api.del('/api/history');
@@ -493,9 +504,32 @@ async function clearHistory() {
 /**
  * Add current playing to favorites (called from mini-player)
  */
+// ── Star in the player bar ──────────────────────────────────────────────────
+// Filled (★) when what plays now is already a favorite; a click then offers to remove it.
+let currentFavoriteId = null;
+
+async function refreshFavoriteStar() {
+  const btn = document.getElementById('media-favorite-btn');
+  if (!btn) return;
+  try {
+    const r = await api.get('/api/favorites/current');
+    currentFavoriteId = r.favoriteId || null;
+  } catch {
+    currentFavoriteId = null;
+  }
+  btn.textContent = currentFavoriteId ? '★' : '☆';
+  btn.classList.toggle('active', !!currentFavoriteId);
+  btn.title = currentFavoriteId ? 'In favorites: click to remove' : 'Add to favorites';
+  btn.setAttribute('aria-pressed', currentFavoriteId ? 'true' : 'false');
+}
+
 async function addCurrentToFavorites() {
-  console.log('[FAVORITES] addCurrentToFavorites called');
-  
+  await refreshFavoriteStar();
+  if (currentFavoriteId) {
+    await removeFavorite(currentFavoriteId);
+    return;
+  }
+
   // Get suggested name from current playing media
   const s = window.mediaState || {};
   let suggestedName = '';
@@ -514,18 +548,14 @@ async function addCurrentToFavorites() {
     suggestedName = s.currentVideo;
   }
   
-  const name = prompt('Enter name for favorite:', suggestedName);
-  if (!name) {
-    console.log('[FAVORITES] User cancelled name input');
-    return;
-  }
+  const name = await showPrompt({ title: 'Add to favorites', message: 'Name for the favorite', value: suggestedName, confirmText: 'Add' });
+  if (!name) return;
   
   try {
-    console.log('[FAVORITES] Adding favorite with name:', name);
     const result = await api.post(`/api/favorites/add-current?name=${encodeURIComponent(name)}`);
-    console.log('[FAVORITES] Add result:', result);
     window.toast?.success('Favorites', result.message);
-    fetchFavorites();
+    await fetchFavorites();
+    refreshFavoriteStar();
   } catch (error) {
     console.error('[FAVORITES] Failed to add to favorites:', error);
     window.toast?.error('Favorites', error.message || 'Failed to add');
@@ -654,21 +684,7 @@ function updateAutoPlayUI() {
 }
 
 // Expose functions globally BEFORE the module loaded check
-window.initFavorites = initFavorites;
-window.fetchFavorites = fetchFavorites;
 window.fetchHistory = fetchHistory;
-window.playFavorite = playFavorite;
-window.removeFavorite = removeFavorite;
-window.editFavorite = editFavorite;
-window.playHistoryItem = playHistoryItem;
-window.addHistoryToFavorites = addHistoryToFavorites;
-window.removeHistoryItem = removeHistoryItem;
-window.clearHistory = clearHistory;
-window.addCurrentToFavorites = addCurrentToFavorites;
-window.toggleSection = toggleSection;
-window.toggleAutoPlay = toggleAutoPlay;
-window.toggleAutoPlayShuffle = toggleAutoPlayShuffle;
-window.skipAutoPlay = skipAutoPlay;
 window.updateAutoPlayFromStatus = updateAutoPlayFromStatus;
 
 console.log('[FAVORITES] Functions exposed globally');
@@ -684,3 +700,23 @@ if (document.readyState === 'loading') {
 }
 
 console.log('[FAVORITES] Module fully loaded');
+
+// Controls of #tab-media in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-media'), {
+  click: {
+    'toggle-auto-play-shuffle': () => toggleAutoPlayShuffle(),
+    'skip-auto-play': () => skipAutoPlay(),
+    'toggle-auto-play': () => toggleAutoPlay(),
+    'clear-history': () => clearHistory()
+  }
+}));
+
+// Controls of #media-player-bar in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('media-player-bar'), {
+  click: {
+    'add-current-to-favorites': () => addCurrentToFavorites()
+  }
+}));
+
+// The player bar asks again whenever the playing media changes (tabs.js).
+window.refreshFavoriteStar = refreshFavoriteStar;

@@ -3,7 +3,6 @@
  * Text-to-image, image-to-image, generation history, scheduled generation,
  * and provider configuration (Azure OpenAI / OpenAI)
  */
-'use strict';
 
 // Base URL for img src (gallery thumbs) - api client handles fetch paths
 const AI_GALLERY_BASE = (window.API_BASE || '') + '/api/ai';
@@ -176,7 +175,7 @@ function setAiEditSource(dataUrl, label) {
   if (content) {
     content.innerHTML = `
       <img src="${dataUrl}" style="max-width:120px;max-height:60px;border-radius:4px;margin-bottom:4px;image-rendering:pixelated">
-      <span class="upload-dropzone-text">${escapeHtml(label || 'Image')} — <a href="#" onclick="event.preventDefault();event.stopPropagation();document.getElementById('ai-edit-file-input').click()">change</a></span>
+      <span class="upload-dropzone-text">${escapeHtml(label || 'Image')} — <a role="button" tabindex="0">change</a></span>
     `;
   }
 }
@@ -280,13 +279,18 @@ function renderAiHistory() {
           <div class="ai-history-item-time">${label} &middot; ${time}</div>
         </div>
         <div class="ai-history-item-actions">
-          <button class="btn btn-small btn-primary" onclick="applyHistoryItem('${item.id}')">Apply</button>
-          <button class="btn btn-small btn-warning ai-dismiss-overlay-btn" style="display:${aiState.overlayVisible ? '' : 'none'}" onclick="dismissImageOverlay()">Dismiss</button>
-          <button class="btn btn-small btn-secondary" onclick="stylizeHistoryItem('${item.id}')">Stylize</button>
+          <button class="btn btn-small btn-primary" data-action="apply" data-id="${escapeHtml(item.id)}">Apply</button>
+          <button class="btn btn-small btn-warning ai-dismiss-overlay-btn" style="display:${aiState.overlayVisible ? '' : 'none'}" data-action="dismiss">Dismiss</button>
+          <button class="btn btn-small btn-secondary" data-action="stylize" data-id="${escapeHtml(item.id)}">Stylize</button>
         </div>
       </div>
     `;
   }).join('');
+  onAction(container, {
+    apply: d => applyHistoryItem(d.id),
+    dismiss: () => dismissImageOverlay(),
+    stylize: d => stylizeHistoryItem(d.id)
+  });
 }
 
 async function fetchHistoryImage(id) {
@@ -544,9 +548,11 @@ async function saveBase64ToGallery(imageBase64, prompt, style, force = false) {
   try {
     const result = await api.post('/api/ai/gallery', { imageBase64, prompt, style, force });
     if (result.alreadyExists && !force) {
-      const again = window.confirm(
-        `This image is already in the gallery as ${result.filename}.\nSave another copy?`
-      );
+      const again = await showConfirm({
+        title: 'Already in the gallery',
+        message: `This image is already in the gallery as ${result.filename}. Save another copy?`,
+        confirmText: 'Save copy'
+      });
       if (again) return saveBase64ToGallery(imageBase64, prompt, style, true);
       return;
     }
@@ -722,7 +728,7 @@ function renderGallery() {
     const displayName = parts.length > 2 ? parts.slice(2).join(' ') : item.filename;
     
     return `
-      <div class="gallery-item" onclick="previewGalleryImage('${escapeHtml(item.filename)}')" title="${escapeHtml(item.filename)}">
+      <div class="gallery-item" data-action="preview" data-file="${escapeHtml(item.filename)}" title="${escapeHtml(item.filename)}">
         <img src="${AI_GALLERY_BASE}/gallery/${encodeURIComponent(item.filename)}/thumb" 
              onerror="this.style.display='none'"
              loading="lazy">
@@ -733,6 +739,7 @@ function renderGallery() {
       </div>
     `;
   }).join('');
+  onAction(grid, { preview: d => previewGalleryImage(d.file) });
 }
 
 async function previewGalleryImage(filename) {
@@ -884,33 +891,6 @@ function stopGallerySlideshow() {
 // Expose globally
 // ═══════════════════════════════════════════════════════════════
 
-window.generateAiImage = generateAiImage;
-window.applyAiImageToDisplay = applyAiImageToDisplay;
-window.saveAiImageToGallery = saveAiImageToGallery;
-window.generateAiEdit = generateAiEdit;
-window.handleAiEditFileUpload = handleAiEditFileUpload;
-window.applyAiEditToDisplay = applyAiEditToDisplay;
-window.saveAiEditToGallery = saveAiEditToGallery;
-window.applyHistoryItem = applyHistoryItem;
-window.stylizeHistoryItem = stylizeHistoryItem;
-window.clearAiHistory = clearAiHistory;
-window.toggleAiProviderFields = toggleAiProviderFields;
-window.saveAiConfig = saveAiConfig;
-window.saveAllAiSettings = saveAllAiSettings;
-window.toggleAiSchedule = toggleAiSchedule;
-window.saveAiSchedule = saveAiSchedule;
-window.runAiScheduleNow = runAiScheduleNow;
-window.loadAiConfig = loadAiConfig;
-window.switchAiSubtab = switchAiSubtab;
-window.loadGallery = loadGallery;
-window.previewGalleryImage = previewGalleryImage;
-window.applyGalleryPreviewToDisplay = applyGalleryPreviewToDisplay;
-window.stylizeGalleryPreview = stylizeGalleryPreview;
-window.deleteGalleryPreviewImage = deleteGalleryPreviewImage;
-window.closeGalleryPreview = closeGalleryPreview;
-window.startGallerySlideshow = startGallerySlideshow;
-window.stopGallerySlideshow = stopGallerySlideshow;
-window.dismissImageOverlay = dismissImageOverlay;
 
 // Initialize
 if (document.readyState === 'loading') {
@@ -918,3 +898,44 @@ if (document.readyState === 'loading') {
 } else {
   initAiArt();
 }
+
+// Controls of #tab-ai-art in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-ai-art'), {
+  click: {
+    'switch-ai-subtab-generate': (el, event) => switchAiSubtab('generate'),
+    'switch-ai-subtab-stylize': (el, event) => switchAiSubtab('stylize'),
+    'switch-ai-subtab-gallery': (el, event) => switchAiSubtab('gallery'),
+    'switch-ai-subtab-voice': (el, event) => switchAiSubtab('voice'),
+    'switch-ai-subtab-schedule': (el, event) => switchAiSubtab('schedule'),
+    'switch-ai-subtab-settings': (el, event) => switchAiSubtab('settings'),
+    'generate-ai-image': () => generateAiImage(),
+    'apply-ai-image-to-display': () => applyAiImageToDisplay(),
+    'dismiss-image-overlay': () => dismissImageOverlay(),
+    'save-ai-image-to-gallery': () => saveAiImageToGallery(),
+    'clear-ai-history': () => clearAiHistory(),
+    'generate-ai-edit': () => generateAiEdit(),
+    'open-ai-edit-file-input': (el, event) => { event.preventDefault(); document.getElementById('ai-edit-file-input').click(); },
+    'apply-ai-edit-to-display': () => applyAiEditToDisplay(),
+    'save-ai-edit-to-gallery': () => saveAiEditToGallery(),
+    'start-gallery-slideshow': () => startGallerySlideshow(),
+    'stop-gallery-slideshow': () => stopGallerySlideshow(),
+    'load-gallery': () => loadGallery(),
+    'apply-gallery-preview-to-display': () => applyGalleryPreviewToDisplay(),
+    'stylize-gallery-preview': () => stylizeGalleryPreview(),
+    'delete-gallery-preview-image': () => deleteGalleryPreviewImage(),
+    'close-gallery-preview': () => closeGalleryPreview(),
+    'switch-ai-subtab-settings-2': (el, event) => { event.preventDefault(); switchAiSubtab('settings'); },
+    'save-ai-schedule': () => saveAiSchedule(),
+    'run-ai-schedule-now': () => runAiScheduleNow(),
+    'open-voice-keyword-file': (el, event) => document.getElementById('voice-keyword-file').click(),
+    'save-all-ai-settings': () => saveAllAiSettings()
+  },
+  change: {
+    'handle-ai-edit-file-upload': (el, event) => handleAiEditFileUpload(el),
+    'toggle-ai-schedule': () => toggleAiSchedule(),
+    'toggle-ai-provider-fields': () => toggleAiProviderFields()
+  }
+}));
+
+// Still called from classic scripts.
+window.loadAiHistory = loadAiHistory;

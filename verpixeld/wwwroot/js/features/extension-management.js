@@ -188,12 +188,15 @@ function leafKind(field) {
   return 'text';
 }
 
-/** Renders only the input element for a leaf field. */
-function renderLeafInput(field, value, fieldId, onChangeJs, isReadOnly) {
+/**
+ * Renders only the input element for a leaf field. `marker` ({ action, ...data }, optional) is the
+ * wire() marker the input fires: `input` for sliders and text, `change` for the rest.
+ */
+function renderLeafInput(field, value, fieldId, marker, isReadOnly) {
   const k = leafKind(field);
   const dis = isReadOnly ? 'disabled' : '';
-  const evt = (k === 'number' || k === 'text') ? 'oninput' : 'onchange';
-  const on = isReadOnly || !onChangeJs ? '' : `${evt}="${onChangeJs}"`;
+  const evt = (k === 'number' || k === 'text') ? 'input' : 'change';
+  const on = isReadOnly ? '' : markerAttrs(evt, marker);
 
   if (k === 'number') {
     const t = field.parameterType || '';
@@ -210,21 +213,21 @@ function renderLeafInput(field, value, fieldId, onChangeJs, isReadOnly) {
   if (k === 'enum') {
     let h = `<select id="${fieldId}" ${dis} ${on}>`;
     (field.enumValues || []).forEach(ev => {
-      h += `<option value="${ev}" ${ev === value ? 'selected' : ''}>${ev}</option>`;
+      h += `<option value="${escapeHtml(ev)}" ${ev === value ? 'selected' : ''}>${escapeHtml(ev)}</option>`;
     });
     return h + `</select>`;
   }
   if (k === 'color') {
-    return createColorInputWithAlpha(fieldId, value, isReadOnly ? '' : onChangeJs);
+    return createColorInputWithAlpha(fieldId, value, isReadOnly ? null : marker);
   }
   const textInput = `<input type="text" id="${fieldId}" value="${value !== undefined ? escapeHtml(String(value)) : ''}" ${isReadOnly ? 'readonly' : ''} ${on}>`;
   if (!isReadOnly && isEntityField(field)) {
     const domain = haDomainFor(field);
     const multi = isMultiEntityField(field) ? 'true' : 'false';
-    return `<span class="ha-entity-field">${textInput}<button type="button" class="btn btn-tiny" title="Pick entity" onclick="haPickEntity('${fieldId}', '${domain}', ${multi})">🔍</button></span>`;
+    return `<span class="ha-entity-field">${textInput}<button type="button" class="btn btn-tiny" title="Pick entity"${dataAttrs({ action: 'ha-pick', field: fieldId, domain, multi })}>🔍</button></span>`;
   }
   if (!isReadOnly && isPlaceField(field)) {
-    return `<span class="ha-entity-field">${textInput}<button type="button" class="btn btn-tiny" title="Search place" onclick="geoPickPlace('${fieldId}')">🔍</button></span>`;
+    return `<span class="ha-entity-field">${textInput}<button type="button" class="btn btn-tiny" title="Search place"${dataAttrs({ action: 'geo-pick', field: fieldId })}>🔍</button></span>`;
   }
   return textInput;
 }
@@ -258,7 +261,7 @@ function haDomainFor(field) {
 }
 
 /** Renders a labelled nested field row (used inside cards / object groups). */
-function renderField(field, value, fieldId, onChangeJs) {
+function renderField(field, value, fieldId, marker) {
   const k = leafKind(field);
   const ro = field.isReadOnly === true;
   const label = escapeHtml(field.displayName || field.name);
@@ -266,7 +269,7 @@ function renderField(field, value, fieldId, onChangeJs) {
   const desc = field.description ? `<p class="param-description">${escapeHtml(field.description)}</p>` : '';
   return `<div class="ext-field ext-field-${k}">
     <label for="${fieldId}">${label}${ro ? ' 🔒' : ''} ${valSpan}</label>
-    ${renderLeafInput(field, value, fieldId, ro ? '' : onChangeJs, ro)}
+    ${renderLeafInput(field, value, fieldId, ro ? null : marker, ro)}
     ${desc}
   </div>`;
 }
@@ -319,14 +322,13 @@ function renderScalarRow(canvasName, param, value) {
     if (typeof value === 'number') display = '#' + (value >>> 0).toString(16).padStart(8, '0').toUpperCase();
     else if (typeof value === 'string' && !value.startsWith('#')) display = '#' + value;
   }
-  const onChange = `updateExtensionParameter('${canvasName}', '${name}')`;
   const desc = param.description ? `<p class="param-description">${escapeHtml(param.description)}</p>` : '';
   return `<div class="slider-container${ro ? ' readonly' : ''}">
     <div class="slider-label">
       <span>${escapeHtml(param.displayName || name)}${ro ? ' 🔒' : ''}</span>
       <span id="${name}-value">${k === 'color' ? display : (value ?? '')}</span>
     </div>
-    ${renderLeafInput(param, value, name, onChange, ro)}
+    ${renderLeafInput(param, value, name, { action: 'ext-param', param: name }, ro)}
     ${desc}
   </div>`;
 }
@@ -337,7 +339,7 @@ function renderObjectParam(canvasName, param, value) {
   const body = (param.fields || []).map(f => {
     const fid = `f_${param.name}_${f.name}`;
     const fv = v[f.name] !== undefined ? v[f.name] : f.defaultValue;
-    return renderField(f, fv, fid, `extFieldChanged('${canvasName}', '${param.name}', '${fid}')`);
+    return renderField(f, fv, fid, { action: 'ext-field', param: param.name, field: fid });
   }).join('');
   return `<div class="ext-group">
     <div class="ext-group-head">${escapeHtml(param.displayName || param.name)}</div>
@@ -349,10 +351,10 @@ function renderObjectParam(canvasName, param, value) {
 function renderListParam(canvasName, param, value) {
   const items = Array.isArray(value) ? value.map(v => ({ ...v })) : [];
   window.extStructured[param.name] = { kind: 'list', fields: param.fields || [], items };
-  return `<div class="ext-list" data-param="${param.name}">
+  return `<div class="ext-list" data-param="${escapeHtml(param.name)}">
     <div class="ext-list-head">
       <span>${escapeHtml(param.displayName || param.name)}</span>
-      <button type="button" class="btn btn-small btn-primary" onclick="extAddItem('${canvasName}', '${param.name}')">+ Add</button>
+      <button type="button" class="btn btn-small btn-primary"${dataAttrs({ action: 'ext-add', param: param.name })}>+ Add</button>
     </div>
     ${param.description ? `<p class="param-description">${escapeHtml(param.description)}</p>` : ''}
     <div class="ext-list-cards" id="extlist-${param.name}">${renderListCards(canvasName, param.name)}</div>
@@ -372,15 +374,15 @@ function renderCard(canvasName, paramName, fields, item, index, count) {
   const body = (fields || []).map(f => {
     const fid = `f_${paramName}_${index}_${f.name}`;
     const val = item[f.name] !== undefined ? item[f.name] : f.defaultValue;
-    return renderField(f, val, fid, `extFieldChanged('${canvasName}', '${paramName}', '${fid}')`);
+    return renderField(f, val, fid, { action: 'ext-field', param: paramName, field: fid });
   }).join('');
   return `<div class="ext-card">
     <div class="ext-card-head">
       <span class="ext-card-title">${escapeHtml(title)}</span>
       <span class="ext-card-actions">
-        <button type="button" class="btn btn-tiny" ${index === 0 ? 'disabled' : ''} title="Move up" onclick="extMoveItem('${canvasName}', '${paramName}', ${index}, -1)">▲</button>
-        <button type="button" class="btn btn-tiny" ${index === count - 1 ? 'disabled' : ''} title="Move down" onclick="extMoveItem('${canvasName}', '${paramName}', ${index}, 1)">▼</button>
-        <button type="button" class="btn btn-tiny btn-danger" title="Remove" onclick="extRemoveItem('${canvasName}', '${paramName}', ${index})">✕</button>
+        <button type="button" class="btn btn-tiny" ${index === 0 ? 'disabled' : ''} title="Move up"${dataAttrs({ action: 'ext-move', param: paramName, index, dir: -1 })}>▲</button>
+        <button type="button" class="btn btn-tiny" ${index === count - 1 ? 'disabled' : ''} title="Move down"${dataAttrs({ action: 'ext-move', param: paramName, index, dir: 1 })}>▼</button>
+        <button type="button" class="btn btn-tiny btn-danger" title="Remove"${dataAttrs({ action: 'ext-remove', param: paramName, index })}>✕</button>
       </span>
     </div>
     <div class="ext-card-body">${body}</div>
@@ -518,36 +520,36 @@ function showExtensionEditForm(canvasName, extension, currentConfig) {
 
     Object.entries(methodsByCategory).forEach(([category, categoryMethods]) => {
       methodsHtml += `<div class="method-category">
-        <h4 class="method-category-title">${category}</h4>`;
+        <h4 class="method-category-title">${escapeHtml(category)}</h4>`;
       
       categoryMethods.forEach(method => {
         const hasParams = method.parameters && method.parameters.length > 0;
         
-        methodsHtml += `<div class="method-item" data-method="${method.name}">
+        methodsHtml += `<div class="method-item" data-method="${escapeHtml(method.name)}">
           <div class="method-header">
-            <span class="method-name">${method.displayName || method.name}${method.keyboardShortcut ? ` <kbd class="method-key">${method.keyboardShortcut}</kbd>` : ''}</span>
-            ${method.description ? `<span class="method-description">${method.description}</span>` : ''}
+            <span class="method-name">${escapeHtml(method.displayName || method.name)}${method.keyboardShortcut ? ` <kbd class="method-key">${escapeHtml(method.keyboardShortcut)}</kbd>` : ''}</span>
+            ${method.description ? `<span class="method-description">${escapeHtml(method.description)}</span>` : ''}
           </div>`;
         
         if (hasParams) {
           methodsHtml += `<div class="method-params">`;
           method.parameters.forEach(param => {
-            const paramId = `method-${method.name}-${param.name}`;
+            const paramId = escapeHtml(`method-${method.name}-${param.name}`);
             const defaultVal = param.defaultValue ?? '';
             const paramType = param.parameterType || 'String';
             const optionalLabel = param.isOptional ? ' (optional)' : '';
             
             methodsHtml += `<div class="method-param">
-              <label for="${paramId}">${param.name}${optionalLabel}</label>`;
+              <label for="${paramId}">${escapeHtml(param.name)}${optionalLabel}</label>`;
             
             if (paramType.includes('Int') || paramType.includes('Byte') || paramType.includes('Single') || paramType.includes('Double') || paramType.includes('Float')) {
-              methodsHtml += `<input type="number" id="${paramId}" value="${defaultVal}" 
-                placeholder="${param.name}">`;
+              methodsHtml += `<input type="number" id="${paramId}" value="${escapeHtml(defaultVal)}"
+                placeholder="${escapeHtml(param.name)}">`;
             } else if (paramType.includes('Boolean') || paramType.includes('Bool')) {
               methodsHtml += `<input type="checkbox" id="${paramId}" ${defaultVal ? 'checked' : ''}>`;
             } else {
-              methodsHtml += `<input type="text" id="${paramId}" value="${defaultVal}" 
-                placeholder="${param.name}">`;
+              methodsHtml += `<input type="text" id="${paramId}" value="${escapeHtml(defaultVal)}"
+                placeholder="${escapeHtml(param.name)}">`;
             }
             
             methodsHtml += `</div>`;
@@ -555,9 +557,8 @@ function showExtensionEditForm(canvasName, extension, currentConfig) {
           methodsHtml += `</div>`;
         }
         
-        methodsHtml += `<button class="btn btn-small btn-primary method-invoke-btn" 
-          onclick="invokeExtensionMethod('${canvasName}', '${method.name}', ${JSON.stringify(method.parameters || []).replace(/"/g, '&quot;')})">
-          ${ICONS.PLAY || '▶'} ${method.displayName || method.name}
+        methodsHtml += `<button class="btn btn-small btn-primary method-invoke-btn"${dataAttrs({ action: 'invoke', method: method.name })}>
+          ${ICONS.PLAY || '▶'} ${escapeHtml(method.displayName || method.name)}
         </button>
         </div>`;
       });
@@ -575,21 +576,21 @@ function showExtensionEditForm(canvasName, extension, currentConfig) {
       <div class="modal-content extension-edit-modal">
         
         <div class="modal-header">
-          <h2>${ICONS.EDIT} ${extension.displayName}</h2>
-          <button class="modal-close" onclick="closeExtensionEditModal()">${ICONS.CLOSE}</button>
+          <h2>${ICONS.EDIT} ${escapeHtml(extension.displayName)}</h2>
+          <button class="modal-close" data-action="close">${ICONS.CLOSE}</button>
         </div>
         
         <div class="modal-body">
           <p class="text-muted" style="margin-bottom: var(--spacing-md);">
-            Canvas: <strong>${canvasName}</strong>
+            Canvas: <strong>${escapeHtml(canvasName)}</strong>
           </p>
           
           ${showTabs ? `
           <div class="extension-tabs">
-            <button class="tab-btn active" data-tab="params" onclick="switchExtensionTab('params')">
+            <button class="tab-btn active" data-tab="params" data-action="ext-tab">
               ${ICONS.SETTINGS || '⚙'} Parameters
             </button>
-            <button class="tab-btn" data-tab="methods" onclick="switchExtensionTab('methods')">
+            <button class="tab-btn" data-tab="methods" data-action="ext-tab">
               ${ICONS.PLAY || '▶'} Actions
             </button>
           </div>
@@ -615,7 +616,7 @@ function showExtensionEditForm(canvasName, extension, currentConfig) {
         </div>
         
         <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="closeExtensionEditModal()">Close</button>
+          <button class="btn btn-secondary" data-action="close">Close</button>
         </div>
         
       </div>
@@ -623,12 +624,36 @@ function showExtensionEditForm(canvasName, extension, currentConfig) {
   `;
 
   document.body.insertAdjacentHTML('beforeend', modalHtml);
+  wireExtensionEditModal(document.getElementById('extension-edit-modal'), canvasName, methods);
 
   window.currentEditingExtension = { 
     canvasName, 
     extension,
     originalConfig: JSON.parse(JSON.stringify(currentConfig))
   };
+}
+
+/** One delegated listener per event type for the whole editor, including cards rendered later. */
+function wireExtensionEditModal(modal, canvasName, methods) {
+  const fieldChanged = el => extFieldChanged(canvasName, el.dataset.param, el.dataset.field);
+  const paramChanged = el => updateExtensionParameter(canvasName, el.dataset.param);
+  wire(modal, {
+    click: {
+      close: () => closeExtensionEditModal(),
+      'ext-tab': el => switchExtensionTab(el.dataset.tab),
+      'ext-add': el => extAddItem(canvasName, el.dataset.param),
+      'ext-move': el => extMoveItem(canvasName, el.dataset.param, Number(el.dataset.index), Number(el.dataset.dir)),
+      'ext-remove': el => extRemoveItem(canvasName, el.dataset.param, Number(el.dataset.index)),
+      'ha-pick': el => haPickEntity(el.dataset.field, el.dataset.domain, el.dataset.multi === 'true'),
+      'geo-pick': el => geoPickPlace(el.dataset.field),
+      invoke: el => {
+        const method = methods.find(m => m.name === el.dataset.method);
+        if (method) invokeExtensionMethod(canvasName, method.name, method.parameters || []);
+      }
+    },
+    input: { 'ext-param': paramChanged, 'ext-field': fieldChanged },
+    change: { 'ext-param': paramChanged, 'ext-field': fieldChanged }
+  });
 }
 
 /**
@@ -731,7 +756,7 @@ async function haPickEntity(fieldId, domain, multi) {
       <div class="modal-content" style="max-width:560px;">
         <div class="modal-header">
           <h2>${multi ? 'Add Home Assistant entity' : 'Pick Home Assistant entity'}</h2>
-          <button class="modal-close" onclick="haPickClose()">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button>
+          <button class="modal-close" data-action="close">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button>
         </div>
         <div class="modal-body">
           <input type="text" id="ha-pick-search" class="ha-pick-search" placeholder="Search by name…" autocomplete="off">
@@ -741,6 +766,10 @@ async function haPickEntity(fieldId, domain, multi) {
       </div>
     </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
+  onAction(document.getElementById('ha-pick-modal'), {
+    close: () => haPickClose(),
+    choose: d => haPickChoose(fieldId, d.entity, multi)
+  });
 
   const search = document.getElementById('ha-pick-search');
   const list = document.getElementById('ha-pick-list');
@@ -775,10 +804,9 @@ async function haPickEntity(fieldId, domain, multi) {
         return;
       }
       list.innerHTML = items.slice(0, 250).map(e => {
-        const id = String(e.entityId).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         const name = e.friendlyName || e.entityId;
         const meta = [(e.state ?? '') + (e.unit ? ' ' + e.unit : ''), e.entityId].filter(Boolean).join(' · ');
-        return `<button type="button" class="ha-pick-item" onclick="haPickChoose('${fieldId}', '${id}', ${multi})">
+        return `<button type="button" class="ha-pick-item"${dataAttrs({ action: 'choose', entity: e.entityId })}>
           <span class="ha-pick-name">${escapeHtml(name)}</span>
           <span class="ha-pick-meta">${escapeHtml(meta)}</span>
         </button>`;
@@ -828,7 +856,7 @@ async function geoPickPlace(fieldId) {
       <div class="modal-content" style="max-width:520px;">
         <div class="modal-header">
           <h2>Search place</h2>
-          <button class="modal-close" onclick="haPickClose()">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button>
+          <button class="modal-close" data-action="close">${typeof ICONS !== 'undefined' ? ICONS.CLOSE : '✕'}</button>
         </div>
         <div class="modal-body">
           <input type="text" id="ha-pick-search" class="ha-pick-search" placeholder="City, region, address…" autocomplete="off">
@@ -837,6 +865,7 @@ async function geoPickPlace(fieldId) {
       </div>
     </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
+  onAction(document.getElementById('ha-pick-modal'), { close: () => haPickClose() });
 
   const search = document.getElementById('ha-pick-search');
   const list = document.getElementById('ha-pick-list');

@@ -16,46 +16,73 @@ function showConfirm(options) {
       icon = type === 'danger' ? '⚠️' : '❓'
     } = options;
 
-    const html = `
+    const overlay = showModal(`
       <div class="confirm-dialog">
         <div class="confirm-icon ${type}">${icon}</div>
         <div class="confirm-title">${escapeHtml(title)}</div>
         <div class="confirm-message">${escapeHtml(message)}</div>
         <div class="confirm-actions">
-          <button class="btn btn-secondary" id="confirm-cancel">${cancelText}</button>
-          <button class="btn ${type === 'danger' ? 'btn-danger' : 'btn-primary'}" id="confirm-ok">${confirmText}</button>
+          <button class="btn btn-secondary" data-action="cancel">${escapeHtml(cancelText)}</button>
+          <button class="btn ${type === 'danger' ? 'btn-danger' : 'btn-primary'}" id="confirm-ok" data-action="ok">${escapeHtml(confirmText)}</button>
         </div>
       </div>
-    `;
+    `, () => finish(false));
 
-    showModal(html);
+    // Closes only this dialog (a confirm often sits on top of another one) and answers exactly once:
+    // OK, Cancel, Escape or a click on the backdrop.
+    let done = false;
+    function finish(result) {
+      if (done) return;
+      done = true;
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+      if (!document.querySelector('.modal-overlay')) document.body.style.overflow = '';
+      resolve(result);
+    }
+    const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); finish(false); } };
+    document.addEventListener('keydown', onKey);
+    onAction(overlay, { ok: () => finish(true), cancel: () => finish(false) });
+    setTimeout(() => overlay.querySelector('[data-action="ok"]')?.focus(), 100);
+  });
+}
 
-    // Focus confirm button
-    setTimeout(() => {
-      document.getElementById('confirm-ok')?.focus();
-    }, 100);
+/**
+ * Ask for a line of text in the app's own dialog (instead of the browser's prompt()).
+ * Resolves with the trimmed text, or null on Cancel, Escape, a click on the backdrop or empty input.
+ */
+function showPrompt(options) {
+  return new Promise((resolve) => {
+    const { title = 'Enter a value', message = '', value = '', placeholder = '', confirmText = 'OK', cancelText = 'Cancel' } = options;
+    const overlay = showModal(`
+      <form class="confirm-dialog" data-submit="ok" autocomplete="off">
+        <div class="confirm-title">${escapeHtml(title)}</div>
+        ${message ? `<div class="confirm-message">${escapeHtml(message)}</div>` : ''}
+        <input type="text" class="settings-input prompt-input" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" maxlength="120"
+               style="width:100%;margin:12px 0 4px;">
+        <div class="confirm-actions">
+          <button type="button" class="btn btn-secondary" data-action="cancel">${escapeHtml(cancelText)}</button>
+          <button type="submit" class="btn btn-primary">${escapeHtml(confirmText)}</button>
+        </div>
+      </form>
+    `, () => finish(null));
+    const input = overlay.querySelector('.prompt-input');
 
-    // Handle confirm
-    document.getElementById('confirm-ok').addEventListener('click', () => {
-      closeModal();
-      resolve(true);
+    let done = false;
+    function finish(result) {
+      if (done) return;
+      done = true;
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+      if (!document.querySelector('.modal-overlay')) document.body.style.overflow = '';
+      resolve(result);
+    }
+    const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); finish(null); } };
+    document.addEventListener('keydown', onKey);
+    wire(overlay, {
+      click: { cancel: () => finish(null) },
+      submit: { ok: () => finish(input.value.trim() || null) }
     });
-
-    // Handle cancel
-    document.getElementById('confirm-cancel').addEventListener('click', () => {
-      closeModal();
-      resolve(false);
-    });
-
-    // ESC key cancels
-    const escapeHandler = (e) => {
-      if (e.key === 'Escape') {
-        closeModal();
-        resolve(false);
-        document.removeEventListener('keydown', escapeHandler);
-      }
-    };
-    document.addEventListener('keydown', escapeHandler);
+    setTimeout(() => { input.focus(); input.select(); }, 50);
   });
 }
 
@@ -94,18 +121,19 @@ function hideLoading() {
 /**
  * Show a generic modal (deprecated - use modal-overlay structure directly)
  */
-function showModal(htmlContent) {
+function showModal(htmlContent, onBackdrop) {
   const modalOverlay = document.createElement('div');
   modalOverlay.className = 'modal-overlay';
   modalOverlay.innerHTML = htmlContent;
   modalOverlay.onclick = (e) => {
-    if (e.target === modalOverlay) {
-      modalOverlay.remove();
-      document.body.style.overflow = '';
-    }
+    if (e.target !== modalOverlay) return;
+    if (onBackdrop) { onBackdrop(); return; }
+    modalOverlay.remove();
+    document.body.style.overflow = '';
   };
   document.body.appendChild(modalOverlay);
   document.body.style.overflow = 'hidden';
+  return modalOverlay;
 }
 
 /**
@@ -154,6 +182,7 @@ function showMessage(text, typeOrIsError = 'success') {
 
 // Expose globally
 window.showConfirm = showConfirm;
+window.showPrompt = showPrompt;
 window.showLoading = showLoading;
 window.hideLoading = hideLoading;
 window.showModal = showModal;

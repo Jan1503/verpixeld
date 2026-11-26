@@ -60,6 +60,7 @@ public class HostOrchestratorSchedulerTests
         public LayoutProfile CurrentProfile => LayoutProfile.FullScreen;
         public string? CurrentLayoutName => LastLayout?.Name;
         public Canvas? PrimaryCanvas => null;
+        public void SetCurrentLayoutName(string? name) { }
 
         public Task<LayoutLoadResult> LoadLayoutAsync(SavedLayout layout, string source = "LAYOUT")
         {

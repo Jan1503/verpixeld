@@ -71,7 +71,7 @@ async function showFilterPicker() {
         
         <div class="modal-header">
           <h2>${ICONS.FILTER} Add Filter</h2>
-          <button class="modal-close" onclick="closeFilterPicker()">${ICONS.CLOSE}</button>
+          <button class="modal-close" data-action="close">${ICONS.CLOSE}</button>
         </div>
         
         <div class="modal-body">
@@ -79,7 +79,7 @@ async function showFilterPicker() {
         </div>
         
         <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="closeFilterPicker()">Cancel</button>
+          <button class="btn btn-secondary" data-action="close">Cancel</button>
         </div>
         
       </div>
@@ -87,7 +87,8 @@ async function showFilterPicker() {
   `;
   
   document.body.insertAdjacentHTML('beforeend', html);
-  
+  onAction(document.getElementById('filter-picker-modal'), { close: () => closeFilterPicker() });
+
   if (availableFilters.length === 0) {
     await fetchAvailableFilters();
   }
@@ -103,7 +104,7 @@ async function showFilterPicker() {
   let filterHtml = '';
   for (const [category, filters] of Object.entries(categories)) {
     filterHtml += `<div class="filter-category-section">
-            <h3 class="category-title">${category}</h3>
+            <h3 class="category-title">${escapeHtml(category)}</h3>
             <div class="filter-grid">`;
 
     filters.forEach(filter => {
@@ -117,7 +118,7 @@ async function showFilterPicker() {
 
         iconHtml = `<div class="extension-icon-container">
                     <img src="data:${mimeType};base64,${filter.iconData}" 
-                         alt="${filter.displayName}" class="extension-icon-img"
+                         alt="${escapeHtml(filter.displayName)}" class="extension-icon-img"
                          onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
                     <div class="extension-icon" style="display:none;">${ICONS.FILTER}</div>
                 </div>`;
@@ -126,9 +127,9 @@ async function showFilterPicker() {
         iconHtml = `<div class="extension-icon">${ICONS.FILTER}</div>`;
       }
 
-      filterHtml += `<div class="extension-card filter-card" data-filter="${filter.name}">
+      filterHtml += `<div class="extension-card filter-card" data-filter="${escapeHtml(filter.name)}">
                 ${iconHtml}
-                <div class="extension-name">${filter.displayName}</div>
+                <div class="extension-name">${escapeHtml(filter.displayName)}</div>
             </div>`;
     });
 
@@ -200,32 +201,31 @@ function showFilterForm(typeName) {
 
     html += `<div class="slider-container">
             <div class="slider-label">
-                <span>${paramName}</span>
+                <span>${escapeHtml(paramName)}</span>
                 <span id="${paramName}-value">${isColorParam ? displayValue : defaultVal}</span>
             </div>`;
 
-    if (paramType.includes('Single' || 'Double' || 'Float')) {
+    if (paramType.includes('Single') || paramType.includes('Double') || paramType.includes('Float')) {
       const min = param.minValue ?? 0;
       const max = param.maxValue ?? 1;
       const step = (max - min) / 100 || 0.01;
-      html += `<input type="range" id="${paramName}" min="${min}" max="${max}" 
-                step="${step}" value="${defaultVal}" oninput="updateSlider('${paramName}')">`;
+      html += `<input type="range" id="${paramName}" min="${min}" max="${max}"
+                step="${step}" value="${defaultVal}" data-input="slider">`;
     } else if (isBooleanType) {
       html += `<input type="checkbox" id="${paramName}" ${defaultVal ? 'checked' : ''}>`;
-    } else if (paramType.includes('Int32' || 'Int' || 'Byte')) {
+    } else if (paramType.includes('Int') || paramType.includes('Byte')) {
       const min = param.minValue ?? 0;
       const max = param.maxValue ?? (paramType.includes('Byte') ? 255 : 100);
-      html += `<input type="range" id="${paramName}" min="${min}" max="${max}" 
-                step="1" value="${defaultVal}" oninput="updateSlider('${paramName}')">`;
+      html += `<input type="range" id="${paramName}" min="${min}" max="${max}"
+                step="1" value="${defaultVal}" data-input="slider">`;
     } else if (isColorParam) {
-      html += createColorInputWithAlpha(paramName, defaultVal,
-        `document.getElementById('${paramName}-value').textContent = getColorWithAlpha('${paramName}')`);
+      html += createColorInputWithAlpha(paramName, defaultVal, { action: 'color-preview', param: paramName });
     } else {
       html += `<input type="text" id="${paramName}" value="${defaultVal}">`;
     }
 
     if (param.description) {
-      html += `<p class="param-description">${param.description}</p>`;
+      html += `<p class="param-description">${escapeHtml(param.description)}</p>`;
     }
 
     html += `</div>`;
@@ -236,8 +236,8 @@ function showFilterForm(typeName) {
   const footerContainer = document.getElementById('filter-form-footer');
   if (footerContainer) {
     footerContainer.innerHTML = `
-      <button class="btn btn-secondary" onclick="hideFilterForm()">Cancel</button>
-      <button class="btn btn-primary" onclick="addFilter('${typeName}')">Add Filter</button>
+      <button class="btn btn-secondary" data-action="hide-filter-form">Cancel</button>
+      <button class="btn btn-primary" data-action="add-filter"${dataAttrs({ type: typeName })}>Add Filter</button>
     `;
   }
 
@@ -325,6 +325,7 @@ async function editFilter(index, filterType, currentParams) {
   params.forEach(param => {
     const paramName = param.name;
     let currentValue = currentParams.hasOwnProperty(paramName) ? currentParams[paramName] : (param.defaultValue ?? 0);
+    const live = { action: 'filter-param', index, param: paramName };  // applied to the running filter as it changes
     const paramType = param.parameterType || param.type || '';
 
     const isBooleanType = paramType.includes('Boolean') || paramType.includes('Bool');
@@ -344,7 +345,7 @@ async function editFilter(index, filterType, currentParams) {
 
     html += `<div class="slider-container">
             <div class="slider-label">
-                <span>${paramName}</span>
+                <span>${escapeHtml(paramName)}</span>
                 <span id="${paramName}-value">${isColorParam ? displayValue : currentValue}</span>
             </div>`;
 
@@ -353,32 +354,29 @@ async function editFilter(index, filterType, currentParams) {
       const max = param.maxValue ?? 1;
       const step = (max - min) / 100 || 0.01;
       html += `<input type="range" id="${paramName}" min="${min}" max="${max}" 
-                step="${step}" value="${currentValue}" oninput="updateSliderAndFilter(${index}, '${paramName}')">`;
-    } else if (paramType.includes('Int32') || paramType.includes('Int' || 'Byte')) {
+                step="${step}" value="${currentValue}"${markerAttrs('input', live)}>`;
+    } else if (paramType.includes('Int') || paramType.includes('Byte')) {
       const min = param.minValue ?? 0;
       const max = param.maxValue ?? (paramType.includes('Byte') ? 255 : 100);
       html += `<input type="range" id="${paramName}" min="${min}" max="${max}" 
-                step="1" value="${currentValue}" oninput="updateSliderAndFilter(${index}, '${paramName}')">`;
+                step="1" value="${currentValue}"${markerAttrs('input', live)}>`;
     } else if (paramType.includes('Boolean') || paramType.includes('Bool')) {
-      html += `<input type="checkbox" id="${paramName}" ${currentValue ? 'checked' : ''} 
-                onchange="updateSliderAndFilter(${index}, '${paramName}')">`;
+      html += `<input type="checkbox" id="${paramName}" ${currentValue ? 'checked' : ''}${markerAttrs('change', live)}>`;
     } else if (paramType.includes('Enum')) {
-      html += `<select id="${paramName}" onchange="updateSliderAndFilter(${index}, '${paramName}')">`;
+      html += `<select id="${paramName}"${markerAttrs('change', live)}>`;
       (param.enumValues || []).forEach(enumValue => {
         const selected = enumValue === currentValue ? 'selected' : '';
-        html += `<option value="${enumValue}" ${selected}>${enumValue}</option>`;
+        html += `<option value="${escapeHtml(enumValue)}" ${selected}>${escapeHtml(enumValue)}</option>`;
       });
       html += `</select>`;
     } else if (isColorParam) {
-      html += createColorInputWithAlpha(paramName, currentValue,
-        `updateSliderAndFilter(${index}, '${paramName}')`);
+      html += createColorInputWithAlpha(paramName, currentValue, live);
     } else {
-      html += `<input type="text" id="${paramName}" value="${currentValue}" 
-                onchange="updateSliderAndFilter(${index}, '${paramName}')">`;
+      html += `<input type="text" id="${paramName}" value="${escapeHtml(currentValue)}"${markerAttrs('change', live)}>`;
     }
 
     if (param.description) {
-      html += `<p class="param-description">${param.description}</p>`;
+      html += `<p class="param-description">${escapeHtml(param.description)}</p>`;
     }
 
     html += `</div>`;
@@ -391,7 +389,7 @@ async function editFilter(index, filterType, currentParams) {
   const footerContainer = document.getElementById('filter-form-footer');
   if (footerContainer) {
     footerContainer.innerHTML = `
-      <button class="btn btn-secondary" onclick="hideFilterForm()">Close</button>
+      <button class="btn btn-secondary" data-action="hide-filter-form">Close</button>
     `;
   }
 
@@ -501,3 +499,20 @@ window.updateSliderAndFilter = updateSliderAndFilter;
 window.applyLiveFilterUpdate = applyLiveFilterUpdate;
 window.removeFilter = removeFilter;
 window.clearAllFilters = clearAllFilters;
+
+// Controls of #filter-form-container in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('filter-form-container'), {
+  click: {
+    'hide-filter-form': () => hideFilterForm(),
+    'add-filter': el => addFilter(el.dataset.type)
+  },
+  input: {
+    slider: el => updateSlider(el.id),
+    'color-preview': el => { document.getElementById(el.dataset.param + '-value').textContent = getColorWithAlpha(el.dataset.param); },
+    'filter-param': el => updateSliderAndFilter(Number(el.dataset.index), el.dataset.param)
+  },
+  change: {
+    'color-preview': el => { document.getElementById(el.dataset.param + '-value').textContent = getColorWithAlpha(el.dataset.param); },
+    'filter-param': el => updateSliderAndFilter(Number(el.dataset.index), el.dataset.param)
+  }
+}));

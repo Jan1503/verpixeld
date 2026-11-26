@@ -95,7 +95,11 @@ function displayCanvasBrightnessControls(canvases) {
 }
 
 // Expose globally
-window.updateGlobalBrightness = updateGlobalBrightness;
-window.updateCanvasBrightness = updateCanvasBrightness;
 window.fetchBrightnessLevels = fetchBrightnessLevels;
-window.displayCanvasBrightnessControls = displayCanvasBrightnessControls;
+
+// Controls of #global-controls in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('global-controls'), {
+  input: {
+    'update-global-brightness': (el, event) => updateGlobalBrightness(el.value)
+  }
+}));

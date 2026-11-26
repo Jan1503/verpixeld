@@ -36,6 +36,42 @@ function onAction(container, handlers) {
 }
 
 /**
+ * Wires the controls inside `container` to their handlers, by marker attribute instead of inline code:
+ *   click   -> data-action="name"     input  -> data-input="name"
+ *   change  -> data-change="name"     keydown -> data-keydown="name"   submit -> data-submit="name"
+ *   pointerdown -> data-pointerdown="name"
+ * `handlers` is `{ click: { name: (el, event) => ... }, input: { ... }, ... }`. One listener per event
+ * type on the container (delegation), so it also covers controls rendered later. Safe to call again:
+ * a container is bound once per event type, later calls add or replace handlers.
+ */
+/** Runs `fn` once the page's DOM is ready (at once if it already is). */
+function onReady(fn) {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn, { once: true });
+  else fn();
+}
+
+const WIRE_ATTR = { click: 'action', input: 'input', change: 'change', keydown: 'keydown', submit: 'submit', pointerdown: 'pointerdown' };
+function wire(container, handlers) {
+  if (!container) return;
+  container._wire = container._wire || {};
+  for (const [type, map] of Object.entries(handlers)) {
+    const attr = WIRE_ATTR[type];
+    if (!attr) throw new Error('wire: unsupported event ' + type);
+    container._wire[type] = { ...(container._wire[type] || {}), ...map };
+    if (container['_wired_' + type]) continue;
+    container['_wired_' + type] = true;
+    container.addEventListener(type, event => {
+      const el = event.target.closest(`[data-${attr}]`);
+      if (!el || !container.contains(el)) return;
+      const handler = container._wire[type]?.[el.dataset[attr]];
+      if (!handler) return;
+      if (type === 'submit') event.preventDefault();
+      handler(el, event);
+    });
+  }
+}
+
+/**
  * Format uptime in seconds to human readable string
  */
 function formatUptime(seconds) {
@@ -91,9 +127,39 @@ function updateSlider(id) {
 }
 
 /**
- * Create color picker with alpha support
+ * Renders `data` as data-* attributes (camelCase keys become kebab-case), values escaped.
+ * dataAttrs({ param: 'x', fieldId: 'f1' }) -> ' data-param="x" data-field-id="f1"'
  */
-function createColorInputWithAlpha(paramName, currentValue, onChangeCallback) {
+function dataAttrs(data) {
+  if (!data) return '';
+  return Object.entries(data)
+    .map(([k, v]) => ` data-${k.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${escapeHtml(v)}"`)
+    .join('');
+}
+
+/**
+ * Marker attributes for a rendered control: `marker` is `{ action, ...data }` or empty.
+ * The control gets data-input or data-change="action" (see wire()) plus the extra data.
+ */
+function markerAttrs(event, marker) {
+  if (!marker || !marker.action) return '';
+  const { action, ...data } = marker;
+  return ` data-${event}="${escapeHtml(action)}"` + dataAttrs(data);
+}
+
+// Alpha sliders of createColorInputWithAlpha keep their percent label current, wherever they are rendered.
+document.addEventListener('input', event => {
+  const el = event.target.closest?.('[data-alpha-label]');
+  const label = el && document.getElementById(el.dataset.alphaLabel);
+  if (label) label.textContent = el.value + '%';
+});
+
+/**
+ * Create color picker with alpha support.
+ * `marker` ({ action, ...data }, optional) marks both inputs for wire(): the color input fires
+ * `change`, the alpha slider `input`, both under the same action name.
+ */
+function createColorInputWithAlpha(paramName, currentValue, marker) {
   // Parse current color value
   let hexColor = '#000000';
   let alpha = 1.0;
@@ -135,13 +201,11 @@ function createColorInputWithAlpha(paramName, currentValue, onChangeCallback) {
 
   return `
     <div class="color-alpha-picker">
-      <input type="color" id="${paramName}-color" value="${hexColor}" 
-             onchange="${onChangeCallback}">
+      <input type="color" id="${paramName}-color" value="${hexColor}"${markerAttrs('change', marker)}>
       <div class="alpha-slider-group">
         <label class="alpha-label">Alpha:</label>
         <input type="range" id="${paramName}-alpha" min="0" max="100" 
-               value="${alphaPercent}" step="1"
-               oninput="document.getElementById('${paramName}-alpha-value').textContent = this.value + '%'; ${onChangeCallback}">
+               value="${alphaPercent}" step="1" data-alpha-label="${paramName}-alpha-value"${markerAttrs('input', marker)}>
         <span id="${paramName}-alpha-value" class="alpha-value">${alphaPercent}%</span>
       </div>
     </div>
@@ -324,8 +388,6 @@ async function refreshAllCanvasSelectors() {
 }
 
 // Aliases for backward compatibility
-function updateDrawTargetCanvases() { refreshAllCanvasSelectors(); }
-function updateCameraTargetCanvases() { refreshAllCanvasSelectors(); }
 function populateDemoCanvasSelector() { refreshAllCanvasSelectors(); }
 
 // Expose globally
@@ -344,6 +406,4 @@ window.isSystemOverlayCanvas = isSystemOverlayCanvas;
 window.contentTargetCanvases = contentTargetCanvases;
 window.mediaPlaybackCanvasName = mediaPlaybackCanvasName;
 window.refreshAllCanvasSelectors = refreshAllCanvasSelectors;
-window.updateDrawTargetCanvases = updateDrawTargetCanvases;
-window.updateCameraTargetCanvases = updateCameraTargetCanvases;
 window.populateDemoCanvasSelector = populateDemoCanvasSelector;

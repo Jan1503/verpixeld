@@ -83,12 +83,12 @@ function displayCanvases(canvases) {
 
       <div class="card-footer">
         <button class="btn btn-small ${hasContent ? 'btn-secondary' : 'btn-primary'}"
-                onclick="assignExtensionToCanvas('${canvas.name}')">
+                data-action="assign" data-name="${escapeHtml(canvas.name)}">
           ${hasContent ? 'Change' : 'Assign'}
         </button>
         ${hasContent ? `
-          <button class="btn btn-small btn-secondary" onclick="editExtensionParameters('${canvas.name}')">Edit</button>
-          <button class="btn btn-small btn-danger" onclick="stopCanvasContent('${canvas.name}')">Stop</button>
+          <button class="btn btn-small btn-secondary" data-action="edit" data-name="${escapeHtml(canvas.name)}">Edit</button>
+          <button class="btn btn-small btn-danger" data-action="stop" data-name="${escapeHtml(canvas.name)}">Stop</button>
         ` : ''}
       </div>
     </div>
@@ -96,6 +96,11 @@ function displayCanvases(canvases) {
   }).join('');
 
   container.innerHTML = html;
+  onAction(container, {
+    assign: d => assignExtensionToCanvas(d.name),
+    edit: d => editExtensionParameters(d.name),
+    stop: d => stopCanvasContent(d.name)
+  });
 }
 
 /**
@@ -179,7 +184,7 @@ async function assignExtensionToCanvas(canvasName, onPick) {
 
         <div class="modal-header">
           <h2>${ICONS.CANVAS} Assign Extension to ${escapeHtml(canvasName)}</h2>
-          <button class="modal-close" onclick="closeExtensionPicker()">${ICONS.CLOSE}</button>
+          <button class="modal-close" data-action="close">${ICONS.CLOSE}</button>
         </div>
 
         <div class="modal-body">
@@ -189,7 +194,7 @@ async function assignExtensionToCanvas(canvasName, onPick) {
         </div>
 
         <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="closeExtensionPicker()">Cancel</button>
+          <button class="btn btn-secondary" data-action="close">Cancel</button>
         </div>
 
       </div>
@@ -197,6 +202,7 @@ async function assignExtensionToCanvas(canvasName, onPick) {
   `;
 
   document.body.insertAdjacentHTML('beforeend', html);
+  onAction(document.getElementById('extension-picker-modal'), { close: () => closeExtensionPicker() });
 
   try {
     const result = await api.get('/api/extensions/available');

@@ -199,11 +199,4 @@ async function sendCanvasToBack(canvasName) {
 }
 
 // Expose globally
-window.toggleStackInfo = toggleStackInfo;
 window.loadCanvasStack = loadCanvasStack;
-window.displayCanvasStack = displayCanvasStack;
-window.updateCanvasStackOpacity = updateCanvasStackOpacity;
-window.moveStackCanvasUp = moveStackCanvasUp;
-window.moveStackCanvasDown = moveStackCanvasDown;
-window.bringCanvasToFront = bringCanvasToFront;
-window.sendCanvasToBack = sendCanvasToBack;

@@ -167,7 +167,7 @@ function updateAudioStatusDisplay() {
   } else if (audioSystemStatus.bluetoothAdapterPresent) {
     btStatus = `
       <span class="status-warn">\u26A0\uFE0F Bluetooth off</span>
-      <button class="btn btn-small btn-primary" onclick="powerOnBluetooth()" style="margin-left: 8px;">
+      <button class="btn btn-small btn-primary" data-action="bt-power-on" style="margin-left: 8px;">
         \u26A1 Power On
       </button>
     `;
@@ -211,7 +211,7 @@ function updateAudioOutputList() {
         </div>
         <div class="audio-output-controls">
           <span class="audio-output-volume">${muteIcon} ${sink.volume}%</span>
-          ${!isActive ? `<button class="btn btn-small btn-primary" onclick="setAudioOutput('${sink.name}')">Use</button>` : '<span class="audio-output-active-badge">Active</span>'}
+          ${!isActive ? `<button class="btn btn-small btn-primary" data-action="use-sink" data-sink="${escapeHtml(sink.name)}">Use</button>` : '<span class="audio-output-active-badge">Active</span>'}
         </div>
       </div>
     `;
@@ -414,10 +414,10 @@ function updateBluetoothDevicesList() {
         </div>
         <div class="bluetooth-device-actions">
           ${device.isConnected 
-            ? `<button class="btn btn-small btn-secondary" onclick="disconnectBluetoothDevice('${device.address}')">Disconnect</button>`
-            : `<button class="btn btn-small btn-primary" onclick="connectBluetoothDevice('${device.address}')">Connect</button>`
+            ? `<button class="btn btn-small btn-secondary" data-action="bt-disconnect" data-address="${escapeHtml(device.address)}">Disconnect</button>`
+            : `<button class="btn btn-small btn-primary" data-action="bt-connect" data-address="${escapeHtml(device.address)}">Connect</button>`
           }
-          <button class="btn btn-small btn-danger" onclick="removeBluetoothDevice('${device.address}')" title="Forget/Remove device">\u{1F5D1}\uFE0F</button>
+          <button class="btn btn-small btn-danger" data-action="bt-remove" data-address="${escapeHtml(device.address)}" title="Forget/Remove device">\u{1F5D1}\uFE0F</button>
         </div>
       </div>
     `;
@@ -485,7 +485,7 @@ async function scanBluetoothDevices() {
                   </div>
                 </div>
                 <div class="bluetooth-device-actions">
-                  <button class="btn btn-small btn-primary" onclick="pairBluetoothDevice('${device.address}')">Pair</button>
+                  <button class="btn btn-small btn-primary" data-action="bt-pair" data-address="${escapeHtml(device.address)}">Pair</button>
                 </div>
               </div>
             `;
@@ -771,18 +771,36 @@ async function powerOffBluetooth() {
 }
 
 // Expose functions globally
-window.initAudioOutput = initAudioOutput;
 window.refreshAudioStatus = refreshAudioStatus;
-window.setAudioOutput = setAudioOutput;
-window.powerOnBluetooth = powerOnBluetooth;
-window.powerOffBluetooth = powerOffBluetooth;
-window.scanBluetoothDevices = scanBluetoothDevices;
-window.pairBluetoothDevice = pairBluetoothDevice;
-window.connectBluetoothDevice = connectBluetoothDevice;
-window.disconnectBluetoothDevice = disconnectBluetoothDevice;
-window.removeBluetoothDevice = removeBluetoothDevice;
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   initAudioOutput();
 });
+
+// Controls of #tab-settings in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-settings'), {
+  click: {
+    // rendered lists: outputs, paired and discovered Bluetooth devices
+    'bt-power-on': () => powerOnBluetooth(),
+    'use-sink': el => setAudioOutput(el.dataset.sink),
+    'bt-connect': el => connectBluetoothDevice(el.dataset.address),
+    'bt-disconnect': el => disconnectBluetoothDevice(el.dataset.address),
+    'bt-remove': el => removeBluetoothDevice(el.dataset.address),
+    'bt-pair': el => pairBluetoothDevice(el.dataset.address),
+    'scan-pix-tone': () => scanPixTone(),
+    'refresh-audio-status': () => refreshAudioStatus(),
+    'use-pix-tone-host': () => usePixToneHost(),
+    'scan-bluetooth-devices': () => scanBluetoothDevices()
+  },
+  input: {
+    'set-board-volume': (el, event) => setBoardVolume(el.value)
+  },
+  change: {
+    'toggle-board-mute': () => toggleBoardMute(),
+    'set-wall-preview': (el, event) => setWallPreview(el.checked),
+    'set-preview-fps': (el, event) => setPreviewFps(el.value),
+    'set-preview-width': (el, event) => setPreviewWidth(el.value),
+    'set-preview-fill': (el, event) => setPreviewFill(el.checked)
+  }
+}));

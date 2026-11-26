@@ -623,7 +623,8 @@ async function playAudioFile(filename, loop = false) {
  * Delete an audio file
  */
 async function deleteAudioFile(filename) {
-  if (!confirm(`Delete ${filename}?`)) return;
+  const ok = await showConfirm({ title: 'Delete file', message: `Delete "${filename}"? This removes the file from the media folder.`, confirmText: 'Delete', type: 'danger' });
+  if (!ok) return;
   
   try {
     const result = await api.del(`/api/media/audio/${mediaApiPath(filename)}`);
@@ -644,7 +645,8 @@ async function deleteAudioFile(filename) {
  * Delete a video
  */
 async function deleteMediaVideo(filename) {
-  if (!confirm(`Delete ${filename}?`)) return;
+  const ok = await showConfirm({ title: 'Delete file', message: `Delete "${filename}"? This removes the file from the media folder.`, confirmText: 'Delete', type: 'danger' });
+  if (!ok) return;
   
   try {
     const result = await api.del(`/api/media/videos/${mediaApiPath(filename)}`);
@@ -778,17 +780,18 @@ function updateVideoList() {
   }
 
   container.innerHTML = mediaState.availableVideos.map(video => `
-    <div class="media-video-card ${mediaState.currentVideo === video ? 'active' : ''}" data-video="${encodeURIComponent(video)}">
+    <div class="media-video-card ${mediaState.currentVideo === video ? 'active' : ''}" data-video="${escapeHtml(video)}">
       <div class="media-video-icon">🎬</div>
       <div class="media-video-info">
-        <div class="media-video-name">${video.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</div>
+        <div class="media-video-name">${escapeHtml(video)}</div>
       </div>
       <div class="media-video-actions">
-        <button class="btn btn-small btn-primary" onclick="playMediaVideo(decodeURIComponent(this.closest('.media-video-card').dataset.video))" title="Play">▶️</button>
-        <button class="btn btn-small btn-danger" onclick="deleteMediaVideo(decodeURIComponent(this.closest('.media-video-card').dataset.video))" title="Delete">🗑️</button>
+        <button class="btn btn-small btn-primary" data-action="play" data-file="${escapeHtml(video)}" title="Play">▶️</button>
+        <button class="btn btn-small btn-danger" data-action="delete" data-file="${escapeHtml(video)}" title="Delete">🗑️</button>
       </div>
     </div>
   `).join('');
+  onAction(container, { play: d => playMediaVideo(d.file), delete: d => deleteMediaVideo(d.file) });
 }
 
 /**
@@ -869,17 +872,18 @@ function updateAudioList() {
   const isPlayingAudio = mediaState.isAudioPlayback && mediaState.currentAudio;
   
   container.innerHTML = mediaState.availableAudioFiles.map(audio => `
-    <div class="media-video-card ${mediaState.currentAudio === audio ? 'active' : ''}" data-audio="${audio}">
+    <div class="media-video-card ${mediaState.currentAudio === audio ? 'active' : ''}" data-audio="${escapeHtml(audio)}">
       <div class="media-video-icon">🎵</div>
       <div class="media-video-info">
-        <div class="media-video-name">${audio}</div>
+        <div class="media-video-name">${escapeHtml(audio)}</div>
       </div>
       <div class="media-video-actions">
-        <button class="btn btn-small btn-primary" onclick="playAudioFile('${audio}')" title="Play">▶️</button>
-        <button class="btn btn-small btn-danger" onclick="deleteAudioFile('${audio}')" title="Delete">🗑️</button>
+        <button class="btn btn-small btn-primary" data-action="play" data-file="${escapeHtml(audio)}" title="Play">▶️</button>
+        <button class="btn btn-small btn-danger" data-action="delete" data-file="${escapeHtml(audio)}" title="Delete">🗑️</button>
       </div>
     </div>
   `).join('');
+  onAction(container, { play: d => playAudioFile(d.file), delete: d => deleteAudioFile(d.file) });
 }
 
 /**
@@ -1202,7 +1206,7 @@ function browseLocalMedia(path = '', forceRefresh = false) {
       let html = '';
       if (result.parentPath !== null && result.parentPath !== undefined) {
         html += `
-          <div class="network-video-item network-dir-item" data-path="${encodeURIComponent(result.parentPath)}" onclick="browseLocalMedia(decodeURIComponent(this.dataset.path))">
+          <div class="network-video-item network-dir-item" data-path="${encodeURIComponent(result.parentPath)}" data-action="browse">
             <span class="video-icon">⬆️</span>
             <span class="video-name">..</span>
           </div>`;
@@ -1210,7 +1214,7 @@ function browseLocalMedia(path = '', forceRefresh = false) {
 
       (result.directories || []).forEach(dir => {
         html += `
-          <div class="network-video-item network-dir-item" data-path="${encodeURIComponent(dir.path)}" onclick="browseLocalMedia(decodeURIComponent(this.dataset.path))">
+          <div class="network-video-item network-dir-item" data-path="${encodeURIComponent(dir.path)}" data-action="browse">
             <span class="video-icon">📁</span>
             <span class="video-name">${escapeHtml(dir.name)}</span>
           </div>`;
@@ -1218,19 +1222,19 @@ function browseLocalMedia(path = '', forceRefresh = false) {
 
       (result.videos || []).forEach(video => {
         html += `
-          <div class="network-video-item" data-path="${encodeURIComponent(video.path)}" onclick="playLocalMediaItem(this.dataset.path, 'video')">
+          <div class="network-video-item" data-path="${encodeURIComponent(video.path)}" data-action="video">
             <span class="video-icon">🎬</span>
             <span class="video-name">${escapeHtml(video.name)}</span>
-            <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); playLocalMediaItem(this.closest('.network-video-item').dataset.path, 'video')" title="Play">▶️</button>
+            <button class="btn btn-small btn-primary" data-action="video" data-path="${encodeURIComponent(video.path)}" title="Play">▶️</button>
           </div>`;
       });
 
       (result.audioFiles || []).forEach(audio => {
         html += `
-          <div class="network-video-item network-audio-item" data-path="${encodeURIComponent(audio.path)}" onclick="playLocalMediaItem(this.dataset.path, 'audio')">
+          <div class="network-video-item network-audio-item" data-path="${encodeURIComponent(audio.path)}" data-action="audio">
             <span class="video-icon">🎵</span>
             <span class="video-name">${escapeHtml(audio.name)}</span>
-            <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); playLocalMediaItem(this.closest('.network-video-item').dataset.path, 'audio')" title="Play">▶️</button>
+            <button class="btn btn-small btn-primary" data-action="audio" data-path="${encodeURIComponent(audio.path)}" title="Play">▶️</button>
           </div>`;
       });
 
@@ -1244,6 +1248,12 @@ function browseLocalMedia(path = '', forceRefresh = false) {
       }
 
       listEl.innerHTML = html;
+      // data-path is URI-encoded; playLocalMediaItem takes it encoded, browsing takes the plain path
+      onAction(listEl, {
+        browse: d => browseLocalMedia(decodeURIComponent(d.path)),
+        video: d => playLocalMediaItem(d.path, 'video'),
+        audio: d => playLocalMediaItem(d.path, 'audio')
+      });
     })
     .catch(error => {
       console.error('Failed to browse local media:', error);
@@ -1709,7 +1719,7 @@ function renderMusicResults(results) {
     const typeIcon = r.type === 'video' ? '🎬' : '🎵';
     const albumInfo = r.album ? ' · ' + escapeHtml(r.album) : '';
     return `
-    <div class="music-result" onclick="playMusicResult(${i})" data-url="${encodeURIComponent(r.url)}" data-title="${encodeURIComponent(r.title)}" data-artist="${encodeURIComponent(r.artist)}" data-type="${r.type || 'song'}">
+    <div class="music-result" data-action="play" data-index="${i}" data-url="${encodeURIComponent(r.url)}" data-title="${encodeURIComponent(r.title)}" data-artist="${encodeURIComponent(r.artist)}" data-type="${escapeHtml(r.type || 'song')}">
       <div class="music-result-index">${typeIcon}</div>
       <div class="music-result-info">
         <div class="music-result-title">${escapeHtml(r.title)}</div>
@@ -1719,6 +1729,7 @@ function renderMusicResults(results) {
       <div class="music-result-play">▶</div>
     </div>`;
   }).join('');
+  onAction(container, { play: d => playMusicResult(Number(d.index)) });
 }
 
 /**
@@ -1786,3 +1797,71 @@ document.addEventListener('DOMContentLoaded', () => {
   // Re-populate canvas selector when canvases change
   window.addEventListener('layoutChanged', populateMediaCanvasSelector);
 });
+
+// Controls of #tab-canvas in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-canvas'), {
+  click: {
+    'save-alert-config': () => saveAlertConfig(),
+    'test-alert-trigger': () => testAlertTrigger(),
+    'dismiss-alert': () => dismissAlert()
+  },
+  input: {
+    'alert-timeout': el => { document.getElementById('alert-timeout-value').textContent = el.value + 's'; }
+  }
+}));
+
+// Controls of #tab-media in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-media'), {
+  change: {
+    'set-media-audio-track': (el, event) => setMediaAudioTrack(el.value),
+    'set-audio-sync': (el, event) => setAudioSync(el.value),
+    'set-scale-filter': (el, event) => setScaleFilter(el.value),
+    'upload-media-video': (el, event) => uploadMediaVideo(el),
+    'upload-audio-file': (el, event) => uploadAudioFile(el),
+    'select-mod-file': (el, event) => selectModFile(el.value),
+    'upload-mod-file': (el, event) => uploadModFile(el)
+  },
+  input: {
+    'show-media-sync': (el, event) => { var ms=+el.value; document.getElementById('media-sync-value').textContent = ms===0?'0ms':(ms>0?'+'+ms:ms)+'ms'; },
+    'show-alarm-volume': (el, event) => document.getElementById('radio-alarm-volume-val').textContent=el.value+'%',
+    'filter-local-media-browser': (el, event) => filterLocalMediaBrowser(el.value)
+  },
+  click: {
+    'switch-media-page-favorites': (el, event) => switchMediaPage('favorites'),
+    'switch-media-page-local': (el, event) => switchMediaPage('local'),
+    'switch-media-page-network': (el, event) => switchMediaPage('network'),
+    'switch-media-page-youtube': (el, event) => switchMediaPage('youtube'),
+    'switch-media-page-radio': (el, event) => switchMediaPage('radio'),
+    'switch-media-page-music': (el, event) => switchMediaPage('music'),
+    'switch-media-page-tools': (el, event) => switchMediaPage('tools'),
+    'browse-local-media': (el, event) => browseLocalMedia(document.getElementById('local-media-browser').dataset.currentPath || '', true),
+    'play-youtube-video': () => playYouTubeVideo(),
+    'search-music': () => searchMusic(),
+    'set-music-mode-songs': (el, event) => setMusicMode('songs'),
+    'set-music-mode-videos': (el, event) => setMusicMode('videos')
+  },
+  keydown: {
+    'youtube-enter': (el, event) => { if(event.key==='Enter'){event.preventDefault();playYouTubeVideo();}; },
+    'music-search-enter': (el, event) => { if(event.key==='Enter'){event.preventDefault();searchMusic();}; }
+  }
+}));
+
+// Controls of #media-player-bar in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('media-player-bar'), {
+  click: {
+    'toggle-shuffle-mode': () => toggleShuffleMode(),
+    'play-previous-track': () => playPreviousTrack(),
+    'toggle-media-pause': () => toggleMediaPause(),
+    'play-next-track': () => playNextTrack(),
+    'toggle-repeat-mode': () => toggleRepeatMode(),
+    'stop-media-playback': () => stopMediaPlayback(),
+    'toggle-media-mute': () => toggleMediaMute()
+  }
+}));
+
+// Controls of #alert-banner in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('alert-banner'), {
+  click: {
+    'dismiss-alert': () => dismissAlert()
+  }
+}));

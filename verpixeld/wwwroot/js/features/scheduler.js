@@ -60,21 +60,28 @@ function displaySchedules(schedules) {
       </div>
       
       <div class="card-footer">
-        <button class="btn btn-small" onclick="viewSchedule('${escapeHtml(schedule.name)}')">View</button>
-        <button class="btn btn-small btn-secondary" onclick="editSchedule('${escapeHtml(schedule.name)}')">Edit</button>
+        <button class="btn btn-small" data-action="view" data-name="${escapeHtml(schedule.name)}">View</button>
+        <button class="btn btn-small btn-secondary" data-action="edit" data-name="${escapeHtml(schedule.name)}">Edit</button>
         <button class="btn btn-small ${schedule.enabled ? 'btn-warning' : 'btn-primary'}" 
-                onclick="toggleSchedule('${escapeHtml(schedule.name)}', ${schedule.enabled})">
+                data-action="toggle" data-name="${escapeHtml(schedule.name)}" data-enabled="${schedule.enabled}">
           ${schedule.enabled ? 'Disable' : 'Enable'}
         </button>
         ${!schedule.isDefault ? `
-        <button class="btn btn-small" onclick="setDefaultSchedule('${escapeHtml(schedule.name)}')">Set Default</button>` : ''}
-        <button class="btn btn-small btn-danger" onclick="deleteSchedule('${escapeHtml(schedule.name)}')">Delete</button>
+        <button class="btn btn-small" data-action="set-default" data-name="${escapeHtml(schedule.name)}">Set Default</button>` : ''}
+        <button class="btn btn-small btn-danger" data-action="delete" data-name="${escapeHtml(schedule.name)}">Delete</button>
       </div>
     </div>
   `;
   }).join('');
 
   container.innerHTML = html;
+  onAction(container, {
+    view: d => viewSchedule(d.name),
+    edit: d => editSchedule(d.name),
+    toggle: d => toggleSchedule(d.name, d.enabled === 'true'),
+    'set-default': d => setDefaultSchedule(d.name),
+    delete: d => deleteSchedule(d.name)
+  });
 }
 
 /**
@@ -155,7 +162,7 @@ async function showNewScheduleDialog() {
       <div class="modal-content" style="max-width: 800px;">
         <div class="modal-header">
           <h2>${ICONS.SCHEDULE} Create New Schedule</h2>
-          <button class="modal-close" onclick="closeNewScheduleDialog()">${ICONS.CLOSE}</button>
+          <button class="modal-close" data-action="close">${ICONS.CLOSE}</button>
         </div>
         
         <div class="modal-body">
@@ -188,14 +195,14 @@ async function showNewScheduleDialog() {
             <!-- Entries will be added here -->
           </div>
           
-          <button class="btn btn-secondary" onclick="addScheduleEntry()">
+          <button class="btn btn-secondary" data-action="add-entry">
             ${ICONS.ADD} Add Entry
           </button>
         </div>
         
         <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="closeNewScheduleDialog()">Cancel</button>
-          <button class="btn btn-primary" onclick="saveNewSchedule()">
+          <button class="btn btn-secondary" data-action="close">Cancel</button>
+          <button class="btn btn-primary" data-action="save">
             ${ICONS.SAVE} Create Schedule
           </button>
         </div>
@@ -204,6 +211,12 @@ async function showNewScheduleDialog() {
   `;
 
   document.body.insertAdjacentHTML('beforeend', modalHTML);
+  onAction(document.getElementById('new-schedule-modal'), {
+    close: () => closeNewScheduleDialog(),
+    'add-entry': () => addScheduleEntry(),
+    'remove-entry': d => removeScheduleEntry(d.entry),
+    save: () => saveNewSchedule()
+  });
   addScheduleEntry();
   document.getElementById('schedule-name').focus();
 }
@@ -227,7 +240,7 @@ function addScheduleEntry() {
     <div class="schedule-entry-card" id="${entryId}">
       <div class="schedule-entry-header">
         <span>Entry #${scheduleEntryCounter}</span>
-        <button class="btn btn-icon btn-danger" onclick="removeScheduleEntry('${entryId}')">${ICONS.DELETE}</button>
+        <button class="btn btn-icon btn-danger" data-action="remove-entry" data-entry="${entryId}">${ICONS.DELETE}</button>
       </div>
       
       <div class="schedule-entry-body">
@@ -395,7 +408,7 @@ async function editSchedule(scheduleName) {
         <div class="modal-content" style="max-width: 800px;">
           <div class="modal-header">
             <h2>${ICONS.EDIT} Edit Schedule: ${escapeHtml(schedule.name)}</h2>
-            <button class="modal-close" onclick="closeEditScheduleDialog()">${ICONS.CLOSE}</button>
+            <button class="modal-close" data-action="close">${ICONS.CLOSE}</button>
           </div>
           
           <div class="modal-body">
@@ -426,14 +439,14 @@ async function editSchedule(scheduleName) {
               <!-- Entries will be loaded here -->
             </div>
             
-            <button class="btn btn-secondary" onclick="addEditScheduleEntry()">
+            <button class="btn btn-secondary" data-action="add-entry">
               ${ICONS.ADD} Add Entry
             </button>
           </div>
           
           <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeEditScheduleDialog()">Cancel</button>
-            <button class="btn btn-primary" onclick="saveEditedSchedule('${escapeHtml(schedule.name)}')">
+            <button class="btn btn-secondary" data-action="close">Cancel</button>
+            <button class="btn btn-primary" data-action="save" data-name="${escapeHtml(schedule.name)}">
               ${ICONS.SAVE} Save Changes
             </button>
           </div>
@@ -442,6 +455,12 @@ async function editSchedule(scheduleName) {
     `;
 
     document.body.insertAdjacentHTML('beforeend', modalHTML);
+    onAction(document.getElementById('edit-schedule-modal'), {
+      close: () => closeEditScheduleDialog(),
+      'add-entry': () => addEditScheduleEntry(),
+      'remove-entry': d => removeScheduleEntry(d.entry),
+      save: d => saveEditedSchedule(d.name)
+    });
 
     for (const entry of schedule.entries) {
       await addEditScheduleEntry(entry);
@@ -472,7 +491,7 @@ async function addEditScheduleEntry(existingEntry = null) {
     <div class="schedule-entry-card" id="${entryId}">
       <div class="schedule-entry-header">
         <span>Entry #${scheduleEntryCounter}</span>
-        <button class="btn btn-icon btn-danger" onclick="removeScheduleEntry('${entryId}')">${ICONS.DELETE}</button>
+        <button class="btn btn-icon btn-danger" data-action="remove-entry" data-entry="${entryId}">${ICONS.DELETE}</button>
       </div>
       
       <div class="schedule-entry-body">
@@ -655,7 +674,7 @@ async function viewSchedule(scheduleName) {
         <div class="modal-content" style="max-width: 700px;">
           <div class="modal-header">
             <h2>${ICONS.DETAILS} Schedule: ${escapeHtml(schedule.name)}</h2>
-            <button class="modal-close" onclick="closeViewScheduleDialog()">×</button>
+            <button class="modal-close" data-action="close">×</button>
           </div>
           
           <div class="modal-body">
@@ -674,8 +693,8 @@ async function viewSchedule(scheduleName) {
           </div>
           
           <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeViewScheduleDialog()">Close</button>
-            <button class="btn btn-primary" onclick="closeViewScheduleDialog(); editSchedule('${escapeHtml(schedule.name)}')">
+            <button class="btn btn-secondary" data-action="close">Close</button>
+            <button class="btn btn-primary" data-action="edit" data-name="${escapeHtml(schedule.name)}">
               ${ICONS.EDIT} Edit Schedule
             </button>
           </div>
@@ -684,6 +703,10 @@ async function viewSchedule(scheduleName) {
     `;
 
     document.body.insertAdjacentHTML('beforeend', modalHTML);
+    onAction(document.getElementById('view-schedule-modal'), {
+      close: () => closeViewScheduleDialog(),
+      edit: d => { closeViewScheduleDialog(); editSchedule(d.name); }
+    });
   } catch (error) {
     console.error('Error viewing schedule:', error);
     showMessage('Failed to load schedule', 'error');
@@ -735,20 +758,11 @@ setInterval(updateScheduleStatus, 60000);
 
 // Expose globally
 window.fetchSchedules = fetchSchedules;
-window.displaySchedules = displaySchedules;
-window.updateScheduleStatus = updateScheduleStatus;
-window.setDefaultSchedule = setDefaultSchedule;
-window.deleteSchedule = deleteSchedule;
-window.showNewScheduleDialog = showNewScheduleDialog;
-window.closeNewScheduleDialog = closeNewScheduleDialog;
-window.addScheduleEntry = addScheduleEntry;
-window.removeScheduleEntry = removeScheduleEntry;
-window.loadLayoutOptionsForEntry = loadLayoutOptionsForEntry;
-window.saveNewSchedule = saveNewSchedule;
-window.editSchedule = editSchedule;
-window.closeEditScheduleDialog = closeEditScheduleDialog;
-window.addEditScheduleEntry = addEditScheduleEntry;
-window.saveEditedSchedule = saveEditedSchedule;
-window.viewSchedule = viewSchedule;
-window.closeViewScheduleDialog = closeViewScheduleDialog;
-window.toggleSchedule = toggleSchedule;
+
+// Controls of #tab-schedule in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-schedule'), {
+  click: {
+    'show-new-schedule-dialog': () => showNewScheduleDialog(),
+    'fetch-schedules': () => fetchSchedules()
+  }
+}));

@@ -39,8 +39,14 @@ public class LayoutLoaderService : ILayoutLoaderService
     /// </summary>
     public LayoutProfile CurrentProfile { get; private set; } = LayoutProfile.FullScreen;
 
-    /// <summary>Name of the last successfully loaded saved layout (null until one has been loaded).</summary>
+    /// <summary>
+    ///     Name of the saved layout (scene) the display currently shows: set when one is loaded or the current
+    ///     state is saved under a name, cleared when a blank profile replaces it. Null when none.
+    /// </summary>
     public string? CurrentLayoutName { get; private set; }
+
+    /// <inheritdoc />
+    public void SetCurrentLayoutName(string? name) => CurrentLayoutName = string.IsNullOrWhiteSpace(name) ? null : name;
 
     /// <summary>
     ///     Main canvas after layout is loaded (Main, Content, or first available)
@@ -344,6 +350,10 @@ public interface ILayoutLoaderService
 {
     LayoutProfile CurrentProfile { get; }
     string? CurrentLayoutName { get; }
+
+    /// <summary>Records which saved layout the display shows now (after saving it, or null after applying a blank profile).</summary>
+    void SetCurrentLayoutName(string? name);
+
     Canvas? PrimaryCanvas { get; }
     Task<LayoutLoadResult> LoadLayoutAsync(SavedLayout layout, string source = "LAYOUT");
 }

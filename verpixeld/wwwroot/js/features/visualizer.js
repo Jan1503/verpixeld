@@ -263,3 +263,18 @@ window.stopVisualizer = stopVisualizer;
 window.onSensitivityChange = onSensitivityChange;
 window.onSmoothingChange = onSmoothingChange;
 window.onVisualizerModeChange = onVisualizerModeChange;
+
+// Controls of #tab-media in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-media'), {
+  click: {
+    'start-visualizer': () => startVisualizer(),
+    'stop-visualizer': () => stopVisualizer()
+  },
+  change: {
+    'on-visualizer-mode-change': () => onVisualizerModeChange()
+  },
+  input: {
+    'on-sensitivity-change': (el, event) => onSensitivityChange(el.value),
+    'on-smoothing-change': (el, event) => onSmoothingChange(el.value)
+  }
+}));

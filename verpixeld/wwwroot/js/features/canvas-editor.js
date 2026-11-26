@@ -49,7 +49,6 @@ async function showAddCanvasDialog() {
       maxZOrder = Math.max(...result.data.map(c => c.zOrder));
       canvasEditorState.maxZOrder = maxZOrder;
     }
-    console.log('[CanvasEditor] display size', DISPLAY_WIDTH + 'x' + DISPLAY_HEIGHT);
 
     const html = `
     <div class="modal-overlay" id="add-canvas-modal">
@@ -57,7 +56,7 @@ async function showAddCanvasDialog() {
         
         <div class="modal-header">
           <h2>${ICONS.ADD} Create Overlay Canvas</h2>
-          <button class="modal-close" onclick="closeAddCanvasModal()">${ICONS.CLOSE}</button>
+          <button class="modal-close" data-action="close">${ICONS.CLOSE}</button>
         </div>
         
         <div class="modal-body">
@@ -79,16 +78,16 @@ async function showAddCanvasDialog() {
           <!-- Editor Options -->
           <div class="canvas-editor-options">
             <label class="checkbox-label">
-              <input type="checkbox" id="snap-to-grid" checked onchange="updateCanvasEditorOption('snap', this.checked)">
+              <input type="checkbox" id="snap-to-grid" checked data-change="snap">
               <span>Snap to grid</span>
-              <select id="grid-size" onchange="updateCanvasEditorOption('gridSize', parseInt(this.value))">
+              <select id="grid-size" data-change="grid-size">
                 <option value="8">8px</option>
                 <option value="16" selected>16px</option>
                 <option value="32">32px</option>
               </select>
             </label>
             <label class="checkbox-label">
-              <input type="checkbox" id="show-existing" checked onchange="updateCanvasEditorOption('showExisting', this.checked)">
+              <input type="checkbox" id="show-existing" checked data-change="show-existing">
               <span>Show existing</span>
             </label>
           </div>
@@ -96,11 +95,11 @@ async function showAddCanvasDialog() {
           <!-- Quick Presets -->
           <div class="canvas-editor-presets">
             <span class="presets-label">Presets:</span>
-            <button type="button" class="btn-preset" onclick="applyCanvasPreset('fullscreen')">Full</button>
-            <button type="button" class="btn-preset" onclick="applyCanvasPreset('topbar')">Top</button>
-            <button type="button" class="btn-preset" onclick="applyCanvasPreset('bottombar')">Bottom</button>
-            <button type="button" class="btn-preset" onclick="applyCanvasPreset('center')">Center</button>
-            <button type="button" class="btn-preset" onclick="applyCanvasPreset('corner')">Corner</button>
+            <button type="button" class="btn-preset" data-action="preset" data-preset="fullscreen">Full</button>
+            <button type="button" class="btn-preset" data-action="preset" data-preset="topbar">Top</button>
+            <button type="button" class="btn-preset" data-action="preset" data-preset="bottombar">Bottom</button>
+            <button type="button" class="btn-preset" data-action="preset" data-preset="center">Center</button>
+            <button type="button" class="btn-preset" data-action="preset" data-preset="corner">Corner</button>
           </div>
           
           <!-- Canvas Settings -->
@@ -118,7 +117,7 @@ async function showAddCanvasDialog() {
               <label>Opacity</label>
               <div class="slider-compact">
                 <input type="range" id="new-canvas-opacity" min="0" max="100" value="100" 
-                       oninput="document.getElementById('new-canvas-opacity-value').textContent = this.value + '%'">
+                       data-input="opacity">
                 <span id="new-canvas-opacity-value">100%</span>
               </div>
             </div>
@@ -132,8 +131,8 @@ async function showAddCanvasDialog() {
         </div>
         
         <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="closeAddCanvasModal()">Cancel</button>
-          <button class="btn btn-primary" id="create-canvas-btn" onclick="confirmAddCanvas()" disabled>
+          <button class="btn btn-secondary" data-action="close">Cancel</button>
+          <button class="btn btn-primary" id="create-canvas-btn" data-action="create" disabled>
             Create Canvas
           </button>
         </div>
@@ -143,6 +142,21 @@ async function showAddCanvasDialog() {
   `;
   
     document.body.insertAdjacentHTML('beforeend', html);
+    wire(document.getElementById('add-canvas-modal'), {
+      click: {
+        close: () => closeAddCanvasModal(),
+        preset: el => applyCanvasPreset(el.dataset.preset),
+        create: () => confirmAddCanvas()
+      },
+      change: {
+        snap: el => updateCanvasEditorOption('snap', el.checked),
+        'grid-size': el => updateCanvasEditorOption('gridSize', parseInt(el.value)),
+        'show-existing': el => updateCanvasEditorOption('showExisting', el.checked)
+      },
+      input: {
+        opacity: el => { document.getElementById('new-canvas-opacity-value').textContent = el.value + '%'; }
+      }
+    });
     setTimeout(() => initCanvasEditor(), 50);
     
   } catch (error) {
@@ -573,9 +587,4 @@ async function removeOverlayCanvas(canvasName) {
 }
 
 // Expose globally
-window.showAddCanvasDialog = showAddCanvasDialog;
-window.closeAddCanvasModal = closeAddCanvasModal;
-window.confirmAddCanvas = confirmAddCanvas;
 window.removeOverlayCanvas = removeOverlayCanvas;
-window.updateCanvasEditorOption = updateCanvasEditorOption;
-window.applyCanvasPreset = applyCanvasPreset;

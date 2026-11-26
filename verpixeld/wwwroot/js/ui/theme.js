@@ -78,7 +78,3 @@ function getTheme() {
 
 // Expose globally
 window.initTheme = initTheme;
-window.updateThemeIcon = updateThemeIcon;
-window.toggleTheme = toggleTheme;
-window.setTheme = setTheme;
-window.getTheme = getTheme;

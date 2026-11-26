@@ -30,6 +30,7 @@ public static class LayoutEndpoints
         var contentManager = app.Services.GetRequiredService<ICanvasContentManager>();
         var scheduleManager = app.Services.GetRequiredService<ILayoutScheduleManager>();
         var rotationService = app.Services.GetRequiredService<CanvasRotationService>();
+        var sceneTracker = app.Services.GetRequiredService<ILayoutLoaderService>();
         // Get available layout profiles
         app.MapGet("/api/layout/profiles", () =>
         {
@@ -71,6 +72,8 @@ public static class LayoutEndpoints
                     {
                         profile = layoutManager.CurrentProfile.ToString().ToLower(),
                         displayName = layoutManager.CurrentProfile.ToString(),
+                        // the saved scene on display (loaded, or saved from the current state); null if none
+                        scene = sceneTracker.CurrentLayoutName,
                         description = DisplayLayoutManager.GetLayoutDescription(layoutManager.CurrentProfile),
                         canvasCount = layoutManager.CanvasCount,
                         canvases
@@ -115,6 +118,7 @@ public static class LayoutEndpoints
 
                 // Apply new layout
                 layoutManager.ApplyLayout(profile);
+                sceneTracker.SetCurrentLayoutName(null); // a blank profile is no saved scene
 
                 var prime = layoutManager.GetCanvas("Main")
                             ?? layoutManager.GetCanvas("Content")
@@ -614,6 +618,7 @@ public static class LayoutEndpoints
                 }
 
                 layoutStorage!.SaveLayout(savedLayout);
+                layoutLoader.SetCurrentLayoutName(savedLayout.Name);
 
                 Log.LogInformation("Layout '{Name}' saved with {Count} canvas configurations", name, savedLayout.Canvases.Count);
 
@@ -688,6 +693,8 @@ public static class LayoutEndpoints
                     return Results.Json(new { success = false, error = $"Layout '{layoutName}' not found" });
 
                 Log.LogInformation("Layout '{LayoutName}' deleted", layoutName);
+                if (string.Equals(layoutLoader.CurrentLayoutName, layoutName, StringComparison.Ordinal))
+                    layoutLoader.SetCurrentLayoutName(null);
                 return Results.Json(new { success = true, message = $"Layout '{layoutName}' deleted" });
             }
             catch (Exception ex)

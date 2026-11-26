@@ -78,7 +78,7 @@ async function showNightModeConfig() {
         
         <div class="modal-header">
           <h2>${ICONS.NIGHT_MODE} Night Mode Configuration</h2>
-          <button class="modal-close" onclick="closeNightModeConfig()">${ICONS.CLOSE}</button>
+          <button class="modal-close" data-action="close">${ICONS.CLOSE}</button>
         </div>
         
         <div class="modal-body">
@@ -113,7 +113,7 @@ async function showNightModeConfig() {
                 <div class="slider-with-value">
                   <input type="range" id="nightmode-day-brightness" min="0" max="100" 
                          value="${Math.round(config.dayBrightness * 100)}"
-                         oninput="document.getElementById('nightmode-day-value').textContent = this.value + '%'">
+                         data-input="percent" data-label="nightmode-day-value">
                   <span id="nightmode-day-value">${Math.round(config.dayBrightness * 100)}%</span>
                 </div>
               </div>
@@ -122,7 +122,7 @@ async function showNightModeConfig() {
                 <div class="slider-with-value">
                   <input type="range" id="nightmode-night-brightness" min="0" max="100" 
                          value="${Math.round(config.nightBrightness * 100)}"
-                         oninput="document.getElementById('nightmode-night-value').textContent = this.value + '%'">
+                         data-input="percent" data-label="nightmode-night-value">
                   <span id="nightmode-night-value">${Math.round(config.nightBrightness * 100)}%</span>
                 </div>
               </div>
@@ -149,8 +149,8 @@ async function showNightModeConfig() {
         </div>
         
         <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="closeNightModeConfig()">Cancel</button>
-          <button class="btn btn-primary" onclick="saveNightModeConfig()">${ICONS.SAVE} Save & Apply</button>
+          <button class="btn btn-secondary" data-action="close">Cancel</button>
+          <button class="btn btn-primary" data-action="save">${ICONS.SAVE} Save & Apply</button>
         </div>
         
       </div>
@@ -158,6 +158,10 @@ async function showNightModeConfig() {
   `;
 
     document.body.insertAdjacentHTML('beforeend', html);
+    wire(document.getElementById('night-mode-config-modal'), {
+      click: { close: () => closeNightModeConfig(), save: () => saveNightModeConfig() },
+      input: { percent: el => { document.getElementById(el.dataset.label).textContent = el.value + '%'; } }
+    });
   } catch (error) {
     console.error('Error showing night mode config:', error);
     showMessage('Failed to show night mode configuration', 'error');
@@ -222,9 +226,11 @@ async function testNightModeNow() {
 }
 
 // Expose globally
-window.fetchNightModeConfig = fetchNightModeConfig;
 window.refreshNightModeStatus = refreshNightModeStatus;
-window.showNightModeConfig = showNightModeConfig;
-window.closeNightModeConfig = closeNightModeConfig;
-window.saveNightModeConfig = saveNightModeConfig;
-window.testNightModeNow = testNightModeNow;
+
+// Controls of #tab-schedule in index.html: wired here instead of inline handlers.
+onReady(() => wire(document.getElementById('tab-schedule'), {
+  click: {
+    'show-night-mode-config': () => showNightModeConfig()
+  }
+}));
