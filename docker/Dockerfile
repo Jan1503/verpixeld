@@ -25,7 +25,7 @@ RUN wget -q "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/${FFMPEG_TAG}.ta
       --disable-doc \
       --disable-ffplay \
       --disable-debug \
- && grep -q '^#define CONFIG_ALSA_OUTDEV 1' config.h \
+ && grep -q '^#define CONFIG_ALSA_OUTDEV 1' config_components.h \
  && make -j"$(nproc)" \
  && make install \
  && rm -rf /tmp/ffmpeg /tmp/ffmpeg.tar.gz
