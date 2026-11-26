@@ -1,3 +1,4 @@
+using CanvasManagement.Interfaces;
 using System.Text.Json;
 using CanvasManagement;
 using SkiaSharp;
@@ -131,7 +132,7 @@ public class AlertService : IDisposable
             _streamer.OnConnected = () =>
             {
                 // Stop the connecting animation once stream is live
-                try { _animationCts?.Cancel(); } catch { }
+                try { _animationCts?.Cancel(); } catch { /* best effort, nothing to recover */ }
             };
             _streamer.Start(ffmpegArgs, _alertCanvas, displayFps: 20, logPrefix: "[ALERT]");
 
@@ -158,7 +159,7 @@ public class AlertService : IDisposable
             _dismissTimer?.Dispose();
             _dismissTimer = null;
             
-            try { _animationCts?.Cancel(); } catch { }
+            try { _animationCts?.Cancel(); } catch { /* best effort, nothing to recover */ }
             
             streamer = _streamer;
             animationTask = _animationTask;
@@ -179,7 +180,7 @@ public class AlertService : IDisposable
         {
             if (animationTask != null) animationTask.Wait(TimeSpan.FromSeconds(2));
         }
-        catch (AggregateException) { }
+        catch (AggregateException) { /* best effort, nothing to recover */ }
 
         // Remove canvas
         if (canvas != null)
@@ -224,6 +225,9 @@ public class AlertService : IDisposable
 
     private async Task RunConnectingAnimation(CancellationToken ct)
     {
+        // Each animation frame is built off-screen and handed over whole: drawn straight onto the visible
+        // canvas, the wall could show it half drawn.
+        CanvasFrame? surface = null;
         try
         {
             var frame = 0;
@@ -235,39 +239,40 @@ public class AlertService : IDisposable
             {
                 var canvas = _alertCanvas;
                 if (canvas == null) break;
+                surface ??= new CanvasFrame(canvas);
                 
                 try
                 {
-                    canvas.DrawRect(0, 0, _width, _height, new SKColor(8, 2, 2), SKPaintStyle.Fill);
+                    surface.DrawRect(0, 0, _width, _height, new SKColor(8, 2, 2), SKPaintStyle.Fill);
                     
                     for (var s = 0; s < scanlinePositions.Length; s++)
                     {
                         scanlinePositions[s] = (scanlinePositions[s] + 1 + s) % _height;
                         var scanY = scanlinePositions[s];
                         var scanAlpha = (byte)(30 + s * 15);
-                        canvas.DrawRect(0, scanY, _width, 1, new SKColor(255, 0, 0, scanAlpha), SKPaintStyle.Fill);
+                        surface.DrawRect(0, scanY, _width, 1, new SKColor(255, 0, 0, scanAlpha), SKPaintStyle.Fill);
                     }
                     
                     var bracketLen = Math.Min(8, _width / 6);
                     var bracketColor = new SKColor(255, 60, 60, (byte)(140 + (int)(Math.Sin(frame * 0.15) * 80)));
-                    canvas.DrawRect(0, 0, bracketLen, 1, bracketColor, SKPaintStyle.Fill);
-                    canvas.DrawRect(0, 0, 1, bracketLen, bracketColor, SKPaintStyle.Fill);
-                    canvas.DrawRect(_width - bracketLen, 0, bracketLen, 1, bracketColor, SKPaintStyle.Fill);
-                    canvas.DrawRect(_width - 1, 0, 1, bracketLen, bracketColor, SKPaintStyle.Fill);
-                    canvas.DrawRect(0, _height - 1, bracketLen, 1, bracketColor, SKPaintStyle.Fill);
-                    canvas.DrawRect(0, _height - bracketLen, 1, bracketLen, bracketColor, SKPaintStyle.Fill);
-                    canvas.DrawRect(_width - bracketLen, _height - 1, bracketLen, 1, bracketColor, SKPaintStyle.Fill);
-                    canvas.DrawRect(_width - 1, _height - bracketLen, 1, bracketLen, bracketColor, SKPaintStyle.Fill);
+                    surface.DrawRect(0, 0, bracketLen, 1, bracketColor, SKPaintStyle.Fill);
+                    surface.DrawRect(0, 0, 1, bracketLen, bracketColor, SKPaintStyle.Fill);
+                    surface.DrawRect(_width - bracketLen, 0, bracketLen, 1, bracketColor, SKPaintStyle.Fill);
+                    surface.DrawRect(_width - 1, 0, 1, bracketLen, bracketColor, SKPaintStyle.Fill);
+                    surface.DrawRect(0, _height - 1, bracketLen, 1, bracketColor, SKPaintStyle.Fill);
+                    surface.DrawRect(0, _height - bracketLen, 1, bracketLen, bracketColor, SKPaintStyle.Fill);
+                    surface.DrawRect(_width - bracketLen, _height - 1, bracketLen, 1, bracketColor, SKPaintStyle.Fill);
+                    surface.DrawRect(_width - 1, _height - bracketLen, 1, bracketLen, bracketColor, SKPaintStyle.Fill);
                     
                     var alertPulse = (byte)(180 + (int)(Math.Sin(frame * 0.2) * 75));
                     var glowAlpha = (byte)(20 + (int)(Math.Sin(frame * 0.2) * 20));
-                    canvas.DrawRect(0, 0, _width, 14, new SKColor(255, 0, 0, glowAlpha), SKPaintStyle.Fill);
-                    canvas.DrawBdfText("! ALERT !", 2, 2, new SKColor(255, alertPulse, alertPulse));
+                    surface.DrawRect(0, 0, _width, 14, new SKColor(255, 0, 0, glowAlpha), SKPaintStyle.Fill);
+                    surface.DrawBdfText("! ALERT !", 2, 2, new SKColor(255, alertPulse, alertPulse));
                     
-                    canvas.DrawBdfText("CAM STREAM", 2, 20, new SKColor(200, 200, 200));
+                    surface.DrawBdfText("CAM STREAM", 2, 20, new SKColor(200, 200, 200));
                     
                     var dots = new string('.', (frame / 8) % 4);
-                    canvas.DrawBdfText($"Connecting{dots}", 2, 38, new SKColor(100, 200, 255));
+                    surface.DrawBdfText($"Connecting{dots}", 2, 38, new SKColor(100, 200, 255));
                     
                     var barCount = 4;
                     var barMaxH = 8;
@@ -284,21 +289,22 @@ public class AlertService : IDisposable
                         var barCol = barActive 
                             ? new SKColor(0, 255, 100) 
                             : new SKColor(40, 40, 40);
-                        canvas.DrawRect(bx, by, barW, barH, barCol, SKPaintStyle.Fill);
+                        surface.DrawRect(bx, by, barW, barH, barCol, SKPaintStyle.Fill);
                     }
                     
                     var timeStr = DateTime.Now.ToString("HH:mm:ss");
                     var timeColor = new SKColor(180, 180, 180, (byte)(180 + (int)(Math.Sin(frame * 0.3) * 40)));
-                    canvas.DrawBdfText(timeStr, 2, _height - 22, timeColor);
+                    surface.DrawBdfText(timeStr, 2, _height - 22, timeColor);
                     
                     var lineProgress = (frame * 2) % _width;
-                    canvas.DrawRect(0, _height - 2, lineProgress, 1, new SKColor(255, 0, 0, 120), SKPaintStyle.Fill);
+                    surface.DrawRect(0, _height - 2, lineProgress, 1, new SKColor(255, 0, 0, 120), SKPaintStyle.Fill);
                 }
                 catch (ObjectDisposedException)
                 {
                     break;
                 }
                 
+                surface.Present();
                 frame++;
                 await Task.Delay(50, ct);
             }
@@ -307,6 +313,10 @@ public class AlertService : IDisposable
         catch (Exception ex)
         {
             Console.WriteLine($"[ALERT] Connecting animation error: {ex.Message}");
+        }
+        finally
+        {
+            surface?.Dispose();
         }
     }
 

@@ -199,7 +199,7 @@ public class YouTubeService
             if (completedTask == timeoutTask)
             {
                 Console.WriteLine("[YOUTUBE] yt-dlp timed out");
-                try { proc.Kill(); } catch { }
+                try { proc.Kill(); } catch { /* best effort, nothing to recover */ }
                 return null;
             }
 
@@ -417,7 +417,7 @@ public class YouTubeService
             if (completedTask == timeoutTask)
             {
                 Console.WriteLine("[YOUTUBE] URL extraction timed out");
-                try { proc.Kill(); } catch { }
+                try { proc.Kill(); } catch { /* best effort, nothing to recover */ }
                 return null;
             }
 

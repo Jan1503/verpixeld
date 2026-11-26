@@ -337,7 +337,7 @@ public class AiImageService
             throw new Exception(AiImageProcessing.FriendlyHttpError((int)response.StatusCode, responseBody, "Azure OpenAI"));
         }
 
-        return ExtractImageFromResponse(responseBody);
+        return await ExtractImageFromResponseAsync(responseBody);
     }
 
     private async Task<string> EditWithAzureAsync(string imageBase64, string prompt)
@@ -368,7 +368,7 @@ public class AiImageService
             throw new Exception(AiImageProcessing.FriendlyHttpError((int)response.StatusCode, responseBody, "Azure OpenAI"));
         }
 
-        return ExtractImageFromResponse(responseBody);
+        return await ExtractImageFromResponseAsync(responseBody);
     }
 
     #endregion
@@ -405,7 +405,7 @@ public class AiImageService
             throw new Exception(AiImageProcessing.FriendlyHttpError((int)response.StatusCode, responseBody, "OpenAI"));
         }
 
-        return ExtractImageFromResponse(responseBody);
+        return await ExtractImageFromResponseAsync(responseBody);
     }
 
     private async Task<string> EditWithOpenAiAsync(string imageBase64, string prompt)
@@ -435,14 +435,14 @@ public class AiImageService
             throw new Exception(AiImageProcessing.FriendlyHttpError((int)response.StatusCode, responseBody, "OpenAI"));
         }
 
-        return ExtractImageFromResponse(responseBody);
+        return await ExtractImageFromResponseAsync(responseBody);
     }
 
     #endregion
 
     #region Response Parsing
 
-    private static string ExtractImageFromResponse(string json)
+    private async Task<string> ExtractImageFromResponseAsync(string json)
     {
         using var doc = JsonDocument.Parse(json);
         var data = doc.RootElement.GetProperty("data");
@@ -456,9 +456,8 @@ public class AiImageService
         if (first.TryGetProperty("url", out var urlEl))
         {
             var imageUrl = urlEl.GetString()!;
-            // Download the image
-            using var client = new HttpClient();
-            var bytes = client.GetByteArrayAsync(imageUrl).GetAwaiter().GetResult();
+            // Download the image (async, on the service's client: no blocked thread, no extra socket pool)
+            var bytes = await _httpClient.GetByteArrayAsync(imageUrl);
             return Convert.ToBase64String(bytes);
         }
 
@@ -548,7 +547,11 @@ public class AiImageService
             if (File.Exists(filePath))
                 File.Delete(filePath);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // The record is gone either way; a leftover file only costs disk space.
+            Console.WriteLine($"[AI] Could not delete history file for {record.Id}: {ex.Message}");
+        }
     }
 
     private void LoadHistory()
@@ -668,7 +671,22 @@ public class AiImageService
         ScheduleNextRunUtc = null;
     }
 
-    private async void OnScheduleTick(object? state)
+    /// <summary>Timer callback: runs the async work and keeps any failure inside (a thrown async void would end the process).</summary>
+    private void OnScheduleTick(object? state) => _ = OnScheduleTickAsync();
+
+    private async Task OnScheduleTickAsync()
+    {
+        try
+        {
+            await ScheduleTickCore().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[AI/Schedule] {ex.Message}");
+        }
+    }
+
+    private async Task ScheduleTickCore()
     {
         if (!ScheduleEnabled || SchedulePrompts.Count == 0)
             return;

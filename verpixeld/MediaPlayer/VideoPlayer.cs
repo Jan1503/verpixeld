@@ -997,6 +997,10 @@ public class VideoPlayer : IDisposable
                 Console.WriteLine($"[VIDEO] Seek: Previous playback task error: {ex.Message}");
             }
 
+        // Stop() may have cleared the source while we waited for the old task.
+        var videoPath = _currentVideoPath;
+        if (videoPath == null) return;
+
         // Restart from new position; the clock starts with the first frame or the first audio
         HoldClock(position);
         _seekRestart = false;
@@ -1008,19 +1012,19 @@ public class VideoPlayer : IDisposable
         if (_currentAudioUrl != null && _currentCanvas != null)
         {
             // Adaptive stream (YouTube) - separate video and audio URLs
-            _playbackTask = PlayAdaptiveStreamInternalAsync(_currentVideoPath, _currentAudioUrl, _currentCanvas, 
+            _playbackTask = PlayAdaptiveStreamInternalAsync(videoPath, _currentAudioUrl, _currentCanvas, 
                 _currentPlayAudio, position, _cts.Token);
         }
         else if (_currentCanvas != null)
         {
             // Regular video with canvas
-            _playbackTask = PlayVideoWithSyncedAudioAsync(_currentVideoPath, _currentCanvas, _currentPlayAudio,
+            _playbackTask = PlayVideoWithSyncedAudioAsync(videoPath, _currentCanvas, _currentPlayAudio,
                 position, _cts.Token);
         }
         else
         {
             // Audio-only playback
-            _playbackTask = PlayAudioOnlyInternalAsync(_currentVideoPath, position, _cts.Token);
+            _playbackTask = PlayAudioOnlyInternalAsync(videoPath, position, _cts.Token);
         }
     }
 
@@ -1366,9 +1370,7 @@ public class VideoPlayer : IDisposable
                             OnError?.Invoke(line.Trim());
                     }
                 }
-                catch
-                {
-                }
+                catch { /* best effort, nothing to recover */ }
             });
 
             var stream = _ffmpegProcess.StandardOutput.BaseStream;
@@ -1621,9 +1623,7 @@ public class VideoPlayer : IDisposable
             {
                 if (!_ffmpegProcess.HasExited) _ffmpegProcess.Kill();
             }
-            catch
-            {
-            }
+            catch { /* best effort, nothing to recover */ }
             finally
             {
                 _ffmpegProcess?.Dispose();
@@ -1640,9 +1640,7 @@ public class VideoPlayer : IDisposable
                     Console.WriteLine("[VIDEO] Stopped separate audio process");
                 }
             }
-            catch
-            {
-            }
+            catch { /* best effort, nothing to recover */ }
             finally
             {
                 _audioProcess?.Dispose();

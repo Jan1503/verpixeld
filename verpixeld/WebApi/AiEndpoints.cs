@@ -94,12 +94,12 @@ public static class AiEndpoints
         });
 
         // Apply an existing image (from history) to display
-        group.MapPost("/apply", (HttpContext context) =>
+        group.MapPost("/apply", async (HttpContext context) =>
         {
             try
             {
                 using var reader = new StreamReader(context.Request.Body);
-                var body = reader.ReadToEndAsync().GetAwaiter().GetResult();
+                var body = await reader.ReadToEndAsync(context.RequestAborted);
                 var json = JsonDocument.Parse(body).RootElement;
 
                 var imageBase64 = json.TryGetProperty("imageBase64", out var img) ? img.GetString() ?? "" : "";

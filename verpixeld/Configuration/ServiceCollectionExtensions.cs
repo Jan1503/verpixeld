@@ -278,6 +278,8 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<HostOrchestrator>();
         services.AddSingleton<HealthMonitoringService>();
+        services.AddSingleton<FrameBudgetMonitor>();
+        services.AddHostedService(sp => sp.GetRequiredService<FrameBudgetMonitor>());
         services.AddSingleton<PulseAudioEventService>();
         services.AddHostedService(sp => sp.GetRequiredService<PulseAudioEventService>());
 

@@ -461,6 +461,6 @@ public sealed class HaWallDevice : IDisposable
                 _ha.PublishMqttAsync($"{TopicPrefix}/availability", "offline", retain: true)
                     .GetAwaiter().GetResult();
         }
-        catch { }
+        catch { /* best effort, nothing to recover */ }
     }
 }

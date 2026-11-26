@@ -125,9 +125,7 @@ public class NetworkShareService
                 {
                     File.SetUnixFileMode(keyPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
                 }
-                catch
-                {
-                }
+                catch { /* best effort, nothing to recover */ }
         }
 
         LoadShares();

@@ -199,9 +199,7 @@ public class PulseAudioEventService : BackgroundService
                 {
                     _subscribeProcess.Kill();
                 }
-                catch
-                {
-                }
+                catch { /* best effort, nothing to recover */ }
 
             _subscribeProcess?.Dispose();
             _subscribeProcess = null;
@@ -218,9 +216,7 @@ public class PulseAudioEventService : BackgroundService
             {
                 _subscribeProcess.Kill();
             }
-            catch
-            {
-            }
+            catch { /* best effort, nothing to recover */ }
 
         await base.StopAsync(cancellationToken);
     }

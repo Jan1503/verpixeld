@@ -387,8 +387,10 @@ public static class CanvasEndpoints
                         await mediaService.StopAsync();
                     await Task.Delay(100);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    // Remove the canvas anyway; the player notices its canvas is gone.
+                    Console.WriteLine($"[CANVAS] Stopping media on '{canvasName}' before removal failed: {ex.Message}");
                 }
 
                 ctx.RotationService.Forget(canvasName);
@@ -398,18 +400,13 @@ public static class CanvasEndpoints
                     contentManager.StopContent(canvasName);
                     Thread.Sleep(100);
                 }
-                catch
-                {
-                }
+                catch { /* best effort, nothing to recover */ }
 
                 layoutManager.RemoveCustomCanvas(canvasName);
                 canvas.Hide();
                 canvas.Clear();
-                Thread.Sleep(50);
+                // RemoveCanvas disposes under the canvas's draw lock, so a late frame from the extension is safe.
                 canvasManager.RemoveCanvas(canvas);
-
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
 
                 return Results.Json(new ApiResponse<string>(true, $"Canvas '{canvasName}' removed"));
             }

@@ -109,9 +109,9 @@ public static class CanvasRotationEndpoints
                 : new ApiResponse<string>(false, Error: "No content assigned to this canvas to capture"));
         });
 
-        app.MapPost("/api/canvas/{name}/rotation/remove-step", (string name, int index) =>
+        app.MapPost("/api/canvas/{name}/rotation/remove-step", async (string name, int index) =>
         {
-            svc.RemoveStep(name, index);
+            await svc.RemoveStepAsync(name, index);
             return Results.Json(new ApiResponse<string>(true, "Step removed"));
         });
 

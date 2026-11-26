@@ -1,3 +1,4 @@
+using CanvasManagement.Interfaces;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -91,16 +92,18 @@ public class StartupService
         _lineHeight = Math.Max(1, (int)Math.Round(glyph.Height) + 1);
         Console.WriteLine($"[INTRO] Responsive font '{_introFont}' charW={_charWidth} lineH={_lineHeight} scale={_scale:F2}");
 
+        // Every intro frame is built off-screen and handed over whole (no half-drawn frames on the wall).
+        using var frame = new CanvasFrame(introCanvas);
         try
         {
             // Phase 1: Animated 3D splash screen with "pixeld" logo
-            await ShowAnimatedSplashAsync(introCanvas);
+            await ShowAnimatedSplashAsync(frame);
 
             // Phase 2: Transition effect
-            await ShowTransitionAsync(introCanvas);
+            await ShowTransitionAsync(frame);
 
             // Phase 3: System info with countdown
-            await ShowSystemInfoWithCountdownAsync(introCanvas);
+            await ShowSystemInfoWithCountdownAsync(frame);
 
             Console.WriteLine("[INTRO] Countdown complete, removing intro canvas");
         }
@@ -113,16 +116,14 @@ public class StartupService
             // Remove the canvas from CanvasManager to prevent it from lingering
             _canvasManager.RemoveCanvas(introCanvas);
 
-            // Force GC to clean up intro resources immediately
-            GC.Collect();
-            Console.WriteLine("[INTRO] Intro canvas removed and memory reclaimed");
+            Console.WriteLine("[INTRO] Intro canvas removed");
         }
     }
 
     /// <summary>
     ///     Phase 1: Animated 3D-style splash screen
     /// </summary>
-    private async Task ShowAnimatedSplashAsync(Canvas canvas)
+    private async Task ShowAnimatedSplashAsync(CanvasFrame canvas)
     {
         Console.WriteLine("[INTRO] Starting animated splash...");
 
@@ -189,17 +190,19 @@ public class StartupService
             // Draw scanning lines effect
             DrawScanLines(canvas, frame);
 
+            canvas.Present();
             await Task.Delay(frameDelay);
         }
 
         // Hold final state briefly
+        canvas.Present();
         await Task.Delay(300);
     }
 
     /// <summary>
     ///     Phase 2: Transition effect between splash and info
     /// </summary>
-    private async Task ShowTransitionAsync(Canvas canvas)
+    private async Task ShowTransitionAsync(CanvasFrame canvas)
     {
         Console.WriteLine("[INTRO] Playing transition...");
 
@@ -230,6 +233,7 @@ public class StartupService
                 DrawExpandingInfoPreview(canvas, infoProgress);
             }
 
+            canvas.Present();
             await Task.Delay(frameDelay);
         }
     }
@@ -237,7 +241,7 @@ public class StartupService
     /// <summary>
     ///     Phase 3: System info display with countdown
     /// </summary>
-    private async Task ShowSystemInfoWithCountdownAsync(Canvas canvas)
+    private async Task ShowSystemInfoWithCountdownAsync(CanvasFrame canvas)
     {
         Console.WriteLine("[INTRO] Showing system info...");
 
@@ -296,6 +300,7 @@ public class StartupService
             var color = HsvToRgb(hue, 0.7f, 0.8f);
 
             canvas.DrawBdfText($"{statusText} {i}s", 1, barY, color);
+            canvas.Present();
             await Task.Delay(1000);
         }
     }
@@ -303,7 +308,7 @@ public class StartupService
     /// <summary>
     ///     Animate system info lines appearing one by one
     /// </summary>
-    private async Task AnimateSystemInfoAppearanceAsync(Canvas canvas)
+    private async Task AnimateSystemInfoAppearanceAsync(CanvasFrame canvas)
     {
         canvas.Clear();
 
@@ -343,6 +348,7 @@ public class StartupService
                     canvas.DrawBdfText(prevLine.Text, prevLine.X, prevLine.Y, prevLine.Color);
             }
 
+            canvas.Present();
             await Task.Delay(100);
         }
     }
@@ -350,7 +356,7 @@ public class StartupService
     /// <summary>
     ///     Draw the verpixeld title with gradient colors
     /// </summary>
-    private void DrawVerpixeldTitle(Canvas canvas, int x, int y, float alpha)
+    private void DrawVerpixeldTitle(CanvasFrame canvas, int x, int y, float alpha)
     {
         var colors = new[]
         {
@@ -386,7 +392,7 @@ public class StartupService
     /// <summary>
     ///     Draw static logo for transition (dynamically centered)
     /// </summary>
-    private void DrawStaticLogo(Canvas canvas, byte alpha)
+    private void DrawStaticLogo(CanvasFrame canvas, byte alpha)
     {
         const string logoText = "verpixeld";
         var charWidth = _charWidth;
@@ -404,7 +410,7 @@ public class StartupService
     /// <summary>
     ///     Draw expanding info preview during transition
     /// </summary>
-    private void DrawExpandingInfoPreview(Canvas canvas, float progress)
+    private void DrawExpandingInfoPreview(CanvasFrame canvas, float progress)
     {
         var alpha = (byte)(255 * Math.Min(1, progress * 1.5f));
         /*BdfFontRegistry.DefaultFontName = "10x20"*/
@@ -441,7 +447,7 @@ public class StartupService
     /// <summary>
     ///     Update and draw particles
     /// </summary>
-    private void UpdateAndDrawParticles(Canvas canvas, int frame)
+    private void UpdateAndDrawParticles(CanvasFrame canvas, int frame)
     {
         foreach (var p in _particles)
         {
@@ -480,7 +486,7 @@ public class StartupService
     /// <summary>
     ///     Draw animated background with subtle gradient
     /// </summary>
-    private void DrawAnimatedBackground(Canvas canvas, int frame)
+    private void DrawAnimatedBackground(CanvasFrame canvas, int frame)
     {
         // Subtle animated gradient bars at edges
         var intensity = (byte)(20 + (int)(15 * Math.Sin(frame * 0.1)));
@@ -505,7 +511,7 @@ public class StartupService
     /// <summary>
     ///     Draw glowing orb effect behind text (dynamically centered)
     /// </summary>
-    private void DrawGlowingOrb(Canvas canvas, int frame, float progress)
+    private void DrawGlowingOrb(CanvasFrame canvas, int frame, float progress)
     {
         var centerX = DisplayWidth / 2;
         var centerY = DisplayHeight / 2 - (int)(10 * _scale);
@@ -529,7 +535,7 @@ public class StartupService
     /// <summary>
     ///     Draw animated letters with fly-in effect
     /// </summary>
-    private void DrawAnimatedLetters(Canvas canvas, LetterInfo[] letters, float progress, int frame)
+    private void DrawAnimatedLetters(CanvasFrame canvas, LetterInfo[] letters, float progress, int frame)
     {
         for (var i = 0; i < letters.Length; i++)
         {
@@ -616,7 +622,7 @@ public class StartupService
     /// <summary>
     ///     Draw scan lines effect
     /// </summary>
-    private void DrawScanLines(Canvas canvas, int frame)
+    private void DrawScanLines(CanvasFrame canvas, int frame)
     {
         var scanY = frame * 4 % (DisplayHeight + 20) - 10;
 
@@ -635,7 +641,7 @@ public class StartupService
     /// <summary>
     ///     Draw circle outline using lines
     /// </summary>
-    private void DrawCircleOutline(Canvas canvas, int cx, int cy, int radius, SKColor color)
+    private void DrawCircleOutline(CanvasFrame canvas, int cx, int cy, int radius, SKColor color)
     {
         if (radius < 2) return;
 

@@ -1,3 +1,4 @@
+using CanvasManagement.Interfaces;
 using CanvasManagement;
 using SkiaSharp;
 using verpixeld.Configuration;
@@ -1639,7 +1640,8 @@ public class MediaPlayerService : IDisposable
         try
         {
             // Reuse existing media canvas if available, otherwise find or create one
-            var canvas = _mediaCanvas ?? FullWallOverlay();
+            var target = _mediaCanvas ?? FullWallOverlay();
+            using var canvas = new CanvasFrame(target); // drawn off-screen, shown in one piece
             canvas.Clear();
 
             // Dark background
@@ -1662,8 +1664,9 @@ public class MediaPlayerService : IDisposable
             var barWidth = (int)((float)currentNum / total * (canvas.Width - 4));
             canvas.DrawRect(2, canvas.Height - 3, barWidth, 2, new SKColor(0, 180, 255), SKPaintStyle.Fill);
             
-            canvas.Show();
-            _mediaCanvas = canvas;
+            canvas.Present();
+            target.Show();
+            _mediaCanvas = target;
 
             Console.WriteLine("[AUTOPLAY] Loading screen displayed");
         }

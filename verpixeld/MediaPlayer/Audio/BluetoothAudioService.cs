@@ -314,7 +314,7 @@ public class BluetoothAudioService
             await Task.WhenAny(exitTask, Task.Delay(6000));
 
             if (!proc.HasExited)
-                try { proc.Kill(); } catch { }
+                try { proc.Kill(); } catch { /* best effort, nothing to recover */ }
 
             Console.WriteLine($"[BLUETOOTH] Scan complete. Found {discoveredDevices.Count} new devices");
         }
@@ -336,6 +336,7 @@ public class BluetoothAudioService
     /// <summary>Pair with a Bluetooth device (and automatically connect for audio devices).</summary>
     public async Task<(bool Success, string Message)> PairDeviceAsync(string address)
     {
+        if (!IsDeviceAddress(address)) return (false, "Not a Bluetooth address");
         Console.WriteLine($"[BLUETOOTH] Starting pairing process for {address}...");
 
         try
@@ -372,7 +373,7 @@ public class BluetoothAudioService
                             deviceConnected = true;
                     }
                 }
-                catch { }
+                catch { /* best effort, nothing to recover */ }
             });
 
             Console.WriteLine("[BLUETOOTH] Trusting device...");
@@ -404,7 +405,7 @@ public class BluetoothAudioService
             await Task.WhenAny(exitTask, Task.Delay(6000));
 
             if (!proc.HasExited)
-                try { proc.Kill(); } catch { }
+                try { proc.Kill(); } catch { /* best effort, nothing to recover */ }
 
             var output = outputBuilder.ToString();
 
@@ -458,6 +459,7 @@ public class BluetoothAudioService
     /// <summary>Connect to a paired Bluetooth device.</summary>
     public async Task<bool> ConnectDeviceAsync(string address)
     {
+        if (!IsDeviceAddress(address)) return false;
         Console.WriteLine($"[BLUETOOTH] Connecting to {address}...");
 
         await EnsurePulseAudioBluetoothModuleAsync();
@@ -581,6 +583,7 @@ public class BluetoothAudioService
     /// <summary>Disconnect from a Bluetooth device.</summary>
     public async Task<bool> DisconnectDeviceAsync(string address)
     {
+        if (!IsDeviceAddress(address)) return false;
         Console.WriteLine($"[BLUETOOTH] Disconnecting from {address}...");
         var success = await RunBluetoothCtlCommandAsync($"disconnect {address}");
         if (success) Console.WriteLine($"[BLUETOOTH] Disconnected from {address}");
@@ -590,6 +593,7 @@ public class BluetoothAudioService
     /// <summary>Remove (unpair) a Bluetooth device.</summary>
     public async Task<bool> RemoveDeviceAsync(string address)
     {
+        if (!IsDeviceAddress(address)) return false;
         Console.WriteLine($"[BLUETOOTH] Removing {address}...");
         await DisconnectDeviceAsync(address);
         var success = await RunBluetoothCtlCommandAsync($"remove {address}");
@@ -815,7 +819,7 @@ public class BluetoothAudioService
             if (!exited)
             {
                 Console.WriteLine("[BLUETOOTH] D-Bus call timed out");
-                try { proc.Kill(); } catch { }
+                try { proc.Kill(); } catch { /* best effort, nothing to recover */ }
                 return false;
             }
 
@@ -977,7 +981,7 @@ public class BluetoothAudioService
             await proc.StandardInput.WriteLineAsync("quit");
             await Task.Run(() => proc.WaitForExit(3000));
             if (!proc.HasExited)
-                try { proc.Kill(); } catch { }
+                try { proc.Kill(); } catch { /* best effort, nothing to recover */ }
 
             var fullOutput = StripAnsiCodes(output.ToString());
             Console.WriteLine(
@@ -1118,7 +1122,7 @@ public class BluetoothAudioService
             var exited = await Task.Run(() => proc.WaitForExit(10000));
             if (!exited)
             {
-                try { proc.Kill(); } catch { }
+                try { proc.Kill(); } catch { /* best effort, nothing to recover */ }
                 return "Error: timeout";
             }
 
@@ -1157,41 +1161,51 @@ public class BluetoothAudioService
         }
     }
 
+    /// <summary>
+    ///     Runs one bluetoothctl command. The command goes to bluetoothctl's stdin — no shell, so nothing in
+    ///     it is interpreted. As root it runs as the desktop user (pi), who owns the audio session.
+    /// </summary>
     private async Task<bool> RunBluetoothCtlCommandAsync(string command, int timeoutMs = 10000)
     {
         try
         {
             var isRoot = Environment.UserName == "root" || GetEffectiveUserId() == 0;
-
-            ProcessStartInfo psi;
+            var psi = new ProcessStartInfo(isRoot ? "sudo" : "bluetoothctl")
+            {
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
             if (isRoot)
-                psi = new ProcessStartInfo("sudo", $"-u pi bash -c \"echo -e '{command}\\nquit' | bluetoothctl\"")
-                {
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-            else
-                psi = new ProcessStartInfo("bash", $"-c \"echo -e '{command}\\nquit' | bluetoothctl\"")
-                {
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
+            {
+                psi.ArgumentList.Add("-u");
+                psi.ArgumentList.Add("pi");
+                psi.ArgumentList.Add("bluetoothctl");
+            }
 
             using var proc = Process.Start(psi);
             if (proc == null) return false;
 
-            var completed = await Task.Run(() => proc.WaitForExit(timeoutMs));
-            if (!completed)
+            // Read while it runs, so a chatty bluetoothctl cannot block on a full pipe.
+            var outputTask = proc.StandardOutput.ReadToEndAsync();
+            await proc.StandardInput.WriteLineAsync(command).ConfigureAwait(false);
+            await proc.StandardInput.WriteLineAsync("quit").ConfigureAwait(false);
+            proc.StandardInput.Close();
+
+            using var timeout = new CancellationTokenSource(timeoutMs);
+            try
             {
-                try { proc.Kill(); } catch { }
+                await proc.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                try { proc.Kill(true); } catch { /* already gone */ }
                 return false;
             }
 
-            var output = await proc.StandardOutput.ReadToEndAsync();
+            var output = await outputTask.ConfigureAwait(false);
             return !output.Contains("Failed") && !output.Contains("not available");
         }
         catch (Exception ex)
@@ -1200,6 +1214,11 @@ public class BluetoothAudioService
             return false;
         }
     }
+
+    private static readonly Regex AddressPattern = new("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$", RegexOptions.Compiled);
+
+    /// <summary>A Bluetooth device address (AA:BB:CC:DD:EE:FF); anything else is refused before bluetoothctl sees it.</summary>
+    public static bool IsDeviceAddress(string? address) => address != null && AddressPattern.IsMatch(address);
 
     // P/Invoke for root detection
     [DllImport("libc")]

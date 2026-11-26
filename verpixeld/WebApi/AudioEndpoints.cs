@@ -493,7 +493,7 @@ public static class AudioEndpoints
                     }
                 }
                 catch (OperationCanceledException) { }
-                catch { }
+                catch { /* best effort, nothing to recover */ }
                 finally
                 {
                     eventService.UnregisterClient(writer);

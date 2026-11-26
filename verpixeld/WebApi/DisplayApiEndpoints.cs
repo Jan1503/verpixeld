@@ -22,6 +22,7 @@ public static class DisplayApiEndpoints
     public static void MapDisplayEndpointsWithContext(this WebApplication app)
     {
         app.MapSystemEndpoints();
+        app.MapDiagnosticsEndpoints();
         app.MapFilterEndpoints();
         app.MapExtensionEndpoints();
         app.MapPluginEndpoints();

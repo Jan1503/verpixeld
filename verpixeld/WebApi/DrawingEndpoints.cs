@@ -148,8 +148,9 @@ public static class DrawingEndpoints
                             : null;
                     }
                 }
-                catch
+                catch (JsonException)
                 {
+                    // The body is optional (it only names the sender, who then skips its own echo).
                 }
 
                 canvas.Clear(SKColors.Black);

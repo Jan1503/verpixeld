@@ -109,12 +109,12 @@ public class LayoutPlaylistService
 
     public void Next()
     {
-        _ = Task.Run(() => Advance(1));
+        _ = Task.Run(() => AdvanceAsync(1));
     }
 
     public void Previous()
     {
-        _ = Task.Run(() => Advance(-1));
+        _ = Task.Run(() => AdvanceAsync(-1));
     }
 
     private void StartInternal()
@@ -124,12 +124,12 @@ public class LayoutPlaylistService
         _timer?.Dispose();
         _index = -1;
         _timer = new Timer(Math.Max(2, Config.IntervalSeconds) * 1000.0) { AutoReset = true };
-        _timer.Elapsed += (_, _) => Advance(1);
+        _timer.Elapsed += (_, _) => _ = AdvanceAsync(1);
         _timer.Start();
         IsRunning = true;
         Console.WriteLine(
             $"[PLAYLIST] Started: {Config.Layouts.Count} layouts, {Config.IntervalSeconds}s, {Config.Transition}");
-        _ = Task.Run(() => Advance(1)); // show the first scene immediately
+        _ = Task.Run(() => AdvanceAsync(1)); // show the first scene immediately
     }
 
     private void StopInternal()
@@ -141,7 +141,7 @@ public class LayoutPlaylistService
         Console.WriteLine("[PLAYLIST] Stopped");
     }
 
-    private void Advance(int dir)
+    private async Task AdvanceAsync(int dir)
     {
         if (_advancing) return; // don't overlap a heavy layout swap
         _advancing = true;
@@ -167,7 +167,7 @@ public class LayoutPlaylistService
                 name = Config.Layouts[_index];
             }
 
-            ShowLayout(name).GetAwaiter().GetResult();
+            await ShowLayout(name);
         }
         catch (Exception ex)
         {

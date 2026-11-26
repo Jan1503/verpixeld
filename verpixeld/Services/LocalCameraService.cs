@@ -443,18 +443,10 @@ public class LocalCameraService : IDisposable
         var devices = new List<DeviceInfo>();
         try
         {
-            var psi = new ProcessStartInfo("bash", "-c \"ls /dev/video* 2>/dev/null\"")
-            {
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(psi);
-            if (process == null) return devices;
-
-            var output = process.StandardOutput.ReadToEnd();
-            process.WaitForExit(2000);
+            // No shell needed to list device nodes.
+            var output = Directory.Exists("/dev")
+                ? string.Join("\n", Directory.GetFiles("/dev", "video*").OrderBy(p => p, StringComparer.Ordinal))
+                : "";
 
             foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
             {
@@ -574,12 +566,15 @@ public class LocalCameraService : IDisposable
     {
         try
         {
-            var psi = new ProcessStartInfo("bash", $"-c \"v4l2-ctl --device={devicePath} --info 2>/dev/null | head -2\"")
+            var psi = new ProcessStartInfo("v4l2-ctl")
             {
                 RedirectStandardOutput = true,
+                RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            psi.ArgumentList.Add($"--device={devicePath}");
+            psi.ArgumentList.Add("--info");
 
             using var process = Process.Start(psi);
             if (process == null) return devicePath;
@@ -593,7 +588,7 @@ public class LocalCameraService : IDisposable
                     return line.Split(':').Last().Trim();
             }
         }
-        catch { }
+        catch { /* best effort, nothing to recover */ }
 
         return devicePath;
     }

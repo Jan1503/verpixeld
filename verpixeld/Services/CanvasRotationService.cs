@@ -303,7 +303,7 @@ public class CanvasRotationService
         }
     }
 
-    public void RemoveStep(string canvas, int index)
+    public async Task RemoveStepAsync(string canvas, int index)
     {
         RotationStep? removed = null;
         var wasActive = false;
@@ -353,7 +353,7 @@ public class CanvasRotationService
             }
 
             if (nextIndex >= 0)
-                ApplyStep(canvas, nextIndex).GetAwaiter().GetResult();
+                await ApplyStep(canvas, nextIndex);
         }
     }
 
@@ -448,12 +448,12 @@ public class CanvasRotationService
 
     public void Next(string canvas)
     {
-        _ = Task.Run(() => Advance(canvas, 1));
+        _ = Task.Run(() => AdvanceAsync(canvas, 1));
     }
 
     public void Previous(string canvas)
     {
-        _ = Task.Run(() => Advance(canvas, -1));
+        _ = Task.Run(() => AdvanceAsync(canvas, -1));
     }
 
     /// <summary>Drops a canvas's rotation entirely (e.g. when the canvas is removed).</summary>
@@ -526,12 +526,12 @@ public class CanvasRotationService
         StopInternal(canvas);
         _index[canvas] = -1;
         var timer = new Timer(Math.Max(2, cfg.IntervalSeconds) * 1000.0) { AutoReset = true };
-        timer.Elapsed += (_, _) => Advance(canvas, 1);
+        timer.Elapsed += (_, _) => _ = AdvanceAsync(canvas, 1);
         _timers[canvas] = timer;
         timer.Start();
         Console.WriteLine(
             $"[ROTATE] '{canvas}': {cfg.Steps.Count} steps, {cfg.IntervalSeconds}s, {cfg.Transition}");
-        _ = Task.Run(() => Advance(canvas, 1)); // show first step immediately
+        _ = Task.Run(() => AdvanceAsync(canvas, 1)); // show first step immediately
     }
 
     private void StopInternal(string canvas)
@@ -544,7 +544,7 @@ public class CanvasRotationService
         }
     }
 
-    private void Advance(string canvas, int dir)
+    private async Task AdvanceAsync(string canvas, int dir)
     {
         lock (_lock)
         {
@@ -589,7 +589,7 @@ public class CanvasRotationService
                 transition = cfg.Transition;
             }
 
-            ShowStep(canvas, step, transition).GetAwaiter().GetResult();
+            await ShowStep(canvas, step, transition);
         }
         catch (Exception ex)
         {

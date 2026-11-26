@@ -183,7 +183,7 @@ public static class MediaProbeService
             if (!proc.WaitForExit(15000))
             {
                 try { proc.Kill(); }
-                catch { }
+                catch { /* best effort, nothing to recover */ }
                 Console.WriteLine("[THUMBNAIL] ffmpeg timed out");
                 return null;
             }
@@ -256,7 +256,7 @@ public static class MediaProbeService
             {
                 Console.WriteLine("[VIDEO] ffprobe timed out");
                 try { proc.Kill(); }
-                catch { }
+                catch { /* best effort, nothing to recover */ }
                 return null;
             }
 

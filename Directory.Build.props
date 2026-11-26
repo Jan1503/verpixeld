@@ -1,0 +1,12 @@
+<Project>
+  <!-- Settings every project in this repository shares. A project only sets what is its own
+       (TargetFramework, AllowUnsafeBlocks, packaging). -->
+  <PropertyGroup>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <!-- Release builds must stay warning-free (Debug only reports them, so work in progress is not blocked). -->
+    <TreatWarningsAsErrors Condition="'$(Configuration)' == 'Release'">true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>

@@ -182,9 +182,7 @@ public class AudioVisualizerService : IAudioVisualizerService
             {
                 _parecProcess.Kill();
             }
-            catch
-            {
-            }
+            catch { /* best effort, nothing to recover */ }
 
             _parecProcess.Dispose();
             _parecProcess = null;
@@ -196,18 +194,14 @@ public class AudioVisualizerService : IAudioVisualizerService
             {
                 await _captureTask.WaitAsync(TimeSpan.FromSeconds(2));
             }
-            catch
-            {
-            }
+            catch { /* best effort, nothing to recover */ }
 
         if (_renderTask != null)
             try
             {
                 await _renderTask.WaitAsync(TimeSpan.FromSeconds(2));
             }
-            catch
-            {
-            }
+            catch { /* best effort, nothing to recover */ }
 
         // Clear the canvas only if not disposed
         if (_targetCanvas != null && !_canvasDisposed)

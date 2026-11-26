@@ -207,14 +207,14 @@ public class FfmpegFrameStreamer : IDisposable
                     _ffmpegProcess.WaitForExit(1500);
                 }
             }
-            catch { }
+            catch { /* best effort, nothing to recover */ }
 
             try
             {
                 if (_ffmpegProcess != null && _ffmpegProcess.HasExited)
                     Console.WriteLine($"{logPrefix} FFmpeg exited with code {_ffmpegProcess.ExitCode}");
             }
-            catch { }
+            catch { /* best effort, nothing to recover */ }
 
             Console.WriteLine($"{logPrefix} Stream ended");
         }

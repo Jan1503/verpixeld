@@ -94,9 +94,7 @@ public class AlsaAudioService : IDisposable
         {
             if (Directory.Exists(_tempDir)) Directory.Delete(_tempDir, true);
         }
-        catch
-        {
-        }
+        catch { /* best effort, nothing to recover */ }
     }
 
     /// <summary>
@@ -166,9 +164,7 @@ public class AlsaAudioService : IDisposable
             var match = Regex.Match(output, @"\[(\d+)%\]");
             if (match.Success && int.TryParse(match.Groups[1].Value, out var percent)) return percent / 100f;
         }
-        catch
-        {
-        }
+        catch { /* best effort, nothing to recover */ }
 
         return _volume;
     }
@@ -433,9 +429,7 @@ public class AlsaAudioService : IDisposable
             _currentProcess?.Kill();
             _currentProcess = null;
         }
-        catch
-        {
-        }
+        catch { /* best effort, nothing to recover */ }
     }
 
     /// <summary>
@@ -491,9 +485,7 @@ public class AlsaAudioService : IDisposable
                         CurrentModFile = null;
                         Console.WriteLine("[AUDIO] MOD playback ended");
                     }
-                    catch
-                    {
-                    }
+                    catch { /* best effort, nothing to recover */ }
                 });
 
                 return true;
@@ -521,9 +513,7 @@ public class AlsaAudioService : IDisposable
                     Console.WriteLine("[AUDIO] MOD playback stopped");
                 }
             }
-            catch
-            {
-            }
+            catch { /* best effort, nothing to recover */ }
             finally
             {
                 _modProcess = null;
@@ -692,9 +682,7 @@ public class AlsaAudioService : IDisposable
                 {
                     File.Delete(path);
                 }
-                catch
-                {
-                }
+                catch { /* best effort, nothing to recover */ }
             });
         }
         catch (Exception ex)
@@ -724,9 +712,7 @@ public class AlsaAudioService : IDisposable
             {
                 File.Delete(path);
             }
-            catch
-            {
-            }
+            catch { /* best effort, nothing to recover */ }
         }
         catch (Exception ex)
         {

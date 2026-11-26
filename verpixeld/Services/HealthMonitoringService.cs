@@ -75,11 +75,9 @@ public class HealthMonitoringService : IDisposable
                 // Warning if memory increasing rapidly
                 if (memoryDeltaMb > _memoryWarningThresholdMb)
                 {
+                    // Only report: a forced, compacting GC here stalled the render loop and hid real leaks.
+                    // POST /api/gc/run collects on demand when investigating.
                     Console.WriteLine($"[HEALTH] WARNING: Memory increased by {memoryDeltaMb}MB - possible leak!");
-
-                    GC.Collect(2, GCCollectionMode.Aggressive, true, true);
-                    var afterGc = GC.GetTotalMemory(true) / 1024 / 1024;
-                    Console.WriteLine($"[HEALTH] Forced GC, memory now: {afterGc}MB");
                 }
 
                 lastMemory = currentMemory;

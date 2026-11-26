@@ -14,6 +14,13 @@ namespace verpixeld.Services;
 /// </summary>
 public sealed class HaToastService : IDisposable
 {
+    private void DrawBdf(SKCanvas sk, string text, int x, int y, SKColor color, string fontName)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        using var rendered = _canvas!.RenderBdfTextToBitmap(text, color, fontName);
+        if (rendered != null) sk.DrawBitmap(rendered, x, y);
+    }
+
     private const int ZOrder = 340;
 
     private readonly CanvasManager _canvasManager;
@@ -121,8 +128,6 @@ public sealed class HaToastService : IDisposable
                 c.DrawRect(0, 0, accentW, _barH, accentPaint);
             }
 
-            _canvas.SubmitCompletedFrame(_bitmap!);
-
             var textX = pad + accentW;
             var maxW = Math.Max(8, _width - textX - pad);
             var title = Fit(fontName, n.Title, maxW);
@@ -132,8 +137,12 @@ public sealed class HaToastService : IDisposable
 
             if (fontName != null)
             {
-                _canvas.DrawBdfText(title, textX, titleY, titleColor, fontName);
-                _canvas.DrawBdfText(message, textX, msgY, msgColor, fontName);
+                // Text goes into the same bitmap: the toast appears in one piece.
+                using var sk = new SKCanvas(_bitmap!);
+                DrawBdf(sk, title, textX, titleY, titleColor, fontName);
+                DrawBdf(sk, message, textX, msgY, msgColor, fontName);
+                sk.Flush();
+                _canvas.SubmitCompletedFrame(_bitmap!);
             }
             else
             {
@@ -178,7 +187,7 @@ public sealed class HaToastService : IDisposable
         if (_canvas != null)
         {
             try { _canvasManager.RemoveCanvas(_canvas); }
-            catch { }
+            catch { /* best effort, nothing to recover */ }
             _canvas = null;
         }
 
@@ -195,7 +204,7 @@ public sealed class HaToastService : IDisposable
     {
         _showing = false;
         try { _canvas?.Hide(); }
-        catch { }
+        catch { /* best effort, nothing to recover */ }
     }
 
     internal static string ResolveSeverity(string? explicitSeverity, string? notificationId, string? title,
@@ -327,7 +336,7 @@ public sealed class HaToastService : IDisposable
             if (_canvas != null)
             {
                 try { _canvasManager.RemoveCanvas(_canvas); }
-                catch { }
+                catch { /* best effort, nothing to recover */ }
                 _canvas = null;
             }
         }
