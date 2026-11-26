@@ -12,8 +12,11 @@ namespace verpixeld.Services;
 ///     Complements the time-of-day scheduler: the scheduler decides which layout is active at a given time,
 ///     the playlist rotates between layouts continuously.
 /// </summary>
+[LogTag("PLAYLIST")]
 public class LayoutPlaylistService
 {
+    private readonly ILogger<LayoutPlaylistService> _log;
+
     private readonly CanvasManager _cm;
     private readonly object _lock = new();
     private readonly ILayoutLoaderService _loader;
@@ -23,8 +26,9 @@ public class LayoutPlaylistService
     private int _index = -1;
     private Timer? _timer;
 
-    public LayoutPlaylistService(CanvasManager cm, LayoutStorageManager storage, ILayoutLoaderService loader)
+    public LayoutPlaylistService(CanvasManager cm, LayoutStorageManager storage, ILayoutLoaderService loader, ILogger<LayoutPlaylistService> log)
     {
+        _log = log;
         _cm = cm;
         _storage = storage;
         _loader = loader;
@@ -87,7 +91,7 @@ public class LayoutPlaylistService
             _suspended = true;
             _wasRunningBeforeSuspend = IsRunning;
             StopInternal();
-            if (_wasRunningBeforeSuspend) Console.WriteLine("[PLAYLIST] Suspended (editing)");
+            if (_wasRunningBeforeSuspend) _log.LogInformation("Suspended (editing)");
             return _wasRunningBeforeSuspend;
         }
     }
@@ -101,7 +105,7 @@ public class LayoutPlaylistService
             _suspended = false;
             if (_wasRunningBeforeSuspend && Config is { Enabled: true, Layouts.Count: > 0 })
             {
-                Console.WriteLine("[PLAYLIST] Resumed after editing");
+                _log.LogInformation("Resumed after editing");
                 StartInternal();
             }
         }
@@ -127,8 +131,8 @@ public class LayoutPlaylistService
         _timer.Elapsed += (_, _) => _ = AdvanceAsync(1);
         _timer.Start();
         IsRunning = true;
-        Console.WriteLine(
-            $"[PLAYLIST] Started: {Config.Layouts.Count} layouts, {Config.IntervalSeconds}s, {Config.Transition}");
+        _log.LogInformation("Started: {Layouts} layouts, {Interval}s, {Transition}", Config.Layouts.Count,
+            Config.IntervalSeconds, Config.Transition);
         _ = Task.Run(() => AdvanceAsync(1)); // show the first scene immediately
     }
 
@@ -138,7 +142,7 @@ public class LayoutPlaylistService
         _timer?.Dispose();
         _timer = null;
         IsRunning = false;
-        Console.WriteLine("[PLAYLIST] Stopped");
+        _log.LogInformation("Stopped");
     }
 
     private async Task AdvanceAsync(int dir)
@@ -171,7 +175,7 @@ public class LayoutPlaylistService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[PLAYLIST] advance error: {ex.Message}");
+            _log.LogError("advance error: {Message}", ex.Message);
         }
         finally
         {
@@ -184,7 +188,7 @@ public class LayoutPlaylistService
         var layout = _storage.LoadLayout(name);
         if (layout == null)
         {
-            Console.WriteLine($"[PLAYLIST] layout '{name}' not found — skipping");
+            _log.LogWarning("layout '{Name}' not found — skipping", name);
             return;
         }
 
@@ -203,7 +207,7 @@ public class LayoutPlaylistService
             await FadeTo(target, 250);
         }
 
-        Console.WriteLine($"[PLAYLIST] -> {name}");
+        _log.LogInformation("-> {Name}", name);
     }
 
     private async Task FadeTo(float target, int totalMs)
@@ -229,7 +233,7 @@ public class LayoutPlaylistService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[PLAYLIST] load config failed: {ex.Message}");
+            _log.LogError("load config failed: {Message}", ex.Message);
         }
     }
 
@@ -242,7 +246,7 @@ public class LayoutPlaylistService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[PLAYLIST] save config failed: {ex.Message}");
+            _log.LogError("save config failed: {Message}", ex.Message);
         }
     }
 }

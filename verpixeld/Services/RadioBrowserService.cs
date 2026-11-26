@@ -8,8 +8,11 @@ namespace verpixeld.Services;
 ///     by genre/tag. Returns direct HTTP stream URLs that can be played instantly by ffmpeg.
 ///     No API key required.
 /// </summary>
+[LogTag("RADIO-BROWSER")]
 public class RadioBrowserService
 {
+    private readonly ILogger<RadioBrowserService> _log;
+
     private static readonly string[] ApiServers =
     {
         "https://de2.api.radio-browser.info",
@@ -129,12 +132,13 @@ public class RadioBrowserService
         { "music", "music" },
     };
 
-    public RadioBrowserService()
+    public RadioBrowserService(ILogger<RadioBrowserService> log)
     {
+        _log = log;
         _http = new HttpClient();
         _http.DefaultRequestHeaders.Add("User-Agent", "verpixeld/1.0");
         _http.Timeout = TimeSpan.FromSeconds(8);
-        Console.WriteLine("[RADIO-BROWSER] Internet radio service initialized");
+        _log.LogInformation("Internet radio service initialized");
     }
 
     /// <summary>
@@ -185,7 +189,7 @@ public class RadioBrowserService
     /// </summary>
     private async Task<List<RadioStation>> SearchByTagAsync(string tag, int limit)
     {
-        Console.WriteLine($"[RADIO-BROWSER] Searching tag=\"{tag}\", limit={limit}");
+        _log.LogInformation("Searching tag=\"{Tag}\", limit={Limit}", tag, limit);
 
         foreach (var server in ApiServers)
         {
@@ -202,7 +206,7 @@ public class RadioBrowserService
 
                 if (stations == null || stations.Count == 0)
                 {
-                    Console.WriteLine($"[RADIO-BROWSER] No stations found for tag \"{tag}\"");
+                    _log.LogInformation("No stations found for tag \"{Tag}\"", tag);
                     continue;
                 }
 
@@ -213,14 +217,14 @@ public class RadioBrowserService
 
                 if (results.Count > 0)
                 {
-                    Console.WriteLine($"[RADIO-BROWSER] Found {results.Count} stations for \"{tag}\"");
-                    Console.WriteLine($"[RADIO-BROWSER] Top: \"{results[0].Name}\" ({results[0].Codec} {results[0].Bitrate}kbps) — {results[0].StreamUrl}");
+                    _log.LogInformation("Found {Count} stations for \"{Tag}\"", results.Count, tag);
+                    _log.LogInformation("Top: \"{Value}\" ({Value2} {Value3}kbps) — {Value4}", results[0].Name, results[0].Codec, results[0].Bitrate, results[0].StreamUrl);
                     return results;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[RADIO-BROWSER] Server {server} failed: {ex.Message}");
+                _log.LogError("Server {Server} failed: {Message}", server, ex.Message);
             }
         }
 
@@ -306,7 +310,7 @@ public class RadioBrowserService
                 last = ex;
             }
         }
-        Console.WriteLine($"[RADIO-BROWSER] {pathAndQuery}: {last?.Message}");
+        _log.LogInformation("{PathAndQuery}: {Message}", pathAndQuery, last?.Message);
         return default;
     }
 

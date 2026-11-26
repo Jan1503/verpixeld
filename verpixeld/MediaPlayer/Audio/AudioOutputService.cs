@@ -9,8 +9,11 @@ namespace verpixeld.MediaPlayer.Audio;
 ///     Service for managing audio output devices via PulseAudio.
 ///     Bluetooth management is handled by <see cref="BluetoothAudioService"/>.
 /// </summary>
-public class AudioOutputService : IAudioOutputService
+[LogTag("AUDIO")]
+public class AudioOutputService(ILogger<AudioOutputService> log) : IAudioOutputService
 {
+    private readonly ILogger<AudioOutputService> _log = log;
+
     /// <summary>Available audio output types.</summary>
     public enum AudioOutputType
     {
@@ -69,12 +72,12 @@ public class AudioOutputService : IAudioOutputService
             proc.WaitForExit(3000);
 
             _isPulseAudioSystemMode = output.Contains("--system");
-            Console.WriteLine($"[AUDIO] PulseAudio system mode: {_isPulseAudioSystemMode.Value}");
+            _log.LogInformation("PulseAudio system mode: {Value}", _isPulseAudioSystemMode.Value);
             return _isPulseAudioSystemMode.Value;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUDIO] Error detecting PulseAudio mode: {ex.Message}");
+            _log.LogError("Error detecting PulseAudio mode: {Message}", ex.Message);
             _isPulseAudioSystemMode = false;
             return false;
         }
@@ -101,7 +104,7 @@ public class AudioOutputService : IAudioOutputService
 
             if (!_hasLoggedPulseMode)
             {
-                Console.WriteLine($"[AUDIO] Using system-mode PulseAudio (PULSE_SERVER={PulseAudioHelper.PulseServer})");
+                _log.LogInformation("Using system-mode PulseAudio (PULSE_SERVER={PulseServer})", PulseAudioHelper.PulseServer);
                 _hasLoggedPulseMode = true;
             }
         }
@@ -122,7 +125,7 @@ public class AudioOutputService : IAudioOutputService
 
                 if (!_hasLoggedPulseMode)
                 {
-                    Console.WriteLine($"[AUDIO] Using user-mode PulseAudio (running as pi user, uid {uid})");
+                    _log.LogInformation("Using user-mode PulseAudio (running as pi user, uid {Uid})", uid);
                     _hasLoggedPulseMode = true;
                 }
             }
@@ -200,16 +203,16 @@ public class AudioOutputService : IAudioOutputService
                 _ffmpegHasPulseSupport = output.Contains(" pulse ");
 
                 if (_ffmpegHasPulseSupport.Value)
-                    Console.WriteLine("[AUDIO] FFmpeg has PulseAudio output support");
+                    _log.LogInformation("FFmpeg has PulseAudio output support");
                 else
-                    Console.WriteLine("[AUDIO] FFmpeg has no PulseAudio muxer (will use ALSA only if a sound card exists)");
+                    _log.LogInformation("FFmpeg has no PulseAudio muxer (will use ALSA only if a sound card exists)");
 
                 return _ffmpegHasPulseSupport.Value;
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUDIO] Error checking FFmpeg capabilities: {ex.Message}");
+            _log.LogError("Error checking FFmpeg capabilities: {Message}", ex.Message);
         }
 
         _ffmpegHasPulseSupport = false;
@@ -220,7 +223,7 @@ public class AudioOutputService : IAudioOutputService
     {
         if (!CanvasManagement.Interfaces.AudioPlayback.HasPlaybackDevice())
         {
-            Console.WriteLine("[AUDIO] No playback device — video only");
+            _log.LogInformation("No playback device — video only");
             return "";
         }
 
@@ -237,27 +240,27 @@ public class AudioOutputService : IAudioOutputService
 
                     if (!string.IsNullOrEmpty(defaultSink) && proc.ExitCode == 0)
                     {
-                        Console.WriteLine($"[AUDIO] Using PulseAudio with default sink: {defaultSink}");
+                        _log.LogInformation("Using PulseAudio with default sink: {DefaultSink}", defaultSink);
                         return "-f pulse default";
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[AUDIO] Error checking PulseAudio default sink: {ex.Message}");
+                _log.LogError("Error checking PulseAudio default sink: {Message}", ex.Message);
             }
 
-            Console.WriteLine("[AUDIO] Using PulseAudio (no default sink detected)");
+            _log.LogInformation("Using PulseAudio (no default sink detected)");
             return "-f pulse default";
         }
 
         if (AlsaPlaybackAvailable())
         {
-            Console.WriteLine("[AUDIO] Using ALSA default");
+            _log.LogInformation("Using ALSA default");
             return "-f alsa default";
         }
 
-        Console.WriteLine("[AUDIO] No PulseAudio or ALSA playback device — video only");
+        _log.LogInformation("No PulseAudio or ALSA playback device — video only");
         return "";
     }
 
@@ -320,7 +323,7 @@ public class AudioOutputService : IAudioOutputService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUDIO] Error listing sinks: {ex.Message}");
+            _log.LogError("Error listing sinks: {Message}", ex.Message);
         }
 
         return sinks;
@@ -404,7 +407,7 @@ public class AudioOutputService : IAudioOutputService
     {
         if (!IsPulseAudioAvailable())
         {
-            Console.WriteLine("[AUDIO] PulseAudio not available, cannot change sink");
+            _log.LogWarning("PulseAudio not available, cannot change sink");
             return false;
         }
 
@@ -421,17 +424,17 @@ public class AudioOutputService : IAudioOutputService
                 {
                     CurrentSinkName = sinkName;
                 }
-                Console.WriteLine($"[AUDIO] Default sink set to: {sinkName}");
+                _log.LogInformation("Default sink set to: {SinkName}", sinkName);
                 return true;
             }
 
             var error = await proc.StandardError.ReadToEndAsync();
-            Console.WriteLine($"[AUDIO] Failed to set sink: {error}");
+            _log.LogError("Failed to set sink: {Error}", error);
             return false;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUDIO] Error setting sink: {ex.Message}");
+            _log.LogError("Error setting sink: {Message}", ex.Message);
             return false;
         }
     }
@@ -442,7 +445,7 @@ public class AudioOutputService : IAudioOutputService
 
         try
         {
-            Console.WriteLine($"[AUDIO] Setting PulseAudio sink volume to {volumePercent}%");
+            _log.LogInformation("Setting PulseAudio sink volume to {VolumePercent}%", volumePercent);
 
             var psi = CreatePactlProcessStartInfo($"set-sink-volume @DEFAULT_SINK@ {volumePercent}%");
             using var proc = Process.Start(psi);
@@ -451,12 +454,12 @@ public class AudioOutputService : IAudioOutputService
             var stderr = await proc.StandardError.ReadToEndAsync();
             await proc.WaitForExitAsync();
 
-            if (proc.ExitCode != 0) Console.WriteLine($"[AUDIO] pactl set-sink-volume failed: {stderr}");
+            if (proc.ExitCode != 0) _log.LogError("pactl set-sink-volume failed: {Stderr}", stderr);
             return proc.ExitCode == 0;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUDIO] Error setting PulseAudio volume: {ex.Message}");
+            _log.LogError("Error setting PulseAudio volume: {Message}", ex.Message);
             return false;
         }
     }
@@ -473,7 +476,7 @@ public class AudioOutputService : IAudioOutputService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUDIO] Error toggling mute: {ex.Message}");
+            _log.LogError("Error toggling mute: {Message}", ex.Message);
             return false;
         }
     }

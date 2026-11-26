@@ -41,6 +41,10 @@ Import `docker/verpixeld-nas.tar` in Portainer (Images → Import), then recreat
 
 Plain ES in `verpixeld/wwwroot`. Bump `?v=` on every edited `js`/`css` in `index.html`. Studio is `layer-editor.js`. Media tab plays on a dedicated MediaPlayer overlay (not Main).
 
+## Logging
+
+`ILogger<T>` by constructor injection. `HostLoggerProvider` prints `[TAG] message` (warnings/errors marked) and feeds the web log (level filter). The tag is the class name without Service/Endpoints/Manager; keep an established tag with `[LogTag("ROTATE")]`. Message templates, not interpolation: `_log.LogWarning("Seek failed: {Message}", ex.Message)`. Errors are `LogError`, recoverable trouble `LogWarning`. `Console.WriteLine` is legacy (still in static helpers, endpoints and classes built with `new` by other classes): the web log guesses its level from the wording.
+
 ## Tests / deploy
 
 ```powershell

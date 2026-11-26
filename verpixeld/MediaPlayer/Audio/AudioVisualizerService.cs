@@ -10,8 +10,11 @@ namespace verpixeld.MediaPlayer.Audio;
 ///     Service for real-time audio visualization using FFT analysis.
 ///     Captures system audio via PulseAudio monitor and renders visualizations to a canvas.
 /// </summary>
+[LogTag("VISUALIZER")]
 public class AudioVisualizerService : IAudioVisualizerService
 {
+    private readonly ILogger<AudioVisualizerService> _log;
+
     public enum ColorScheme
     {
         Rainbow,
@@ -60,8 +63,9 @@ public class AudioVisualizerService : IAudioVisualizerService
     // Pre-computed FFT twiddle factors
     private Complex[]? _twiddleFactors;
 
-    public AudioVisualizerService()
+    public AudioVisualizerService(ILogger<AudioVisualizerService> log)
     {
+        _log = log;
         PrecomputeTwiddleFactors();
         for (var i = 0; i < FFTSize; i++)
             _hammingWindow[i] = 0.54 - 0.46 * Math.Cos(2 * Math.PI * i / (FFTSize - 1));
@@ -98,7 +102,7 @@ public class AudioVisualizerService : IAudioVisualizerService
     {
         if (TargetCanvasName == canvasName && IsRunning)
         {
-            Console.WriteLine($"[VISUALIZER] Canvas '{canvasName}' removed - stopping visualizer");
+            _log.LogInformation("Canvas '{CanvasName}' removed - stopping visualizer", canvasName);
             _canvasDisposed = true;
             _cts?.Cancel();
         }
@@ -111,7 +115,7 @@ public class AudioVisualizerService : IAudioVisualizerService
     {
         if (IsRunning)
         {
-            Console.WriteLine("[VISUALIZER] Already running, stopping first...");
+            _log.LogInformation("Already running, stopping first...");
             await StopAsync();
         }
 
@@ -126,14 +130,14 @@ public class AudioVisualizerService : IAudioVisualizerService
             _cts = new CancellationTokenSource();
             _renderTask = Task.Run(() => RenderLoopAsync(_cts.Token));
             IsRunning = true;
-            Console.WriteLine($"[VISUALIZER] Started on the audio board's spectrum → {canvasName}");
+            _log.LogInformation("Started on the audio board's spectrum → {CanvasName}", canvasName);
             return true;
         }
         UsingExternal = false;
 
         if (!CanvasManagement.Interfaces.AudioPlayback.HasPlaybackDevice())
         {
-            Console.WriteLine("[VISUALIZER] No playback device — not opening a Pulse monitor");
+            _log.LogInformation("No playback device — not opening a Pulse monitor");
             _targetCanvas = null;
             TargetCanvasName = null;
             return false;
@@ -143,12 +147,12 @@ public class AudioVisualizerService : IAudioVisualizerService
         var monitorSource = await GetMonitorSourceAsync();
         if (string.IsNullOrEmpty(monitorSource))
         {
-            Console.WriteLine("[VISUALIZER] Could not find PulseAudio monitor source");
+            _log.LogWarning("Could not find PulseAudio monitor source");
             return false;
         }
 
-        Console.WriteLine($"[VISUALIZER] Starting with monitor source: {monitorSource}");
-        Console.WriteLine($"[VISUALIZER] Target canvas: {canvasName} ({canvas.Width}x{canvas.Height})");
+        _log.LogInformation("Starting with monitor source: {MonitorSource}", monitorSource);
+        _log.LogInformation("Target canvas: {CanvasName} ({Width}x{Height})", canvasName, canvas.Width, canvas.Height);
 
         _cts = new CancellationTokenSource();
 
@@ -159,7 +163,7 @@ public class AudioVisualizerService : IAudioVisualizerService
         _renderTask = Task.Run(() => RenderLoopAsync(_cts.Token));
 
         IsRunning = true;
-        Console.WriteLine("[VISUALIZER] Started");
+        _log.LogInformation("Started");
 
         return true;
     }
@@ -171,7 +175,7 @@ public class AudioVisualizerService : IAudioVisualizerService
     {
         if (!IsRunning) return;
 
-        Console.WriteLine("[VISUALIZER] Stopping...");
+        _log.LogInformation("Stopping...");
 
         _cts?.Cancel();
 
@@ -222,7 +226,7 @@ public class AudioVisualizerService : IAudioVisualizerService
         _cts?.Dispose();
         _cts = null;
 
-        Console.WriteLine("[VISUALIZER] Stopped");
+        _log.LogInformation("Stopped");
     }
 
     /// <summary>
@@ -250,19 +254,19 @@ public class AudioVisualizerService : IAudioVisualizerService
 
             if (string.IsNullOrEmpty(defaultSink))
             {
-                Console.WriteLine("[VISUALIZER] No default sink found");
+                _log.LogInformation("No default sink found");
                 return null;
             }
 
             // The monitor source is typically the sink name + ".monitor"
             var monitorSource = $"{defaultSink}.monitor";
-            Console.WriteLine($"[VISUALIZER] Default sink: {defaultSink}, monitor: {monitorSource}");
+            _log.LogInformation("Default sink: {DefaultSink}, monitor: {MonitorSource}", defaultSink, monitorSource);
 
             return monitorSource;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VISUALIZER] Error getting monitor source: {ex.Message}");
+            _log.LogError("Error getting monitor source: {Message}", ex.Message);
             return null;
         }
     }
@@ -290,11 +294,11 @@ public class AudioVisualizerService : IAudioVisualizerService
             _parecProcess = Process.Start(psi);
             if (_parecProcess == null)
             {
-                Console.WriteLine("[VISUALIZER] Failed to start parec");
+                _log.LogError("Failed to start parec");
                 return;
             }
 
-            Console.WriteLine($"[VISUALIZER] parec started (PID: {_parecProcess.Id})");
+            _log.LogInformation("parec started (PID: {Id})", _parecProcess.Id);
 
             var stream = _parecProcess.StandardOutput.BaseStream;
             var buffer = new byte[FFTSize * 2]; // 16-bit = 2 bytes per sample
@@ -322,7 +326,7 @@ public class AudioVisualizerService : IAudioVisualizerService
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[VISUALIZER] Capture error: {ex.Message}");
+                    _log.LogError("Capture error: {Message}", ex.Message);
                     await Task.Delay(100, ct);
                 }
         }
@@ -332,7 +336,7 @@ public class AudioVisualizerService : IAudioVisualizerService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VISUALIZER] Capture task error: {ex.Message}");
+            _log.LogError("Capture task error: {Message}", ex.Message);
         }
     }
 
@@ -353,7 +357,7 @@ public class AudioVisualizerService : IAudioVisualizerService
                 // Check if canvas was disposed
                 if (_canvasDisposed)
                 {
-                    Console.WriteLine("[VISUALIZER] Canvas disposed - exiting render loop");
+                    _log.LogInformation("Canvas disposed - exiting render loop");
                     break;
                 }
 
@@ -403,14 +407,14 @@ public class AudioVisualizerService : IAudioVisualizerService
             }
             catch (ObjectDisposedException)
             {
-                Console.WriteLine("[VISUALIZER] Canvas disposed during render - stopping");
+                _log.LogInformation("Canvas disposed during render - stopping");
                 _canvasDisposed = true;
                 break;
             }
             catch (Exception ex)
             {
                 // Don't spam logs if canvas is disposed
-                if (!_canvasDisposed) Console.WriteLine($"[VISUALIZER] Render error: {ex.Message}");
+                if (!_canvasDisposed) _log.LogError("Render error: {Message}", ex.Message);
                 await Task.Delay(100, ct);
             }
         }

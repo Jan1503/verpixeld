@@ -7,14 +7,18 @@ namespace verpixeld.Services;
 ///     Searches YouTube Music for songs or music videos and returns playable URLs.
 ///     Uses the YouTubeMusicAPI NuGet package (no API key required).
 /// </summary>
+[LogTag("MUSIC")]
 public class MusicSearchService
 {
+    private readonly ILogger<MusicSearchService> _log;
+
     private readonly YouTubeMusicClient _client;
 
-    public MusicSearchService()
+    public MusicSearchService(ILogger<MusicSearchService> log)
     {
+        _log = log;
         _client = new YouTubeMusicClient();
-        Console.WriteLine("[MUSIC] YouTube Music search service initialized");
+        _log.LogInformation("YouTube Music search service initialized");
     }
 
     /// <summary>
@@ -30,14 +34,14 @@ public class MusicSearchService
         try
         {
             var category = preferVideo ? SearchCategory.Videos : SearchCategory.Songs;
-            Console.WriteLine($"[MUSIC] Searching ({category}): \"{query}\"");
+            _log.LogInformation("Searching ({Category}): \"{Query}\"", category, query);
 
             var searchResults = _client.SearchAsync(query, category);
             var items = await searchResults.FetchItemsAsync(0, 5);
 
             if (items == null || items.Count == 0)
             {
-                Console.WriteLine("[MUSIC] No results found");
+                _log.LogInformation("No results found");
                 return null;
             }
 
@@ -48,7 +52,7 @@ public class MusicSearchService
 
                 var url = $"https://music.youtube.com/watch?v={video.Id}";
                 var artists = string.Join(", ", video.Artists.Select(a => a.Name));
-                Console.WriteLine($"[MUSIC] Found video: \"{video.Name}\" by {artists} → {url}");
+                _log.LogInformation("Found video: \"{Name}\" by {Artists} → {Url}", video.Name, artists, url);
 
                 return new MusicSearchResult
                 {
@@ -67,7 +71,7 @@ public class MusicSearchService
 
                 var url = $"https://music.youtube.com/watch?v={song.Id}";
                 var artists = string.Join(", ", song.Artists.Select(a => a.Name));
-                Console.WriteLine($"[MUSIC] Found song: \"{song.Name}\" by {artists} → {url}");
+                _log.LogInformation("Found song: \"{Name}\" by {Artists} → {Url}", song.Name, artists, url);
 
                 return new MusicSearchResult
                 {
@@ -83,7 +87,7 @@ public class MusicSearchService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[MUSIC] Search error: {ex.Message}");
+            _log.LogError("Search error: {Message}", ex.Message);
             return null;
         }
     }
@@ -102,7 +106,7 @@ public class MusicSearchService
         try
         {
             var category = preferVideo ? SearchCategory.Videos : SearchCategory.Songs;
-            Console.WriteLine($"[MUSIC] Searching ({category}, max {maxResults}): \"{query}\"");
+            _log.LogInformation("Searching ({Category}, max {MaxResults}): \"{Query}\"", category, maxResults, query);
 
             var searchResults = _client.SearchAsync(query, category);
             var items = await searchResults.FetchItemsAsync(0, maxResults);
@@ -138,7 +142,7 @@ public class MusicSearchService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[MUSIC] Search error: {ex.Message}");
+            _log.LogError("Search error: {Message}", ex.Message);
             return new List<MusicSearchResult>();
         }
     }

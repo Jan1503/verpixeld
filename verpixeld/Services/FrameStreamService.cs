@@ -15,8 +15,11 @@ namespace verpixeld.Services;
 ///     stalled for the duration of the encode — which showed up as micro-stutter on BOTH the HDMI output
 ///     and the web preview whenever the GUI was open.
 /// </summary>
+[LogTag("PREVIEW")]
 public class FrameStreamService : IDisposable
 {
+    private readonly ILogger<FrameStreamService> _log;
+
     private readonly IRenderService _renderService;
     private readonly object _frameLock = new();
 
@@ -52,8 +55,9 @@ public class FrameStreamService : IDisposable
 
     private bool _disposed;
 
-    public FrameStreamService(IRenderService renderService)
+    public FrameStreamService(IRenderService renderService, ILogger<FrameStreamService> log)
     {
+        _log = log;
         _renderService = renderService;
         _renderService.FrameRendered += OnFrameRendered;
 
@@ -91,7 +95,7 @@ public class FrameStreamService : IDisposable
     public async Task StreamFramesAsync(HttpResponse response, CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref _clientCount);
-        Console.WriteLine($"[PREVIEW] Client connected (total: {_clientCount})");
+        _log.LogInformation("Client connected (total: {ClientCount})", _clientCount);
 
         try
         {
@@ -152,7 +156,7 @@ public class FrameStreamService : IDisposable
         finally
         {
             var remaining = Interlocked.Decrement(ref _clientCount);
-            Console.WriteLine($"[PREVIEW] Client disconnected (remaining: {remaining})");
+            _log.LogInformation("Client disconnected (remaining: {Remaining})", remaining);
         }
     }
 
@@ -256,7 +260,7 @@ public class FrameStreamService : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[PREVIEW] Frame encode error: {ex.Message}");
+                _log.LogError("Frame encode error: {Message}", ex.Message);
             }
         }
 

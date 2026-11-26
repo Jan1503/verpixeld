@@ -9,14 +9,18 @@ namespace verpixeld.Layout;
 /// <summary>
 ///     Manages multiple named canvases with predefined layout profiles
 /// </summary>
+[LogTag("LAYOUT")]
 public class DisplayLayoutManager : IDisplayLayoutManager
 {
+    private readonly ILogger<DisplayLayoutManager> _log;
+
     private readonly CanvasManager _canvasManager;
     private readonly IAudioVisualizerService? _audioVisualizerService;
     private readonly Dictionary<string, Canvas> _namedCanvases = new();
 
-    public DisplayLayoutManager(CanvasManager canvasManager, IAudioVisualizerService? audioVisualizerService = null)
+    public DisplayLayoutManager(CanvasManager canvasManager, ILogger<DisplayLayoutManager> log, IAudioVisualizerService? audioVisualizerService = null)
     {
+        _log = log;
         _canvasManager = canvasManager ?? throw new ArgumentNullException(nameof(canvasManager));
         _audioVisualizerService = audioVisualizerService;
     }
@@ -36,7 +40,7 @@ public class DisplayLayoutManager : IDisplayLayoutManager
     /// </summary>
     public void ApplyLayout(LayoutProfile profile)
     {
-        Console.WriteLine($"[LAYOUT] Applying layout: {profile}");
+        _log.LogInformation("Applying layout: {Profile}", profile);
 
         // Clear existing canvases
         ClearAllCanvases();
@@ -65,7 +69,7 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         }
 
         CurrentProfile = profile;
-        Console.WriteLine($"[LAYOUT] Layout applied successfully. Active canvases: {_namedCanvases.Count}");
+        _log.LogInformation("Layout applied successfully. Active canvases: {Count}", _namedCanvases.Count);
     }
 
     /// <summary>
@@ -117,11 +121,11 @@ public class DisplayLayoutManager : IDisplayLayoutManager
                 // CRITICAL: Remove canvas from CanvasManager to prevent duplicates
                 _canvasManager.RemoveCanvas(canvas);
 
-                Console.WriteLine($"[LAYOUT]   Cleared and removed: {name}");
+                _log.LogInformation("Cleared and removed: {Name}", name);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[LAYOUT]   Error clearing {name}: {ex.Message}");
+                _log.LogError("Error clearing {Name}: {Message}", name, ex.Message);
             }
 
         _namedCanvases.Clear();
@@ -137,7 +141,7 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         var canvas = _canvasManager.GetCanvas(x, y, width, height, zOrder, name);
         canvas.Show(); // CRITICAL: Show the canvas
         _namedCanvases[name] = canvas;
-        Console.WriteLine($"[LAYOUT]   Created custom: {name} ({width}x{height} @ {x},{y} z:{zOrder})");
+        _log.LogInformation("Created custom: {Name} ({Width}x{Height} @ {X},{Y} z:{ZOrder})", name, width, height, x, y, zOrder);
 
         return canvas;
     }
@@ -160,7 +164,7 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         }
 
         _namedCanvases.Remove(name);
-        Console.WriteLine($"[LAYOUT]   Removed custom canvas: {name}");
+        _log.LogInformation("Removed custom canvas: {Name}", name);
         return true;
     }
 
@@ -196,7 +200,7 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         if (hidden) canvas.Hide();
         else canvas.Show();
         _namedCanvases[name] = canvas;
-        Console.WriteLine($"[LAYOUT]   Resized canvas: {name} ({width}x{height} @ {x},{y} z:{zOrder})");
+        _log.LogInformation("Resized canvas: {Name} ({Width}x{Height} @ {X},{Y} z:{ZOrder})", name, width, height, x, y, zOrder);
         return canvas;
     }
 
@@ -212,7 +216,7 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         _canvasManager.RenameCanvas(canvas, newName);
         _namedCanvases.Remove(oldName);
         _namedCanvases[newName] = canvas;
-        Console.WriteLine($"[LAYOUT]   Renamed canvas: {oldName} -> {newName}");
+        _log.LogInformation("Renamed canvas: {OldName} -> {NewName}", oldName, newName);
         return true;
     }
 
@@ -244,7 +248,7 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         var main = _canvasManager.GetCanvas(0, 0, w, h, 1, "Main");
         main.Show(); // CRITICAL: Show the canvas so it's visible
         _namedCanvases["Main"] = main;
-        Console.WriteLine($"[LAYOUT]   Created: Main ({w}x{h} @ z:1)");
+        _log.LogInformation("Created: Main ({W}x{H} @ z:1)", w, h);
     }
 
     private void CreateHeaderContentLayout()
@@ -262,8 +266,8 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         _namedCanvases["Header"] = header;
         _namedCanvases["Content"] = content;
 
-        Console.WriteLine($"[LAYOUT]   Created: Header ({w}x{headerH} @ z:2)");
-        Console.WriteLine($"[LAYOUT]   Created: Content ({w}x{h - headerH} @ z:1)");
+        _log.LogInformation("Created: Header ({W}x{HeaderH} @ z:2)", w, headerH);
+        _log.LogInformation("Created: Content ({W}x{Value} @ z:1)", w, h - headerH);
     }
 
     private void CreateThreePanelLayout()
@@ -285,9 +289,9 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         _namedCanvases["Content"] = content;
         _namedCanvases["Footer"] = footer;
 
-        Console.WriteLine($"[LAYOUT]   Created: Header ({w}x{barH} @ z:3)");
-        Console.WriteLine($"[LAYOUT]   Created: Content ({w}x{contentH} @ z:2)");
-        Console.WriteLine($"[LAYOUT]   Created: Footer ({w}x{barH} @ z:1)");
+        _log.LogInformation("Created: Header ({W}x{BarH} @ z:3)", w, barH);
+        _log.LogInformation("Created: Content ({W}x{ContentH} @ z:2)", w, contentH);
+        _log.LogInformation("Created: Footer ({W}x{BarH} @ z:1)", w, barH);
     }
 
     private void CreateSplitViewLayout()
@@ -305,8 +309,8 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         _namedCanvases["Left"] = left;
         _namedCanvases["Right"] = right;
 
-        Console.WriteLine($"[LAYOUT]   Created: Left ({halfW}x{h} @ z:1)");
-        Console.WriteLine($"[LAYOUT]   Created: Right ({w - halfW}x{h} @ z:1)");
+        _log.LogInformation("Created: Left ({HalfW}x{H} @ z:1)", halfW, h);
+        _log.LogInformation("Created: Right ({Value}x{H} @ z:1)", w - halfW, h);
     }
 
     private void CreateDashboardLayout()
@@ -334,10 +338,10 @@ public class DisplayLayoutManager : IDisplayLayoutManager
         _namedCanvases["BottomLeft"] = bottomLeft;
         _namedCanvases["BottomRight"] = bottomRight;
 
-        Console.WriteLine($"[LAYOUT]   Created: TopLeft ({halfW}x{halfH} @ z:1)");
-        Console.WriteLine($"[LAYOUT]   Created: TopRight ({rightW}x{halfH} @ z:1)");
-        Console.WriteLine($"[LAYOUT]   Created: BottomLeft ({halfW}x{bottomH} @ z:1)");
-        Console.WriteLine($"[LAYOUT]   Created: BottomRight ({rightW}x{bottomH} @ z:1)");
+        _log.LogInformation("Created: TopLeft ({HalfW}x{HalfH} @ z:1)", halfW, halfH);
+        _log.LogInformation("Created: TopRight ({RightW}x{HalfH} @ z:1)", rightW, halfH);
+        _log.LogInformation("Created: BottomLeft ({HalfW}x{BottomH} @ z:1)", halfW, bottomH);
+        _log.LogInformation("Created: BottomRight ({RightW}x{BottomH} @ z:1)", rightW, bottomH);
     }
 
     /// <summary>

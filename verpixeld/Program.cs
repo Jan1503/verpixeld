@@ -32,7 +32,7 @@ public class Program
 
         var appConfig = builder.Configuration.GetSection(AppOptions.SectionName).Get<AppOptions>();
         var useVerboseLogging = _verboseLogging || (appConfig?.VerboseLogging ?? false);
-        ConfigureLogging(builder, useVerboseLogging);
+        ConfigureLogging(builder, useVerboseLogging, logService);
 
         var webServerOptions = builder.Configuration.GetSection(WebServerOptions.SectionName).Get<WebServerOptions>()
                                ?? new WebServerOptions();
@@ -244,11 +244,18 @@ public class Program
         Console.WriteLine("  GET /health - Returns system and display health status");
     }
 
-    private static void ConfigureLogging(WebApplicationBuilder builder, bool verbose)
+    /// <summary>
+    ///     One provider for everything: <see cref="HostLoggerProvider"/> writes the console line and feeds the
+    ///     web page's log. verpixeld's own messages from Information (Debug when verbose), the framework's
+    ///     from Warning (Information when verbose).
+    /// </summary>
+    private static void ConfigureLogging(WebApplicationBuilder builder, bool verbose, LogService logService)
     {
         builder.Logging.ClearProviders();
-        builder.Logging.AddConsole();
-        builder.Logging.SetMinimumLevel(verbose ? LogLevel.Information : LogLevel.Error);
+        builder.Logging.AddProvider(new HostLoggerProvider(logService));
+        builder.Logging.SetMinimumLevel(verbose ? LogLevel.Debug : LogLevel.Information);
+        builder.Logging.AddFilter("Microsoft", verbose ? LogLevel.Information : LogLevel.Warning);
+        builder.Logging.AddFilter("System", verbose ? LogLevel.Information : LogLevel.Warning);
         if (verbose)
             Console.WriteLine("[CONFIG] Verbose logging enabled");
     }

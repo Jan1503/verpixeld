@@ -13,8 +13,11 @@ namespace verpixeld.Services;
 ///     AI Image Generation service supporting Azure OpenAI (default) and OpenAI providers.
 ///     Provides text-to-image, image-to-image (stylize), generation history, and scheduled auto-generation.
 /// </summary>
+[LogTag("AI")]
 public class AiImageService
 {
+    private readonly ILogger<AiImageService> _log;
+
     private readonly DisplayLayoutManager _layoutManager;
     private readonly HttpClient _httpClient;
     private readonly string _configPath;
@@ -89,8 +92,9 @@ public class AiImageService
         ["sketch"] = "Create a pencil sketch style image with fine line work, for display on a {w}x{h} pixel LED matrix: ",
     };
 
-    public AiImageService(DisplayLayoutManager layoutManager, CanvasManager canvasManager, int displayWidth, int displayHeight)
+    public AiImageService(DisplayLayoutManager layoutManager, CanvasManager canvasManager, int displayWidth, int displayHeight, ILogger<AiImageService> log)
     {
+        _log = log;
         _layoutManager = layoutManager;
         _canvasManager = canvasManager;
         _displayWidth = displayWidth;
@@ -104,7 +108,7 @@ public class AiImageService
         LoadConfig();
         LoadHistory();
         _canvasManager.DisplayResized += OnDisplayResized;
-        Console.WriteLine($"[AI] Initialized with display size {_displayWidth}x{_displayHeight}");
+        _log.LogInformation("Initialized with display size {DisplayWidth}x{DisplayHeight}", _displayWidth, _displayHeight);
         if (ScheduleEnabled)
             StartScheduleTimer();
     }
@@ -127,7 +131,7 @@ public class AiImageService
         try
         {
             var fullPrompt = BuildPrompt(prompt, style);
-            Console.WriteLine($"[AI] Generating image: \"{prompt}\" (style={style}, quality={quality})");
+            _log.LogInformation("Generating image: \"{Prompt}\" (style={Style}, quality={Quality})", prompt, style, quality);
 
             var base64Image = Provider == "azure"
                 ? await GenerateWithAzureAsync(fullPrompt, quality)
@@ -148,12 +152,12 @@ public class AiImageService
             };
             AddToHistory(record, pngBytes);
 
-            Console.WriteLine($"[AI] Image generated successfully: {record.Id}");
+            _log.LogInformation("Image generated successfully: {Id}", record.Id);
             return new AiGenerationResult { Success = true, ImageBase64 = scaledBase64, Record = record };
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI] Generation failed: {ex.Message}");
+            _log.LogError("Generation failed: {Message}", ex.Message);
             return new AiGenerationResult { Success = false, Error = ex.Message };
         }
         finally
@@ -184,7 +188,7 @@ public class AiImageService
                 ? $"{stylePrompt}Transform this image in the described style."
                 : $"{stylePrompt}{prompt}";
 
-            Console.WriteLine($"[AI] Editing image: \"{prompt}\" (style={style})");
+            _log.LogInformation("Editing image: \"{Prompt}\" (style={Style})", prompt, style);
 
             string resultBase64;
 
@@ -214,12 +218,12 @@ public class AiImageService
             };
             AddToHistory(record, pngBytes);
 
-            Console.WriteLine($"[AI] Image edit completed: {record.Id}");
+            _log.LogInformation("Image edit completed: {Id}", record.Id);
             return new AiGenerationResult { Success = true, ImageBase64 = scaledBase64, Record = record };
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI] Edit failed: {ex.Message}");
+            _log.LogError("Edit failed: {Message}", ex.Message);
             return new AiGenerationResult { Success = false, Error = ex.Message };
         }
         finally
@@ -256,7 +260,7 @@ public class AiImageService
                     h = Math.Max(1, target.Height);
                 }
                 else
-                    Console.WriteLine($"[AI] Canvas '{canvasName}' not found — using full display overlay");
+                    _log.LogWarning("Canvas '{CanvasName}' not found — using full display overlay", canvasName);
             }
 
             using var fitted = AiImageProcessing.ScaleToSize(bitmap, w, h);
@@ -267,14 +271,14 @@ public class AiImageService
                 _imageOverlay = _canvasManager.GetCanvas(x, y, w, h, 250, "AiImageOverlay");
                 _imageOverlay.Show();
                 _imageOverlay.DrawBitmap(fitted, 0, 0, fitted.Width, fitted.Height);
-                Console.WriteLine($"[AI] Image applied to overlay on '{canvasName}' at {x},{y} {w}x{h} z=250");
+                _log.LogInformation("Image applied to overlay on '{CanvasName}' at {X},{Y} {W}x{H} z=250", canvasName, x, y, w, h);
                 return true;
             }
 
             var canvas = _layoutManager.GetCanvas(canvasName);
             if (canvas == null)
             {
-                Console.WriteLine($"[AI] Canvas '{canvasName}' not found");
+                _log.LogWarning("Canvas '{CanvasName}' not found", canvasName);
                 return false;
             }
 
@@ -283,7 +287,7 @@ public class AiImageService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI] Failed to apply to canvas: {ex.Message}");
+            _log.LogError("Failed to apply to canvas: {Message}", ex.Message);
             return false;
         }
     }
@@ -299,7 +303,7 @@ public class AiImageService
             _imageOverlay.Hide();
             _canvasManager.RemoveCanvas(_imageOverlay);
             _imageOverlay = null;
-            Console.WriteLine("[AI] Image overlay dismissed");
+            _log.LogInformation("Image overlay dismissed");
         }
     }
 
@@ -333,7 +337,7 @@ public class AiImageService
 
         if (!response.IsSuccessStatusCode)
         {
-            Console.WriteLine($"[AI/Azure] Error {response.StatusCode}: {responseBody}");
+            _log.LogError("Azure: Error {StatusCode}: {ResponseBody}", response.StatusCode, responseBody);
             throw new Exception(AiImageProcessing.FriendlyHttpError((int)response.StatusCode, responseBody, "Azure OpenAI"));
         }
 
@@ -364,7 +368,7 @@ public class AiImageService
 
         if (!response.IsSuccessStatusCode)
         {
-            Console.WriteLine($"[AI/Azure] Edit error {response.StatusCode}: {responseBody}");
+            _log.LogError("Azure: Edit error {StatusCode}: {ResponseBody}", response.StatusCode, responseBody);
             throw new Exception(AiImageProcessing.FriendlyHttpError((int)response.StatusCode, responseBody, "Azure OpenAI"));
         }
 
@@ -401,7 +405,7 @@ public class AiImageService
 
         if (!response.IsSuccessStatusCode)
         {
-            Console.WriteLine($"[AI/OpenAI] Error {response.StatusCode}: {responseBody}");
+            _log.LogError("OpenAI: Error {StatusCode}: {ResponseBody}", response.StatusCode, responseBody);
             throw new Exception(AiImageProcessing.FriendlyHttpError((int)response.StatusCode, responseBody, "OpenAI"));
         }
 
@@ -431,7 +435,7 @@ public class AiImageService
 
         if (!response.IsSuccessStatusCode)
         {
-            Console.WriteLine($"[AI/OpenAI] Edit error {response.StatusCode}: {responseBody}");
+            _log.LogError("OpenAI: Edit error {StatusCode}: {ResponseBody}", response.StatusCode, responseBody);
             throw new Exception(AiImageProcessing.FriendlyHttpError((int)response.StatusCode, responseBody, "OpenAI"));
         }
 
@@ -550,7 +554,7 @@ public class AiImageService
         catch (Exception ex)
         {
             // The record is gone either way; a leftover file only costs disk space.
-            Console.WriteLine($"[AI] Could not delete history file for {record.Id}: {ex.Message}");
+            _log.LogWarning("Could not delete history file for {Id}: {Message}", record.Id, ex.Message);
         }
     }
 
@@ -564,14 +568,14 @@ public class AiImageService
                 History = JsonSerializer.Deserialize<List<AiGenerationRecord>>(json,
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
                 var migrated = MigrateHistoryThumbnails();
-                Console.WriteLine($"[AI] Loaded {History.Count} history entries");
+                _log.LogInformation("Loaded {Count} history entries", History.Count);
                 if (migrated)
                     SaveHistory();
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI] Failed to load history: {ex.Message}");
+            _log.LogError("Failed to load history: {Message}", ex.Message);
             History = new();
         }
     }
@@ -604,7 +608,7 @@ public class AiImageService
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[AI] Failed to migrate history {record.Id}: {ex.Message}");
+                    _log.LogError("Failed to migrate history {Id}: {Message}", record.Id, ex.Message);
                 }
             }
 
@@ -627,7 +631,7 @@ public class AiImageService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI] Failed to save history: {ex.Message}");
+            _log.LogError("Failed to save history: {Message}", ex.Message);
         }
     }
 
@@ -651,7 +655,8 @@ public class AiImageService
         else
             StopScheduleTimer();
 
-        Console.WriteLine($"[AI] Schedule {(enabled ? "enabled" : "disabled")}: every {ScheduleIntervalMinutes}min, {prompts.Count} prompts");
+        _log.LogInformation("Schedule {State}: every {Minutes}min, {Prompts} prompts", enabled ? "enabled" : "disabled",
+            ScheduleIntervalMinutes, prompts.Count);
     }
 
     private void StartScheduleTimer()
@@ -661,7 +666,7 @@ public class AiImageService
         ScheduleNextRunUtc = DateTime.UtcNow.Add(interval);
         ScheduleLastSkip = null;
         _scheduleTimer = new Timer(OnScheduleTick, null, interval, interval);
-        Console.WriteLine($"[AI] Schedule timer started: every {ScheduleIntervalMinutes} minutes");
+        _log.LogInformation("Schedule timer started: every {ScheduleIntervalMinutes} minutes", ScheduleIntervalMinutes);
     }
 
     private void StopScheduleTimer()
@@ -682,7 +687,7 @@ public class AiImageService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI/Schedule] {ex.Message}");
+            _log.LogWarning("Schedule: {Message}", ex.Message);
         }
     }
 
@@ -695,7 +700,7 @@ public class AiImageService
         {
             ScheduleLastSkip = "Skipped: a generation is already in progress.";
             ScheduleNextRunUtc = DateTime.UtcNow.AddMinutes(ScheduleIntervalMinutes);
-            Console.WriteLine($"[AI/Schedule] {ScheduleLastSkip}");
+            _log.LogInformation("Schedule: {ScheduleLastSkip}", ScheduleLastSkip);
             return;
         }
 
@@ -724,7 +729,7 @@ public class AiImageService
                 ? StylePresets.Keys.ElementAt(_random.Next(StylePresets.Count))
                 : ScheduleStyle;
 
-            Console.WriteLine($"[AI/Schedule] Auto-generating: \"{prompt}\" (style={style})");
+            _log.LogInformation("Schedule: Auto-generating: \"{Prompt}\" (style={Style})", prompt, style);
 
             var result = await GenerateImageAsync(prompt, style);
             ScheduleLastRunUtc = DateTime.UtcNow;
@@ -737,7 +742,7 @@ public class AiImageService
             {
                 ApplyToCanvas(result.ImageBase64, ScheduleCanvasName);
                 ScheduleLastError = null;
-                Console.WriteLine("[AI/Schedule] Image applied to display");
+                _log.LogInformation("Schedule: Image applied to display");
 
                 if (ScheduleSaveToDisk)
                     SaveImageToDisk(result.ImageBase64, prompt, style);
@@ -745,7 +750,7 @@ public class AiImageService
             else
             {
                 ScheduleLastError = result.Error ?? "Generation failed";
-                Console.WriteLine($"[AI/Schedule] Failed: {result.Error}");
+                _log.LogError("Schedule: Failed: {Error}", result.Error);
             }
 
             SaveConfig();
@@ -759,7 +764,7 @@ public class AiImageService
                 ? DateTime.UtcNow.AddMinutes(ScheduleIntervalMinutes)
                 : null;
             SaveConfig();
-            Console.WriteLine($"[AI/Schedule] Error: {ex.Message}");
+            _log.LogError("Schedule: Error: {Message}", ex.Message);
             return new AiGenerationResult { Success = false, Error = ex.Message };
         }
     }
@@ -778,7 +783,7 @@ public class AiImageService
 
             if (!force && _galleryHashes!.TryGetValue(hash, out var existing))
             {
-                Console.WriteLine($"[AI] Gallery already has this image: {existing}");
+                _log.LogInformation("Gallery already has this image: {Existing}", existing);
                 return new GallerySaveResult { Filename = existing, AlreadyExists = true };
             }
 
@@ -790,12 +795,12 @@ public class AiImageService
 
             File.WriteAllBytes(filePath, imageBytes);
             _galleryHashes![hash] = filename;
-            Console.WriteLine($"[AI] Image saved to: {filePath}");
+            _log.LogInformation("Image saved to: {FilePath}", filePath);
             return new GallerySaveResult { Filename = filename };
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI] Failed to save image: {ex.Message}");
+            _log.LogError("Failed to save image: {Message}", ex.Message);
             return new GallerySaveResult();
         }
     }
@@ -874,12 +879,12 @@ public class AiImageService
             if (!File.Exists(filePath)) return false;
             File.Delete(filePath);
             ForgetGalleryHash(safeName);
-            Console.WriteLine($"[AI] Gallery image deleted: {safeName}");
+            _log.LogInformation("Gallery image deleted: {SafeName}", safeName);
             return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI] Failed to delete gallery image: {ex.Message}");
+            _log.LogError("Failed to delete gallery image: {Message}", ex.Message);
             return false;
         }
     }
@@ -915,7 +920,7 @@ public class AiImageService
         if (openAiModel != null) OpenAiModel = openAiModel;
 
         SaveConfig();
-        Console.WriteLine($"[AI] Configured: provider={Provider}, configured={IsConfigured}");
+        _log.LogInformation("Configured: provider={Provider}, configured={IsConfigured}", Provider, IsConfigured);
     }
 
     private void LoadConfig()
@@ -944,13 +949,13 @@ public class AiImageService
                     ScheduleLastRunUtc = config.ScheduleLastRunUtc;
                     ScheduleLastPrompt = config.ScheduleLastPrompt;
                     ScheduleLastError = config.ScheduleLastError;
-                    Console.WriteLine($"[AI] Config loaded: provider={Provider}");
+                    _log.LogInformation("Config loaded: provider={Provider}", Provider);
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI] Failed to load config: {ex.Message}");
+            _log.LogError("Failed to load config: {Message}", ex.Message);
         }
     }
 
@@ -982,7 +987,7 @@ public class AiImageService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI] Failed to save config: {ex.Message}");
+            _log.LogError("Failed to save config: {Message}", ex.Message);
         }
     }
 

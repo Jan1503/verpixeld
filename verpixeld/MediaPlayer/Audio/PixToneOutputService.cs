@@ -9,8 +9,11 @@ namespace verpixeld.MediaPlayer.Audio;
 /// <summary>
 ///     The selected verpixeld audio board. FFmpeg stays here; packets go out through <see cref="PixToneSender"/>.
 /// </summary>
+[LogTag("PIXTONE")]
 public sealed class PixToneOutputService
 {
+    private readonly ILogger<PixToneOutputService> _log;
+
     private readonly object _gate = new();
     private TaskCompletionSource _audioStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private PixToneSender? _liveSender;
@@ -32,8 +35,9 @@ public sealed class PixToneOutputService
     private int _snapW;
     private int _snapH;
 
-    public PixToneOutputService()
+    public PixToneOutputService(ILogger<PixToneOutputService> log)
     {
+        _log = log;
         Load();
         _ = Task.Run(FeedBoard);
         _ = Task.Run(WatchBoardVolume);
@@ -191,7 +195,7 @@ public sealed class PixToneOutputService
                 {
                     if (line.Contains("Error", StringComparison.OrdinalIgnoreCase) ||
                         line.Contains("Failed", StringComparison.OrdinalIgnoreCase))
-                        Console.WriteLine("[PIXTONE] " + line);
+                        _log.LogInformation("{Line}", line);
                 }
             }
             catch { /* process gone */ }
@@ -207,7 +211,7 @@ public sealed class PixToneOutputService
             await sender.PumpAsync(stdout, ct, () => started.TrySetResult()).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { Console.WriteLine("[PIXTONE] " + ex.Message); }
+        catch (Exception ex) { _log.LogWarning("{Message}", ex.Message); }
         finally
         {
             IsStreaming = false;
@@ -215,7 +219,7 @@ public sealed class PixToneOutputService
             sender.Dispose();
         }
         }, ct);
-        Console.WriteLine($"[PIXTONE] streaming to {host}:{PixToneProtocol.Port}");
+        _log.LogInformation("streaming to {Host}:{Port}", host, PixToneProtocol.Port);
         return proc;
     }
 
@@ -257,9 +261,7 @@ public sealed class PixToneOutputService
                 _lastSeen = DateTime.UtcNow;
                 if (restarted || wasAway)
                 {
-                    Console.WriteLine(restarted
-                        ? "[PIXTONE] Board restarted: sending title and cover again"
-                        : "[PIXTONE] Board is back: sending title and cover again");
+                    _log.LogInformation("Board {State}: sending title and cover again", restarted ? "restarted" : "is back");
                     _ = Task.Run(() => ResendShownAsync(host));
                 }
                 else if (DateTime.UtcNow >= _nextTitle && _shownTitle != null)
@@ -274,12 +276,12 @@ public sealed class PixToneOutputService
                 Volume = vol;
                 Muted = board.Muted;
                 Save();
-                Console.WriteLine($"[PIXTONE] board volume {vol}{(Muted ? " muted" : "")}");
+                _log.LogInformation("board volume {Vol}{Value}", vol, (Muted ? " muted" : ""));
                 VolumeChanged?.Invoke();
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[PIXTONE] volume read: " + ex.Message);
+                _log.LogWarning("volume read: {Message}", ex.Message);
             }
         }
     }
@@ -294,7 +296,7 @@ public sealed class PixToneOutputService
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[PIXTONE] volume: " + ex.Message);
+            _log.LogWarning("volume: {Message}", ex.Message);
         }
     }
 
@@ -334,21 +336,21 @@ public sealed class PixToneOutputService
     {
         WallPreview = on;
         Save();
-        Console.WriteLine("[PIXTONE] wall preview " + (on ? "on" : "off"));
+        _log.LogInformation("Wall preview {State}", on ? "on" : "off");
     }
 
     public void SetPreviewFps(int fps)
     {
         PreviewFps = Math.Clamp(fps, 1, 30);
         Save();
-        Console.WriteLine("[PIXTONE] preview fps " + PreviewFps);
+        _log.LogInformation("preview fps {PreviewFps}", PreviewFps);
     }
 
     public void SetPreviewWidth(int width)
     {
         PreviewWidth = NormalizeWidth(width);
         Save();
-        Console.WriteLine("[PIXTONE] preview width " + PreviewWidth);
+        _log.LogInformation("preview width {PreviewWidth}", PreviewWidth);
     }
 
     public void SetPreviewFill(bool on)
@@ -356,7 +358,7 @@ public sealed class PixToneOutputService
         PreviewFill = on;
         Save();
         PushFill();
-        Console.WriteLine("[PIXTONE] preview fill " + (on ? "on" : "off"));
+        _log.LogInformation("Preview fill {State}", on ? "on" : "off");
     }
 
     private void PushFill()
@@ -369,7 +371,7 @@ public sealed class PixToneOutputService
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[PIXTONE] fill: " + ex.Message);
+            _log.LogWarning("fill: {Message}", ex.Message);
         }
     }
 
@@ -388,7 +390,7 @@ public sealed class PixToneOutputService
         SendTitle(Host, title);
     }
 
-    private static void SendTitle(string host, string? title)
+    private void SendTitle(string host, string? title)
     {
         try
         {
@@ -397,7 +399,7 @@ public sealed class PixToneOutputService
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[PIXTONE] title: " + ex.Message);
+            _log.LogWarning("title: {Message}", ex.Message);
         }
     }
 
@@ -416,7 +418,7 @@ public sealed class PixToneOutputService
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[PIXTONE] resend: " + ex.Message);
+            _log.LogWarning("resend: {Message}", ex.Message);
         }
     }
 
@@ -527,7 +529,7 @@ public sealed class PixToneOutputService
                     {
                         picSender?.Dispose();
                         picSender = new PixToneSender(senderHost, port);
-                        if (port != picPort) Console.WriteLine($"[PIXTONE] preview on UDP {port}");
+                        if (port != picPort) _log.LogInformation("preview on UDP {Port}", port);
                         picPort = port;
                     }
                 }
@@ -560,7 +562,7 @@ public sealed class PixToneOutputService
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine("[PIXTONE] panel data: " + ex.Message);
+                        _log.LogWarning("panel data: {Message}", ex.Message);
                     }
                 }
                 if (!ReferenceEquals(listening, sender))
@@ -626,7 +628,7 @@ public sealed class PixToneOutputService
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[PIXTONE] idle feed: " + ex.Message);
+                _log.LogWarning("idle feed: {Message}", ex.Message);
                 sender?.Dispose();
                 sender = null;
                 picSender?.Dispose();
@@ -684,14 +686,14 @@ public sealed class PixToneOutputService
             if (seq == lastSeq && now - lastAt < TimeSpan.FromSeconds(3)) continue;
             lastSeq = seq;
             lastAt = now;
-            Console.WriteLine($"[PIXTONE] panel {key}{(key == PanelKey.Seek ? $" {arg / 10.0:0.#}%" : "")}");
+            _log.LogInformation("panel {Key}{Value}", key, (key == PanelKey.Seek ? $" {arg / 10.0:0.#}%" : ""));
             try
             {
                 PanelKeyPressed?.Invoke(key, arg, gen);
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[PIXTONE] panel key: " + ex.Message);
+                _log.LogWarning("panel key: {Message}", ex.Message);
             }
         }
     }
@@ -727,7 +729,7 @@ public sealed class PixToneOutputService
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[PIXTONE] cover: " + ex.Message);
+                _log.LogWarning("cover: {Message}", ex.Message);
             }
         });
     }
@@ -804,7 +806,7 @@ public sealed class PixToneOutputService
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[PIXTONE] cover clear: " + ex.Message);
+            _log.LogWarning("cover clear: {Message}", ex.Message);
         }
     }
 

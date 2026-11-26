@@ -25,6 +25,8 @@ public static class LogEndpoints
                 {
                     seq = e.Sequence,
                     time = e.Timestamp.ToString("HH:mm:ss.fff"),
+                    level = e.Level,
+                    cat = e.Category,
                     msg = e.Message
                 }),
                 latestSequence = latestSeq
@@ -42,6 +44,8 @@ public static class LogEndpoints
                 {
                     seq = e.Sequence,
                     time = e.Timestamp.ToString("HH:mm:ss.fff"),
+                    level = e.Level,
+                    cat = e.Category,
                     msg = e.Message
                 }),
                 latestSequence = latestSeq

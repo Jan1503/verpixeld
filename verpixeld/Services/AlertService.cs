@@ -15,6 +15,8 @@ namespace verpixeld.Services;
 /// </summary>
 public class AlertService : IDisposable
 {
+    private readonly ILogger<AlertService> _log;
+
     private readonly CanvasManager _canvasManager;
     private readonly MediaPlayerService _mediaService;
     private readonly string _configPath;
@@ -57,8 +59,9 @@ public class AlertService : IDisposable
         }
     }
 
-    public AlertService(CanvasManager canvasManager, MediaPlayerService mediaService, int width, int height)
+    public AlertService(CanvasManager canvasManager, MediaPlayerService mediaService, int width, int height, ILogger<AlertService> log)
     {
+        _log = log;
         _canvasManager = canvasManager;
         _mediaService = mediaService;
         _width = width;
@@ -67,7 +70,7 @@ public class AlertService : IDisposable
         _configPath = AppPaths.AlertConfig;
         LoadConfig();
         _canvasManager.DisplayResized += OnDisplayResized;
-        Console.WriteLine($"[ALERT] Initialized for {width}x{height} display");
+        _log.LogInformation("Initialized for {Width}x{Height} display", width, height);
     }
 
     private void OnDisplayResized(object? sender, DisplayResizedEventArgs e)
@@ -83,7 +86,7 @@ public class AlertService : IDisposable
         {
             if (string.IsNullOrEmpty(StreamUrl))
             {
-                Console.WriteLine("[ALERT] No stream URL configured, ignoring trigger");
+                _log.LogInformation("No stream URL configured, ignoring trigger");
                 return;
             }
 
@@ -91,19 +94,19 @@ public class AlertService : IDisposable
 
             if (IsActive)
             {
-                Console.WriteLine("[ALERT] Re-triggered, resetting timeout timer");
+                _log.LogInformation("Re-triggered, resetting timeout timer");
                 ResetTimer();
                 return;
             }
 
-            Console.WriteLine($"[ALERT] Triggered! Showing camera stream for {TimeoutSeconds}s");
+            _log.LogInformation("Triggered! Showing camera stream for {TimeoutSeconds}s", TimeoutSeconds);
             IsActive = true;
             _mediaPausedByUs = false;
 
             // Pause current media playback if running
             if (_mediaService.IsRunning && !_mediaService.IsPaused)
             {
-                Console.WriteLine("[ALERT] Pausing current media playback");
+                _log.LogInformation("Pausing current media playback");
                 _mediaService.TogglePause();
                 _mediaPausedByUs = true;
             }
@@ -153,7 +156,7 @@ public class AlertService : IDisposable
         {
             if (!IsActive) return;
 
-            Console.WriteLine("[ALERT] Dismissing alert");
+            _log.LogInformation("Dismissing alert");
             IsActive = false;
 
             _dismissTimer?.Dispose();
@@ -193,18 +196,18 @@ public class AlertService : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ALERT] Error removing canvas: {ex.Message}");
+                _log.LogError("Error removing canvas: {Message}", ex.Message);
             }
         }
 
         // Resume media if we paused it
         if (shouldResume)
         {
-            Console.WriteLine("[ALERT] Resuming media playback");
+            _log.LogInformation("Resuming media playback");
             _mediaService.TogglePause();
         }
 
-        Console.WriteLine("[ALERT] Dismissed, back to normal");
+        _log.LogInformation("Dismissed, back to normal");
     }
 
     /// <summary>Configure the alert stream URL and timeout.</summary>
@@ -218,7 +221,7 @@ public class AlertService : IDisposable
             ScaleFilter = scaleFilter;
 
         SaveConfig();
-        Console.WriteLine($"[ALERT] Configured: URL={StreamUrl}, Timeout={TimeoutSeconds}s, Scale={ScaleFilter}");
+        _log.LogInformation("Configured: URL={StreamUrl}, Timeout={TimeoutSeconds}s, Scale={ScaleFilter}", StreamUrl, TimeoutSeconds, ScaleFilter);
     }
 
     // ── Connecting animation (runs until first frame arrives) ──
@@ -312,7 +315,7 @@ public class AlertService : IDisposable
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ALERT] Connecting animation error: {ex.Message}");
+            _log.LogError("Connecting animation error: {Message}", ex.Message);
         }
         finally
         {
@@ -325,7 +328,7 @@ public class AlertService : IDisposable
         _dismissTimer?.Dispose();
         _dismissTimer = new Timer(_ =>
         {
-            Console.WriteLine("[ALERT] Timeout expired, auto-dismissing");
+            _log.LogInformation("Timeout expired, auto-dismissing");
             DismissAlert();
         }, null, TimeoutSeconds * 1000, Timeout.Infinite);
     }
@@ -343,13 +346,13 @@ public class AlertService : IDisposable
                     StreamUrl = config.StreamUrl;
                     TimeoutSeconds = config.TimeoutSeconds;
                     ScaleFilter = config.ScaleFilter ?? "area";
-                    Console.WriteLine($"[ALERT] Config loaded: URL={StreamUrl}, Timeout={TimeoutSeconds}s");
+                    _log.LogInformation("Config loaded: URL={StreamUrl}, Timeout={TimeoutSeconds}s", StreamUrl, TimeoutSeconds);
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ALERT] Failed to load config: {ex.Message}");
+            _log.LogError("Failed to load config: {Message}", ex.Message);
         }
     }
 
@@ -368,7 +371,7 @@ public class AlertService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ALERT] Failed to save config: {ex.Message}");
+            _log.LogError("Failed to save config: {Message}", ex.Message);
         }
     }
 

@@ -10,6 +10,8 @@ namespace verpixeld.MediaPlayer;
 /// </summary>
 public class FavoritesService
 {
+    private readonly ILogger<FavoritesService> _log;
+
     private readonly string _favoritesFilePath;
     private readonly string _historyFilePath;
     private readonly object _lock = new();
@@ -18,8 +20,9 @@ public class FavoritesService
     
     private const int MaxHistoryItems = 20;
 
-    public FavoritesService()
+    public FavoritesService(ILogger<FavoritesService> log)
     {
+        _log = log;
         _favoritesFilePath = AppPaths.Favorites;
         _historyFilePath = AppPaths.PlayHistory;
 
@@ -94,7 +97,7 @@ public class FavoritesService
             _favorites.Add(item);
             SaveFavorites();
             
-            Console.WriteLine($"[FAVORITES] Added: {item.Name} ({item.Type})");
+            _log.LogInformation("Added: {Name} ({Type})", item.Name, item.Type);
             return item;
         }
     }
@@ -112,7 +115,7 @@ public class FavoritesService
             _favorites.Remove(item);
             SaveFavorites();
             
-            Console.WriteLine($"[FAVORITES] Removed: {item.Name}");
+            _log.LogInformation("Removed: {Name}", item.Name);
             return true;
         }
     }
@@ -167,7 +170,7 @@ public class FavoritesService
     /// </summary>
     public void AddToHistory(PlayHistoryItem item)
     {
-        Console.WriteLine($"[HISTORY] AddToHistory called: {item.Name} ({item.Type}), thumbnail: {(item.Thumbnail != null ? $"{item.Thumbnail.Length} chars" : "null")}");
+        _log.LogInformation("[HISTORY] AddToHistory called: {Name} ({Type}), thumbnail: {Value}", item.Name, item.Type, (item.Thumbnail != null ? $"{item.Thumbnail.Length} chars" : "null"));
         lock (_lock)
         {
             SanitizeNetwork(item);
@@ -187,14 +190,14 @@ public class FavoritesService
             
             // Add to beginning
             _history.Insert(0, item);
-            Console.WriteLine($"[HISTORY] History now has {_history.Count} items");
+            _log.LogInformation("[HISTORY] History now has {Count} items", _history.Count);
             
             // Trim to max items
             while (_history.Count > MaxHistoryItems)
                 _history.RemoveAt(_history.Count - 1);
             
             SaveHistory();
-            Console.WriteLine($"[HISTORY] History saved to disk");
+            _log.LogInformation("[HISTORY] History saved to disk");
         }
     }
 
@@ -260,7 +263,7 @@ public class FavoritesService
             }
             if (h > 0) SaveHistory();
             if (f > 0) SaveFavorites();
-            if (h + f > 0) Console.WriteLine($"[HISTORY] Thumbnail for {sourceId} ({h} history, {f} favorites)");
+            if (h + f > 0) _log.LogInformation("[HISTORY] Thumbnail for {SourceId} ({H} history, {F} favorites)", sourceId, h, f);
         }
     }
 
@@ -276,7 +279,7 @@ public class FavoritesService
             {
                 item.Thumbnail = thumbnail;
                 SaveHistory();
-                Console.WriteLine($"[HISTORY] Updated thumbnail for: {item.Name}");
+                _log.LogInformation("[HISTORY] Updated thumbnail for: {Name}", item.Name);
             }
         }
     }
@@ -293,12 +296,12 @@ public class FavoritesService
                 foreach (var fav in _favorites)
                     dirty |= SanitizeNetwork(fav);
                 if (dirty) SaveFavorites();
-                Console.WriteLine($"[FAVORITES] Loaded {_favorites.Count} favorites");
+                _log.LogInformation("Loaded {Count} favorites", _favorites.Count);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[FAVORITES] Error loading favorites: {ex.Message}");
+            _log.LogError("Error loading favorites: {Message}", ex.Message);
             _favorites = new();
         }
     }
@@ -315,7 +318,7 @@ public class FavoritesService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[FAVORITES] Error saving favorites: {ex.Message}");
+            _log.LogError("Error saving favorites: {Message}", ex.Message);
         }
     }
 
@@ -331,12 +334,12 @@ public class FavoritesService
                 foreach (var item in _history)
                     dirty |= SanitizeNetwork(item);
                 if (dirty) SaveHistory();
-                Console.WriteLine($"[HISTORY] Loaded {_history.Count} history items");
+                _log.LogInformation("[HISTORY] Loaded {Count} history items", _history.Count);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[HISTORY] Error loading history: {ex.Message}");
+            _log.LogError("[HISTORY] Error loading history: {Message}", ex.Message);
             _history = new();
         }
     }
@@ -353,7 +356,7 @@ public class FavoritesService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[HISTORY] Error saving history: {ex.Message}");
+            _log.LogError("[HISTORY] Error saving history: {Message}", ex.Message);
         }
     }
 

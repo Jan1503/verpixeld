@@ -9,8 +9,11 @@ namespace verpixeld.Layout;
 /// <summary>
 ///     Manages automatic brightness adjustment based on time schedules
 /// </summary>
+[LogTag("NIGHT MODE")]
 public class NightModeManager : INightModeManager
 {
+    private readonly ILogger<NightModeManager> _log;
+
     private readonly CanvasManager _canvasManager;
     private readonly string _configPath;
     private readonly object _lock = new();
@@ -18,29 +21,28 @@ public class NightModeManager : INightModeManager
     private NightModeConfiguration _config;
     private bool _isTransitioning;
 
-    public NightModeManager(CanvasManager canvasManager, string? configDirectory = null)
+    public NightModeManager(CanvasManager canvasManager, ILogger<NightModeManager> log, string? configDirectory = null)
     {
+        _log = log;
         _canvasManager = canvasManager ?? throw new ArgumentNullException(nameof(canvasManager));
 
         _configPath = configDirectory != null ? Path.Combine(configDirectory, "nightmode.json") : AppPaths.NightModeConfig;
         _config = LoadConfiguration();
 
-        Console.WriteLine($"[NIGHT MODE] Initialized. Enabled: {_config.Enabled}");
+        _log.LogInformation("Initialized. Enabled: {Enabled}", _config.Enabled);
         if (_config.Enabled)
         {
-            Console.WriteLine($"[NIGHT MODE] Schedule: {_config.StartTime} - {_config.EndTime}");
-            Console.WriteLine(
-                $"[NIGHT MODE] Day brightness: {_config.DayBrightness:F2}, Night brightness: {_config.NightBrightness:F2}");
-            Console.WriteLine($"[NIGHT MODE] Transition duration: {_config.TransitionMinutes} minutes");
-            Console.WriteLine(
-                $"[NIGHT MODE] Active days: {(_config.ActiveDays.Count == 0 ? "All days" : string.Join(", ", _config.ActiveDays))}");
+            _log.LogInformation("Schedule: {StartTime} - {EndTime}", _config.StartTime, _config.EndTime);
+            _log.LogInformation("Day brightness: {DayBrightness:F2}, Night brightness: {NightBrightness:F2}", _config.DayBrightness, _config.NightBrightness);
+            _log.LogInformation("Transition duration: {TransitionMinutes} minutes", _config.TransitionMinutes);
+            _log.LogInformation("Active days: {Value}", (_config.ActiveDays.Count == 0 ? "All days" : string.Join(", ", _config.ActiveDays)));
         }
 
         // Start the monitoring timer with a 5-second delay to ensure CanvasManager is ready
         // Then check every minute
         _checkTimer = new Timer(CheckAndApplyBrightness, null, TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(1));
 
-        Console.WriteLine("[NIGHT MODE] Timer started - first check in 5 seconds, then every minute");
+        _log.LogInformation("Timer started - first check in 5 seconds, then every minute");
     }
 
     public void Dispose()
@@ -66,11 +68,11 @@ public class NightModeManager : INightModeManager
             var json = JsonSerializer.Serialize(_config, options);
             FileHelper.AtomicWriteAllText(_configPath, json);
 
-            Console.WriteLine($"[NIGHT MODE] Configuration saved to {_configPath}");
+            _log.LogInformation("Configuration saved to {ConfigPath}", _configPath);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[NIGHT MODE] Error saving configuration: {ex.Message}");
+            _log.LogError("Error saving configuration: {Message}", ex.Message);
             throw;
         }
     }
@@ -99,7 +101,7 @@ public class NightModeManager : INightModeManager
             // Immediately check and apply new settings
             CheckAndApplyBrightness(null);
 
-            Console.WriteLine($"[NIGHT MODE] Configuration updated. Enabled: {_config.Enabled}");
+            _log.LogInformation("Configuration updated. Enabled: {Enabled}", _config.Enabled);
         }
     }
 
@@ -108,7 +110,7 @@ public class NightModeManager : INightModeManager
     /// </summary>
     public void ForceUpdate()
     {
-        Console.WriteLine("[NIGHT MODE] Force update requested");
+        _log.LogInformation("Force update requested");
         CheckAndApplyBrightness(null);
     }
 
@@ -119,11 +121,11 @@ public class NightModeManager : INightModeManager
     {
         lock (_lock)
         {
-            Console.WriteLine("[NIGHT MODE] Force immediate update requested (bypassing transition)");
+            _log.LogInformation("Force immediate update requested (bypassing transition)");
 
             if (!_config.Enabled)
             {
-                Console.WriteLine("[NIGHT MODE] Night mode is disabled - cannot apply");
+                _log.LogWarning("Night mode is disabled - cannot apply");
                 return;
             }
 
@@ -132,9 +134,9 @@ public class NightModeManager : INightModeManager
             var isNightMode = _config.IsNightModeActive(now);
             var mode = isNightMode ? "NIGHT" : "DAY";
 
-            Console.WriteLine($"[NIGHT MODE] Applying {mode} mode brightness: {targetBrightness:F2}");
+            _log.LogInformation("Applying {Mode} mode brightness: {TargetBrightness:F2}", mode, targetBrightness);
             _canvasManager.Brightness = (float)targetBrightness;
-            Console.WriteLine($"[NIGHT MODE] Brightness immediately set to {targetBrightness:F2}");
+            _log.LogInformation("Brightness immediately set to {TargetBrightness:F2}", targetBrightness);
         }
     }
 
@@ -168,17 +170,17 @@ public class NightModeManager : INightModeManager
                 var config = JsonSerializer.Deserialize<NightModeConfiguration>(json);
                 if (config != null)
                 {
-                    Console.WriteLine($"[NIGHT MODE] Configuration loaded from {_configPath}");
+                    _log.LogInformation("Configuration loaded from {ConfigPath}", _configPath);
                     return config;
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[NIGHT MODE] Error loading configuration: {ex.Message}");
+            _log.LogError("Error loading configuration: {Message}", ex.Message);
         }
 
-        Console.WriteLine("[NIGHT MODE] Using default configuration");
+        _log.LogInformation("Using default configuration");
         return new NightModeConfiguration();
     }
 
@@ -189,18 +191,18 @@ public class NightModeManager : INightModeManager
     {
         if (_isTransitioning)
         {
-            Console.WriteLine("[NIGHT MODE] Skipping check - transition in progress");
+            _log.LogInformation("Skipping check - transition in progress");
             return;
         }
 
         lock (_lock)
         {
-            Console.WriteLine($"[NIGHT MODE] Checking brightness at {DateTime.Now:HH:mm:ss}");
-            Console.WriteLine($"[NIGHT MODE]   Enabled: {_config.Enabled}");
+            _log.LogInformation("Checking brightness at {Now:HH:mm:ss}", DateTime.Now);
+            _log.LogInformation("Enabled: {Enabled}", _config.Enabled);
 
             if (!_config.Enabled)
             {
-                Console.WriteLine("[NIGHT MODE]   Skipping - night mode disabled");
+                _log.LogInformation("Skipping - night mode disabled");
                 return;
             }
 
@@ -210,36 +212,35 @@ public class NightModeManager : INightModeManager
             var isNightMode = _config.IsNightModeActive(now);
             var mode = isNightMode ? "NIGHT" : "DAY";
 
-            Console.WriteLine($"[NIGHT MODE]   Current time: {now:HH:mm:ss}");
-            Console.WriteLine($"[NIGHT MODE]   Schedule: {_config.StartTime} - {_config.EndTime}");
-            Console.WriteLine($"[NIGHT MODE]   Mode: {mode}");
-            Console.WriteLine($"[NIGHT MODE]   Current brightness: {currentBrightness:F2}");
-            Console.WriteLine($"[NIGHT MODE]   Target brightness: {targetBrightness:F2}");
-            Console.WriteLine($"[NIGHT MODE]   Difference: {Math.Abs(currentBrightness - targetBrightness):F2}");
+            _log.LogInformation("Current time: {Now:HH:mm:ss}", now);
+            _log.LogInformation("Schedule: {StartTime} - {EndTime}", _config.StartTime, _config.EndTime);
+            _log.LogInformation("Mode: {Mode}", mode);
+            _log.LogInformation("Current brightness: {CurrentBrightness:F2}", currentBrightness);
+            _log.LogInformation("Target brightness: {TargetBrightness:F2}", targetBrightness);
+            _log.LogInformation("Difference: {Value:F2}", Math.Abs(currentBrightness - targetBrightness));
 
             // Check if we need to adjust brightness
             if (Math.Abs(currentBrightness - targetBrightness) > 0.01)
             {
-                Console.WriteLine(
-                    $"[NIGHT MODE] {mode} mode active. Adjusting brightness: {currentBrightness:F2} ? {targetBrightness:F2}");
+                _log.LogInformation("{Mode} mode active. Adjusting brightness: {CurrentBrightness:F2} ? {TargetBrightness:F2}", mode, currentBrightness, targetBrightness);
 
                 if (_config.TransitionMinutes > 0)
                 {
-                    Console.WriteLine($"[NIGHT MODE] Starting {_config.TransitionMinutes}-minute transition");
+                    _log.LogInformation("Starting {TransitionMinutes}-minute transition", _config.TransitionMinutes);
                     // Start gradual transition
                     _ = TransitionBrightnessAsync(currentBrightness, targetBrightness, _config.TransitionMinutes);
                 }
                 else
                 {
                     // Immediate change
-                    Console.WriteLine("[NIGHT MODE] Applying immediate brightness change");
+                    _log.LogInformation("Applying immediate brightness change");
                     _canvasManager.Brightness = (float)targetBrightness;
-                    Console.WriteLine($"[NIGHT MODE] Brightness set to {targetBrightness:F2}");
+                    _log.LogInformation("Brightness set to {TargetBrightness:F2}", targetBrightness);
                 }
             }
             else
             {
-                Console.WriteLine("[NIGHT MODE] Brightness already at target - no adjustment needed");
+                _log.LogInformation("Brightness already at target - no adjustment needed");
             }
         }
     }
@@ -257,8 +258,7 @@ public class NightModeManager : INightModeManager
             var stepDelay = TimeSpan.FromSeconds(10);
             var stepSize = (to - from) / steps;
 
-            Console.WriteLine(
-                $"[NIGHT MODE] Starting transition: {from:F2} ? {to:F2} over {durationMinutes} minutes ({steps} steps)");
+            _log.LogInformation("Starting transition: {From:F2} ? {To:F2} over {DurationMinutes} minutes ({Steps} steps)", from, to, durationMinutes, steps);
 
             for (var i = 1; i <= steps; i++)
             {
@@ -266,16 +266,16 @@ public class NightModeManager : INightModeManager
                 _canvasManager.Brightness = (float)newBrightness;
 
                 if (i % 6 == 0 || i == steps) // Log every minute and at the end
-                    Console.WriteLine($"[NIGHT MODE] Transition progress: {newBrightness:F2} ({i}/{steps})");
+                    _log.LogInformation("Transition progress: {NewBrightness:F2} ({I}/{Steps})", newBrightness, i, steps);
 
                 await Task.Delay(stepDelay);
             }
 
-            Console.WriteLine($"[NIGHT MODE] Transition complete: {to:F2}");
+            _log.LogInformation("Transition complete: {To:F2}", to);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[NIGHT MODE] Error during transition: {ex.Message}");
+            _log.LogError("Error during transition: {Message}", ex.Message);
         }
         finally
         {

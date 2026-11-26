@@ -53,7 +53,7 @@ public static class ServiceCollectionExtensions
             var network = configuration.GetSection(NetworkOptions.SectionName).Get<NetworkOptions>() ?? new NetworkOptions();
             ResolveBoundPanel(network);
             var ic = sp.GetRequiredService<ImageCorrectionService>();
-            var runtime = new OutputRuntime(app, matrix, hdmi, spi, network, ic);
+            var runtime = new OutputRuntime(app, matrix, hdmi, spi, network, ic, sp.GetRequiredService<ILogger<OutputRuntime>>());
             Console.WriteLine("[INIT] Creating matrix renderer...");
             runtime.Start();
             return runtime;
@@ -73,10 +73,11 @@ public static class ServiceCollectionExtensions
             new RenderLoopService(
                 sp.GetRequiredService<CanvasManager>(),
                 sp.GetRequiredService<IMatrixRenderer>(),
+                sp.GetRequiredService<ILogger<RenderLoopService>>(),
                 sp.GetRequiredService<ImageCorrectionService>(),
                 sp.GetRequiredService<MediaPlayer.Audio.PixToneOutputService>()));
 
-        services.AddSingleton(sp => new FrameStreamService(sp.GetRequiredService<IRenderService>()));
+        services.AddSingleton(sp => new FrameStreamService(sp.GetRequiredService<IRenderService>(), sp.GetRequiredService<ILogger<FrameStreamService>>()));
 
         services.AddSingleton<IExtensionDiscovery>(_ =>
         {
@@ -92,14 +93,15 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<AudioOutputService>();
         services.AddSingleton<IAudioOutputService>(sp => sp.GetRequiredService<AudioOutputService>());
         services.AddSingleton<PixToneOutputService>();
-        services.AddSingleton(sp => new BluetoothAudioService(sp.GetRequiredService<AudioOutputService>()));
-        services.AddSingleton<IAudioVisualizerService>(_ => new AudioVisualizerService());
+        services.AddSingleton(sp => new BluetoothAudioService(sp.GetRequiredService<AudioOutputService>(), sp.GetRequiredService<ILogger<BluetoothAudioService>>()));
+        services.AddSingleton<IAudioVisualizerService>(sp => new AudioVisualizerService(sp.GetRequiredService<ILogger<AudioVisualizerService>>()));
 
         services.AddSingleton(sp =>
         {
             Console.WriteLine("[INIT] Initializing layout manager...");
             var mgr = new DisplayLayoutManager(
                 sp.GetRequiredService<CanvasManager>(),
+                sp.GetRequiredService<ILogger<DisplayLayoutManager>>(),
                 sp.GetRequiredService<IAudioVisualizerService>());
             mgr.ApplyLayout(LayoutProfile.FullScreen);
             return mgr;
@@ -108,7 +110,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(sp =>
         {
-            var mix = new ExtensionAudioMixer(sp.GetRequiredService<PixToneOutputService>());
+            var mix = new ExtensionAudioMixer(sp.GetRequiredService<PixToneOutputService>(), sp.GetRequiredService<ILogger<ExtensionAudioMixer>>());
             sp.GetRequiredService<CanvasManager>().UseExtensionAudio(mix);
             mix.Start();
             return mix;
@@ -120,6 +122,7 @@ public static class ServiceCollectionExtensions
             var ccm = new CanvasContentManager(
                 sp.GetRequiredService<IDisplayLayoutManager>(),
                 sp.GetRequiredService<CanvasManager>(),
+                sp.GetRequiredService<ILogger<CanvasContentManager>>(),
                 sp.GetRequiredService<IExtensionDiscovery>(),
                 mixer);
             mixer.RunningExtensions = ccm.RunningExtensions;
@@ -127,15 +130,15 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton<LayoutStorageManager>();
-        services.AddSingleton(sp => new NightModeManager(sp.GetRequiredService<CanvasManager>()));
+        services.AddSingleton(sp => new NightModeManager(sp.GetRequiredService<CanvasManager>(), sp.GetRequiredService<ILogger<NightModeManager>>()));
         services.AddSingleton<INightModeManager>(sp => sp.GetRequiredService<NightModeManager>());
-        services.AddSingleton(sp => new LayoutScheduleManager(sp.GetRequiredService<LayoutStorageManager>()));
+        services.AddSingleton(sp => new LayoutScheduleManager(sp.GetRequiredService<LayoutStorageManager>(), sp.GetRequiredService<ILogger<LayoutScheduleManager>>()));
         services.AddSingleton<ILayoutScheduleManager>(sp => sp.GetRequiredService<LayoutScheduleManager>());
 
         services.AddSingleton(sp =>
         {
             var cm = sp.GetRequiredService<CanvasManager>();
-            var startup = new StartupService(cm)
+            var startup = new StartupService(cm, sp.GetRequiredService<ILogger<StartupService>>())
             {
                 DisplayWidth = cm.Width,
                 DisplayHeight = cm.Height,
@@ -147,7 +150,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(sp =>
         {
             var cm = sp.GetRequiredService<CanvasManager>();
-            return new LocalCameraService(cm, cm.Width, cm.Height);
+            return new LocalCameraService(cm, cm.Width, cm.Height, sp.GetRequiredService<ILogger<LocalCameraService>>());
         });
 
         services.AddSingleton(sp =>
@@ -155,7 +158,8 @@ public static class ServiceCollectionExtensions
             var rot = new CanvasRotationService(
                 sp.GetRequiredService<CanvasManager>(),
                 sp.GetRequiredService<ICanvasContentManager>(),
-                sp.GetRequiredService<PixToneOutputService>());
+                sp.GetRequiredService<PixToneOutputService>(),
+                sp.GetRequiredService<ILogger<CanvasRotationService>>());
             rot.LocalCamera = sp.GetRequiredService<LocalCameraService>();
             return rot;
         });
@@ -167,25 +171,28 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<ICanvasContentManager>(),
                 sp.GetRequiredService<INightModeManager>(),
                 sp.GetRequiredService<IFilterDiscovery>(),
+                sp.GetRequiredService<ILogger<LayoutLoaderService>>(),
                 sp.GetRequiredService<CanvasRotationService>()));
 
         services.AddSingleton(sp =>
             new LayoutPlaylistService(
                 sp.GetRequiredService<CanvasManager>(),
                 sp.GetRequiredService<LayoutStorageManager>(),
-                sp.GetRequiredService<ILayoutLoaderService>()));
+                sp.GetRequiredService<ILayoutLoaderService>(),
+                sp.GetRequiredService<ILogger<LayoutPlaylistService>>()));
 
         services.AddSingleton(sp =>
         {
             var cm = sp.GetRequiredService<CanvasManager>();
             return new MediaPlayerService(cm, sp.GetRequiredService<IAudioOutputService>(),
-                sp.GetRequiredService<PixToneOutputService>(), cm.Width, cm.Height);
+                sp.GetRequiredService<PixToneOutputService>(), cm.Width, cm.Height, sp.GetRequiredService<ILogger<MediaPlayerService>>());
         });
 
         services.AddSingleton(sp =>
         {
             var cm = sp.GetRequiredService<CanvasManager>();
-            return new AlertService(cm, sp.GetRequiredService<MediaPlayerService>(), cm.Width, cm.Height);
+            return new AlertService(cm, sp.GetRequiredService<MediaPlayerService>(), cm.Width, cm.Height,
+                sp.GetRequiredService<ILogger<AlertService>>());
         });
 
         services.AddSingleton(sp =>
@@ -193,7 +200,8 @@ public static class ServiceCollectionExtensions
             var cm = sp.GetRequiredService<CanvasManager>();
             Console.WriteLine("[INIT] AI services initialized (image + chat)");
             return new AiImageService(
-                sp.GetRequiredService<DisplayLayoutManager>(), cm, cm.Width, cm.Height);
+                sp.GetRequiredService<DisplayLayoutManager>(), cm, cm.Width, cm.Height,
+                sp.GetRequiredService<ILogger<AiImageService>>());
         });
         services.AddSingleton<AiChatService>();
         services.AddSingleton<MusicSearchService>();
@@ -221,20 +229,21 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<AlertService>(),
                 sp.GetRequiredService<LocalCameraService>(),
                 cm.Width,
-                cm.Height);
+                cm.Height, sp.GetRequiredService<ILogger<VoiceCommandService>>());
         });
 
         services.AddSingleton(sp =>
         {
             var ha = configuration.GetSection(HomeAssistantOptions.SectionName).Get<HomeAssistantOptions>()
                      ?? new HomeAssistantOptions();
-            return new HomeAssistantService(ha);
+            return new HomeAssistantService(ha, sp.GetRequiredService<ILogger<HomeAssistantService>>());
         });
 
         services.AddSingleton(sp =>
         {
             var cm = sp.GetRequiredService<CanvasManager>();
-            return new HaToastService(cm, cm.Width, cm.Height, sp.GetRequiredService<HomeAssistantService>());
+            return new HaToastService(cm, cm.Width, cm.Height, sp.GetRequiredService<HomeAssistantService>(),
+                sp.GetRequiredService<ILogger<HaToastService>>());
         });
 
         services.AddSingleton(sp =>
@@ -251,7 +260,7 @@ public static class ServiceCollectionExtensions
                 {
                     var ip = StartupService.GetLocalIPAddress();
                     return ip == null ? null : $"http://{ip}:{httpPort}";
-                });
+                }, sp.GetRequiredService<ILogger<HaWallDevice>>());
             ha.WallDevice = device;
             return device;
         });
@@ -273,7 +282,7 @@ public static class ServiceCollectionExtensions
                 {
                     var ip = StartupService.GetLocalIPAddress();
                     return ip == null ? null : $"http://{ip}:{httpPort}";
-                });
+                }, sp.GetRequiredService<ILogger<HaAudioDevice>>());
         });
 
         services.AddSingleton<HostOrchestrator>();

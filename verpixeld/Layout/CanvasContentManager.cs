@@ -12,13 +12,16 @@ namespace verpixeld.Layout;
 /// <summary>
 ///     Manages content (extensions, static content) on named canvases
 /// </summary>
+[LogTag("CONTENT")]
 public class CanvasContentManager(
     IDisplayLayoutManager layoutManager,
     CanvasManager canvasManager,
+    ILogger<CanvasContentManager> log,
     IExtensionDiscovery? extensionDiscovery = null,
     ExtensionAudioMixer? audioMixer = null)
     : ICanvasContentManager
 {
+    private readonly ILogger<CanvasContentManager> _log = log;
     private readonly Dictionary<string, CanvasContent> _canvasContents = new();
     private readonly IExtensionDiscovery? _extensionDiscovery = extensionDiscovery;
 
@@ -61,7 +64,7 @@ public class CanvasContentManager(
         if (audioMixer != null)
             canvasManager.UseExtensionAudio(audioMixer);
 
-        Console.WriteLine($"[CONTENT] Assigning extension '{extensionDisplayName}' to canvas '{canvasName}'");
+        _log.LogInformation("Assigning extension '{ExtensionDisplayName}' to canvas '{CanvasName}'", extensionDisplayName, canvasName);
 
         try
         {
@@ -77,7 +80,7 @@ public class CanvasContentManager(
                 // Use the public Instance property instead of reflection
                 var targetInstance = ext.Instance;
 
-                Console.WriteLine($"[CONTENT] Extension instance type: {targetInstance.GetType().Name}");
+                _log.LogInformation("Extension instance type: {Value}", targetInstance.GetType().Name);
 
                 foreach (var (key, value) in config)
                     try
@@ -87,18 +90,18 @@ public class CanvasContentManager(
                         {
                             // Fallback to SetProperty on the wrapper
                             ext.SetProperty(key, value);
-                            Console.WriteLine($"[CONTENT]   Set {key} = {value} (via SetProperty)");
+                            _log.LogInformation("Set {Key} = {Value} (via SetProperty)", key, value);
                         }
                         else if (propertyInfo.CanWrite)
                         {
                             var convertedValue = ConvertParam(value, propertyInfo.PropertyType);
                             propertyInfo.SetValue(targetInstance, convertedValue);
-                            Console.WriteLine($"[CONTENT]   Set {key} = {convertedValue}");
+                            _log.LogInformation("Set {Key} = {ConvertedValue}", key, convertedValue);
                         }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[CONTENT]   Failed to set {key}: {ex.Message}");
+                        _log.LogError("Failed to set {Key}: {Message}", key, ex.Message);
                     }
             }
 
@@ -109,7 +112,7 @@ public class CanvasContentManager(
             }
             catch (AmbiguousMatchException)
             {
-                Console.WriteLine("[CONTENT] Ambiguous Start() method detected, using reflection workaround");
+                _log.LogInformation("Ambiguous Start() method detected, using reflection workaround");
 
                 // Workaround: Get the Start method more specifically
                 var instanceType = ext.GetType();
@@ -124,7 +127,7 @@ public class CanvasContentManager(
                 if (startMethod != null)
                 {
                     startMethod.Invoke(ext, null);
-                    Console.WriteLine("[CONTENT] Started extension using base type method");
+                    _log.LogInformation("Started extension using base type method");
                 }
                 else
                 {
@@ -132,7 +135,7 @@ public class CanvasContentManager(
                     var instance = ext.Instance;
                     var instanceStartMethod = instance.GetType().GetMethod("Start");
                     instanceStartMethod?.Invoke(instance, null);
-                    Console.WriteLine("[CONTENT] Started extension using Instance property");
+                    _log.LogInformation("Started extension using Instance property");
                 }
             }
 
@@ -150,7 +153,7 @@ public class CanvasContentManager(
             _canvasContents[canvasName] = content;
             TrackAudio(ext, true);
 
-            Console.WriteLine($"[CONTENT] Extension '{extensionDisplayName}' started on '{canvasName}'");
+            _log.LogInformation("Extension '{ExtensionDisplayName}' started on '{CanvasName}'", extensionDisplayName, canvasName);
 
             return content;
         }
@@ -159,9 +162,8 @@ public class CanvasContentManager(
             // Unwrap reflection's "target of an invocation" so the real cause is visible.
             var root = ex;
             while (root.InnerException != null) root = root.InnerException;
-            Console.WriteLine(
-                $"[CONTENT] Error assigning extension '{extensionDisplayName}': {root.GetType().Name}: {root.Message}");
-            Console.WriteLine($"[CONTENT]   {root.StackTrace}");
+            _log.LogError("Error assigning extension '{ExtensionDisplayName}': {Value}: {Message}", extensionDisplayName, root.GetType().Name, root.Message);
+            _log.LogInformation("{StackTrace}", root.StackTrace);
             throw;
         }
         }
@@ -180,13 +182,13 @@ public class CanvasContentManager(
         if (content.ContentType != ContentType.DynamicExtension || content.ExtensionInstance == null)
             throw new InvalidOperationException($"Canvas '{canvasName}' does not have a dynamic extension");
 
-        Console.WriteLine($"[CONTENT] Updating configuration for '{canvasName}'");
+        _log.LogInformation("Updating configuration for '{CanvasName}'", canvasName);
 
         // Cast to DynamicExtension and get the actual extension instance using the public Instance property
         var dynamicExt = content.ExtensionInstance as dynamic;
         object targetInstance = dynamicExt.Instance;
 
-        Console.WriteLine($"[CONTENT] Extension instance type: {targetInstance.GetType().Name}");
+        _log.LogInformation("Extension instance type: {Value}", targetInstance.GetType().Name);
 
         foreach (var (key, value) in config)
             try
@@ -197,7 +199,7 @@ public class CanvasContentManager(
                 {
                     var convertedValue = ConvertParam(value, propertyInfo.PropertyType);
                     propertyInfo.SetValue(targetInstance, convertedValue);
-                    Console.WriteLine($"[CONTENT]   ✓ Updated {key} = {convertedValue}");
+                    _log.LogInformation("✓ Updated {Key} = {ConvertedValue}", key, convertedValue);
                 }
                 else if (propertyInfo == null)
                 {
@@ -206,16 +208,16 @@ public class CanvasContentManager(
                     {
                         dynamic wrapper = content.ExtensionInstance;
                         wrapper.SetProperty(key, value);
-                        Console.WriteLine($"[CONTENT]   ✓ Updated {key} = {value} (via SetProperty fallback)");
+                        _log.LogInformation("✓ Updated {Key} = {Value} (via SetProperty fallback)", key, value);
                     }
                     catch (Exception fallbackEx)
                     {
-                        Console.WriteLine($"[CONTENT]   ✗ SetProperty fallback also failed: {fallbackEx.Message}");
+                        _log.LogError("✗ SetProperty fallback also failed: {Message}", fallbackEx.Message);
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"[CONTENT]   ✗ Property {key} is read-only");
+                    _log.LogInformation("✗ Property {Key} is read-only", key);
                 }
 
                 // Update stored configuration (store original value)
@@ -223,8 +225,8 @@ public class CanvasContentManager(
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[CONTENT]   Failed to update {key}: {ex.Message}");
-                Console.WriteLine($"[CONTENT]   Stack trace: {ex.StackTrace}");
+                _log.LogError("Failed to update {Key}: {Message}", key, ex.Message);
+                _log.LogInformation("Stack trace: {StackTrace}", ex.StackTrace);
             }
         }
     }
@@ -239,7 +241,7 @@ public class CanvasContentManager(
     ///     instance) into the property's CLR type. Handles enums (by name OR numeric), SKColor (hex string),
     ///     all numeric widenings/narrowings (e.g. JSON double → int), bool, string and structured types.
     /// </summary>
-    private static object? ConvertParam(object? value, Type propType)
+    private object? ConvertParam(object? value, Type propType)
     {
         if (value == null) return null;
 
@@ -276,12 +278,12 @@ public class CanvasContentManager(
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CONTENT]   Convert '{value}' -> {t.Name} failed: {ex.Message}; leaving as-is");
+            _log.LogError("Convert '{Value}' -> {Name} failed: {Message}; leaving as-is", value, t.Name, ex.Message);
             return value;
         }
     }
 
-    private static object? DeserializeStructured(object? value, Type propType)
+    private object? DeserializeStructured(object? value, Type propType)
     {
         if (value == null) return null;
         if (propType.IsInstanceOfType(value)) return value; // already the right type
@@ -300,7 +302,7 @@ public class CanvasContentManager(
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CONTENT]   Structured bind failed for {propType.Name}: {ex.Message}");
+            _log.LogError("Structured bind failed for {Name}: {Message}", propType.Name, ex.Message);
             return null;
         }
     }
@@ -336,7 +338,7 @@ public class CanvasContentManager(
         var newCanvas = _layoutManager.ResizeCanvas(canvasName, x, y, width, height);
         if (newCanvas == null)
         {
-            Console.WriteLine($"[CONTENT] ResizeCanvas: canvas '{canvasName}' not found");
+            _log.LogWarning("ResizeCanvas: canvas '{CanvasName}' not found", canvasName);
             return false;
         }
 
@@ -386,7 +388,7 @@ public class CanvasContentManager(
         {
         if (!_canvasContents.TryGetValue(canvasName, out var content)) return; // Nothing to stop
 
-        Console.WriteLine($"[CONTENT] Stopping content on canvas '{canvasName}'");
+        _log.LogInformation("Stopping content on canvas '{CanvasName}'", canvasName);
 
         try
         {
@@ -398,7 +400,7 @@ public class CanvasContentManager(
                     // Stop extension
                     var stopMethod = content.ExtensionInstance.GetType().GetMethod("Stop");
                     stopMethod?.Invoke(content.ExtensionInstance, null);
-                    Console.WriteLine("[CONTENT]   Extension stopped");
+                    _log.LogInformation("Extension stopped");
                 }
                 catch (AggregateException aggEx)
                 {
@@ -406,23 +408,23 @@ public class CanvasContentManager(
                     var realEx = aggEx.InnerException ?? aggEx;
 
                     if (realEx is TaskCanceledException || realEx is OperationCanceledException)
-                        Console.WriteLine("[CONTENT]   Extension cancelled gracefully (expected during shutdown)");
+                        _log.LogInformation("Extension cancelled gracefully (expected during shutdown)");
                     else
-                        Console.WriteLine($"[CONTENT]   Error stopping extension: {realEx.Message}");
+                        _log.LogError("Error stopping extension: {Message}", realEx.Message);
                 }
                 catch (TaskCanceledException)
                 {
                     // Expected when stopping async operations
-                    Console.WriteLine("[CONTENT]   Extension cancelled gracefully");
+                    _log.LogInformation("Extension cancelled gracefully");
                 }
                 catch (OperationCanceledException)
                 {
                     // Expected when stopping async operations
-                    Console.WriteLine("[CONTENT]   Extension cancelled gracefully");
+                    _log.LogInformation("Extension cancelled gracefully");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[CONTENT]   Error stopping extension: {ex.Message}");
+                    _log.LogError("Error stopping extension: {Message}", ex.Message);
                 }
 
                 try
@@ -431,12 +433,12 @@ public class CanvasContentManager(
                     if (content.ExtensionInstance is IDisposable disposable)
                     {
                         disposable.Dispose();
-                        Console.WriteLine("[CONTENT]   Extension disposed");
+                        _log.LogInformation("Extension disposed");
                     }
                 }
                 catch (Exception disposeEx)
                 {
-                    Console.WriteLine($"[CONTENT]   Error disposing extension: {disposeEx.Message}");
+                    _log.LogError("Error disposing extension: {Message}", disposeEx.Message);
                 }
             }
 
@@ -445,20 +447,20 @@ public class CanvasContentManager(
             {
                 var canvas = _layoutManager.GetCanvas(canvasName);
                 canvas?.Clear();
-                Console.WriteLine("[CONTENT]   Canvas cleared");
+                _log.LogInformation("Canvas cleared");
             }
             catch (Exception clearEx)
             {
-                Console.WriteLine($"[CONTENT]   Error clearing canvas: {clearEx.Message}");
+                _log.LogError("Error clearing canvas: {Message}", clearEx.Message);
             }
 
             _canvasContents.Remove(canvasName);
 
-            Console.WriteLine($"[CONTENT] ✓ Content stopped on '{canvasName}'");
+            _log.LogInformation("✓ Content stopped on '{CanvasName}'", canvasName);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CONTENT] Error stopping content on '{canvasName}': {ex.Message}");
+            _log.LogError("Error stopping content on '{CanvasName}': {Message}", canvasName, ex.Message);
             // Remove from tracking even if there was an error
             _canvasContents.Remove(canvasName);
         }
@@ -472,11 +474,11 @@ public class CanvasContentManager(
     {
         if (_canvasContents.Count == 0)
         {
-            Console.WriteLine("[CONTENT] No active content to stop");
+            _log.LogInformation("No active content to stop");
             return;
         }
 
-        Console.WriteLine($"[CONTENT] Stopping all content ({_canvasContents.Count} canvases)");
+        _log.LogInformation("Stopping all content ({Count} canvases)", _canvasContents.Count);
 
         var canvasNames = _canvasContents.Keys.ToList();
         var stopCount = 0;
@@ -491,11 +493,11 @@ public class CanvasContentManager(
             catch (Exception ex)
             {
                 errorCount++;
-                Console.WriteLine($"[CONTENT] Failed to stop content on '{canvasName}': {ex.Message}");
+                _log.LogError("Failed to stop content on '{CanvasName}': {Message}", canvasName, ex.Message);
                 // Continue with other canvases
             }
 
-        Console.WriteLine($"[CONTENT] Stopped {stopCount}/{canvasNames.Count} canvases ({errorCount} errors)");
+        _log.LogError("Stopped {StopCount}/{Count} canvases ({ErrorCount} errors)", stopCount, canvasNames.Count, errorCount);
     }
 
     /// <summary>
@@ -525,7 +527,7 @@ public class CanvasContentManager(
         if (content.ContentType != ContentType.DynamicExtension)
             throw new InvalidOperationException($"Cannot restart non-extension content on '{canvasName}'");
 
-        Console.WriteLine($"[CONTENT] Restarting content on '{canvasName}'");
+        _log.LogInformation("Restarting content on '{CanvasName}'", canvasName);
 
         var extensionName = content.ExtensionDisplayName!;
         var config = content.Configuration;
@@ -571,7 +573,7 @@ public class CanvasContentManager(
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CONTENT] Error invoking method '{methodName}': {ex.Message}");
+            _log.LogError("Error invoking method '{MethodName}': {Message}", methodName, ex.Message);
             throw;
         }
     }
@@ -618,7 +620,7 @@ public class CanvasContentManager(
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[CONTENT] Error getting methods for '{canvasName}': {ex.Message}");
+            _log.LogError("Error getting methods for '{CanvasName}': {Message}", canvasName, ex.Message);
             throw;
         }
     }

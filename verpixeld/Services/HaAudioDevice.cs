@@ -12,8 +12,11 @@ namespace verpixeld.Services;
 ///     sleep timer, alarm, wall spectrum and whether the board is reachable.
 ///     Commands arrive on <c>verpixeld/audio/#</c> through the same HA connection as the wall.
 /// </summary>
+[LogTag("HA Audio")]
 public sealed class HaAudioDevice : IDisposable
 {
+    private readonly ILogger<HaAudioDevice> _log;
+
     public const string TopicPrefix = "verpixeld/audio";
     private const string Off = "(off)";
 
@@ -62,8 +65,9 @@ public sealed class HaAudioDevice : IDisposable
 
     public HaAudioDevice(HomeAssistantService ha, PixToneOutputService board, MediaPlayerService media,
         RadioService radio, SleepTimerService sleep, AlarmService alarms, SongLogService songs,
-        IAudioVisualizerService visualizer, PanelBridgeService bridge, Func<string?> configUrl)
+        IAudioVisualizerService visualizer, PanelBridgeService bridge, Func<string?> configUrl, ILogger<HaAudioDevice> log)
     {
+        _log = log;
         _ha = ha;
         _board = board;
         _media = media;
@@ -81,7 +85,7 @@ public sealed class HaAudioDevice : IDisposable
         _sleep.Changed += Poke;
         _alarms.Changed += Poke;
         _timer = new System.Threading.Timer(_ => Poke(), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(5));
-        Console.WriteLine("[HA Audio] Audio board device ready (MQTT discovery when HA MQTT is available)");
+        _log.LogInformation("Audio board device ready (MQTT discovery when HA MQTT is available)");
     }
 
     private bool Exposed => _ha.MqttAvailable && _ha.Snapshot().ExposeDevice && _board.IsSelected;
@@ -100,7 +104,7 @@ public sealed class HaAudioDevice : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[HA Audio] " + ex.Message);
+                _log.LogWarning("{Message}", ex.Message);
             }
             finally
             {
@@ -121,7 +125,7 @@ public sealed class HaAudioDevice : IDisposable
         var tail = topic[(TopicPrefix.Length + 1)..];
         if (!tail.EndsWith("/set", StringComparison.OrdinalIgnoreCase) &&
             !tail.EndsWith("/press", StringComparison.OrdinalIgnoreCase)) return;
-        Console.WriteLine($"[HA Audio] {tail}: {(payload.Length > 80 ? payload[..80] : payload)}");
+        _log.LogInformation("{Tail}: {Value}", tail, (payload.Length > 80 ? payload[..80] : payload));
         _ = Task.Run(async () =>
         {
             try
@@ -130,7 +134,7 @@ public sealed class HaAudioDevice : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[HA Audio] {tail}: {ex.Message}");
+                _log.LogWarning("{Tail}: {Message}", tail, ex.Message);
             }
             await PublishStateAsync(true);
         });
@@ -288,7 +292,7 @@ public sealed class HaAudioDevice : IDisposable
         });
         _published = true;
         _lastState = "";
-        Console.WriteLine("[HA Audio] discovery published");
+        _log.LogInformation("discovery published");
     }
 
     private async Task UnpublishAsync()
@@ -297,7 +301,7 @@ public sealed class HaAudioDevice : IDisposable
             await _ha.PublishMqttAsync($"homeassistant/{component}/{id}/config", "", retain: true);
         await _ha.PublishMqttAsync($"{TopicPrefix}/availability", "offline", retain: true);
         _published = false;
-        Console.WriteLine("[HA Audio] discovery removed");
+        _log.LogInformation("discovery removed");
     }
 
     private async Task PublishStateAsync(bool force)

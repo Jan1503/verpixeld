@@ -14,6 +14,8 @@ namespace verpixeld.Services;
 /// </summary>
 public class LayoutLoaderService : ILayoutLoaderService
 {
+    private readonly ILogger<LayoutLoaderService> _log;
+
     private readonly CanvasManager _canvasManager;
     private readonly ICanvasContentManager _contentManager;
     private readonly IFilterDiscovery _filterDiscovery;
@@ -21,14 +23,9 @@ public class LayoutLoaderService : ILayoutLoaderService
     private readonly INightModeManager _nightModeManager;
     private readonly CanvasRotationService? _rotationService;
 
-    public LayoutLoaderService(
-        CanvasManager canvasManager,
-        IDisplayLayoutManager layoutManager,
-        ICanvasContentManager contentManager,
-        INightModeManager nightModeManager,
-        IFilterDiscovery filterDiscovery,
-        CanvasRotationService? rotationService = null)
+    public LayoutLoaderService(CanvasManager canvasManager, IDisplayLayoutManager layoutManager, ICanvasContentManager contentManager, INightModeManager nightModeManager, IFilterDiscovery filterDiscovery, ILogger<LayoutLoaderService> log, CanvasRotationService? rotationService = null)
     {
+        _log = log;
         _canvasManager = canvasManager;
         _layoutManager = layoutManager;
         _contentManager = contentManager;
@@ -64,11 +61,11 @@ public class LayoutLoaderService : ILayoutLoaderService
             {
                 result.Success = false;
                 result.ErrorMessage = $"Invalid profile '{layout.Profile}'";
-                Console.WriteLine($"[{source}] {result.ErrorMessage}");
+                _log.LogInformation("[{Source}] {ErrorMessage}", source, result.ErrorMessage);
                 return result;
             }
 
-            Console.WriteLine($"[{source}] Loading layout: '{layout.Name}'");
+            _log.LogInformation("[{Source}] Loading layout: '{Name}'", source, layout.Name);
 
             // Stop all current content
             _contentManager.StopAllContent();
@@ -93,7 +90,7 @@ public class LayoutLoaderService : ILayoutLoaderService
             {
                 result.Success = false;
                 result.ErrorMessage = "No canvas available after layout change";
-                Console.WriteLine($"[{source}] ERROR: {result.ErrorMessage}");
+                _log.LogError("[{Source}] ERROR: {ErrorMessage}", source, result.ErrorMessage);
                 return result;
             }
 
@@ -111,7 +108,7 @@ public class LayoutLoaderService : ILayoutLoaderService
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[{source}] Failed to restore '{canvasName}': {ex.Message}");
+                    _log.LogError("[{Source}] Failed to restore '{CanvasName}': {Message}", source, canvasName, ex.Message);
                     result.CanvasesFailed++;
                 }
 
@@ -128,7 +125,7 @@ public class LayoutLoaderService : ILayoutLoaderService
         {
             result.Success = false;
             result.ErrorMessage = ex.Message;
-            Console.WriteLine($"[{source}] Error loading layout: {ex.Message}");
+            _log.LogError("[{Source}] Error loading layout: {Message}", source, ex.Message);
             return result;
         }
     }
@@ -140,15 +137,15 @@ public class LayoutLoaderService : ILayoutLoaderService
         if (layout.OverrideGlobalBrightness)
         {
             _canvasManager.Brightness = (float)layout.GlobalBrightness;
-            Console.WriteLine($"[{source}] Brightness set to {_canvasManager.Brightness:F2}");
+            _log.LogInformation("[{Source}] Brightness set to {Brightness:F2}", source, _canvasManager.Brightness);
 
             if (nightModeConfig.Enabled)
-                Console.WriteLine($"[{source}] Note: Night mode is enabled but layout brightness override was applied");
+                _log.LogInformation("[{Source}] Note: Night mode is enabled but layout brightness override was applied", source);
         }
         else
         {
-            Console.WriteLine($"[{source}] Brightness preserved: {_canvasManager.Brightness:F2}");
-            if (nightModeConfig.Enabled) Console.WriteLine($"[{source}] Night mode remains in control of brightness");
+            _log.LogInformation("[{Source}] Brightness preserved: {Brightness:F2}", source, _canvasManager.Brightness);
+            if (nightModeConfig.Enabled) _log.LogInformation("[{Source}] Night mode remains in control of brightness", source);
         }
     }
 
@@ -167,7 +164,7 @@ public class LayoutLoaderService : ILayoutLoaderService
             var (x, y, cw, ch) = DisplayGeometry.Clamp(
                 canvasConfig.X ?? 0, canvasConfig.Y ?? 0, w, h,
                 _canvasManager.Width, _canvasManager.Height);
-            Console.WriteLine($"[{source}] Creating canvas '{canvasName}' ({cw}x{ch} @ {x},{y}) — not in profile...");
+            _log.LogInformation("[{Source}] Creating canvas '{CanvasName}' ({Cw}x{Ch} @ {X},{Y}) — not in profile...", source, canvasName, cw, ch, x, y);
             canvas = _layoutManager.CreateCustomCanvas(canvasName, x, y, cw, ch, canvasConfig.ZOrder);
         }
         else if (canvasConfig.Width is > 0 && canvasConfig.Height is > 0)
@@ -182,7 +179,7 @@ public class LayoutLoaderService : ILayoutLoaderService
                 _canvasManager.Width, _canvasManager.Height);
             if (canvas.XPos != nx || canvas.YPos != ny || canvas.Width != nw || canvas.Height != nh)
             {
-                Console.WriteLine($"[{source}] Resizing '{canvasName}' to saved geometry ({nw}x{nh} @ {nx},{ny})...");
+                _log.LogInformation("[{Source}] Resizing '{CanvasName}' to saved geometry ({Nw}x{Nh} @ {Nx},{Ny})...", source, canvasName, nw, nh, nx, ny);
                 var resized = _layoutManager.ResizeCanvas(canvasName, nx, ny, nw, nh);
                 if (resized != null) canvas = resized;
             }
@@ -211,14 +208,14 @@ public class LayoutLoaderService : ILayoutLoaderService
                 canvasConfig.ExtensionName,
                 NormalizeConfig(canvasConfig.Configuration)
             );
-            Console.WriteLine($"[{source}] Assigned '{canvasConfig.ExtensionName}' to '{canvasName}'");
+            _log.LogInformation("[{Source}] Assigned '{ExtensionName}' to '{CanvasName}'", source, canvasConfig.ExtensionName, canvasName);
         }
 
         // Restore per-canvas content rotation (and start it if it was enabled).
         if (canvasConfig.Rotation is { Steps.Count: > 0 })
         {
             _rotationService?.ImportConfig(canvasName, canvasConfig.Rotation);
-            Console.WriteLine($"[{source}] Restored rotation for '{canvasName}' ({canvasConfig.Rotation.Steps.Count} steps)");
+            _log.LogInformation("[{Source}] Restored rotation for '{CanvasName}' ({Count} steps)", source, canvasName, canvasConfig.Rotation.Steps.Count);
         }
     }
 
@@ -274,12 +271,12 @@ public class LayoutLoaderService : ILayoutLoaderService
                     ApplyFilterParameters(filter, filterConfig.Parameters);
                     _canvasManager.AddFilter(filter);
                     restoredCount++;
-                    Console.WriteLine($"[{source}] Restored filter: {filterConfig.FilterType}");
+                    _log.LogInformation("[{Source}] Restored filter: {FilterType}", source, filterConfig.FilterType);
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[{source}] Failed to restore filter '{filterConfig.FilterType}': {ex.Message}");
+                _log.LogError("[{Source}] Failed to restore filter '{FilterType}': {Message}", source, filterConfig.FilterType, ex.Message);
             }
 
         return restoredCount;

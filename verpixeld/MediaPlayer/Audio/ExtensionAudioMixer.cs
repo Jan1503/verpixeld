@@ -11,8 +11,11 @@ namespace verpixeld.MediaPlayer.Audio;
 ///     are mixed in as well. A playing media stream keeps the board; otherwise the first
 ///     audible extension owns it.
 /// </summary>
+[LogTag("AUDIO")]
 public sealed class ExtensionAudioMixer : IExtensionAudio, IDisposable
 {
+    private readonly ILogger<ExtensionAudioMixer> _log;
+
     private const int SampleRate = 48000;
     private const int Frames = 360;
 
@@ -28,8 +31,9 @@ public sealed class ExtensionAudioMixer : IExtensionAudio, IDisposable
     private readonly CancellationTokenSource _cts = new();
     private bool _loggedIdle;
 
-    public ExtensionAudioMixer(PixToneOutputService vap1)
+    public ExtensionAudioMixer(PixToneOutputService vap1, ILogger<ExtensionAudioMixer> log)
     {
+        _log = log;
         _vap1 = vap1;
     }
 
@@ -92,7 +96,7 @@ public sealed class ExtensionAudioMixer : IExtensionAudio, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("[AUDIO] panel title: " + ex.Message);
+                    _log.LogWarning("panel title: {Message}", ex.Message);
                 }
             }
         }
@@ -166,7 +170,7 @@ public sealed class ExtensionAudioMixer : IExtensionAudio, IDisposable
                 }
 
                 if (sender == null)
-                    Console.WriteLine($"[AUDIO] extension -> {_vap1.Host} vol {_vap1.Volume}");
+                    _log.LogInformation("extension -> {Host} vol {Volume}", _vap1.Host, _vap1.Volume);
                 sender ??= new PixToneSender(_vap1.Host);
                 Array.Clear(stereo);
                 _voices.Render(stereo, MixSources);
@@ -178,7 +182,7 @@ public sealed class ExtensionAudioMixer : IExtensionAudio, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("[AUDIO] " + ex.Message);
+                    _log.LogWarning("{Message}", ex.Message);
                     sender.Dispose();
                     sender = null;
                     await Task.Delay(200, ct).ConfigureAwait(false);
@@ -199,7 +203,7 @@ public sealed class ExtensionAudioMixer : IExtensionAudio, IDisposable
         {
             if (!source.IsAudible) continue;
             try { source.Mix(stereo, SampleRate); }
-            catch (Exception ex) { Console.WriteLine("[AUDIO] extension mix: " + ex.Message); }
+            catch (Exception ex) { _log.LogWarning("extension mix: {Message}", ex.Message); }
         }
     }
 

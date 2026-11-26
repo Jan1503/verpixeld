@@ -9,8 +9,11 @@ namespace verpixeld.Services;
 ///     Separated from AiImageService to maintain clean separation of concerns.
 ///     Shares the same ai_config.json for Azure credentials but manages chat-specific settings independently.
 /// </summary>
+[LogTag("AI")]
 public class AiChatService
 {
+    private readonly ILogger<AiChatService> _log;
+
     private readonly HttpClient _httpClient;
     private readonly string _configPath;
 
@@ -25,8 +28,9 @@ public class AiChatService
         !string.IsNullOrEmpty(AzureApiKey) &&
         !string.IsNullOrEmpty(AzureChatDeployment);
 
-    public AiChatService()
+    public AiChatService(ILogger<AiChatService> log)
     {
+        _log = log;
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 
         _configPath = AppPaths.AiConfig;
@@ -42,13 +46,13 @@ public class AiChatService
     {
         if (string.IsNullOrEmpty(AzureEndpoint) || string.IsNullOrEmpty(AzureApiKey))
         {
-            Console.WriteLine("[AI/Chat] Azure not configured");
+            _log.LogInformation("Chat: Azure not configured");
             return null;
         }
 
         if (string.IsNullOrEmpty(AzureChatDeployment))
         {
-            Console.WriteLine("[AI/Chat] No chat deployment configured — set Chat Deployment in AI settings (e.g. gpt-4o)");
+            _log.LogInformation("Chat: No chat deployment configured — set Chat Deployment in AI settings (e.g. gpt-4o)");
             return null;
         }
 
@@ -75,7 +79,7 @@ public class AiChatService
 
             if (!response.IsSuccessStatusCode)
             {
-                Console.WriteLine($"[AI/Chat] Error {response.StatusCode}: {responseBody}");
+                _log.LogError("Chat: Error {StatusCode}: {ResponseBody}", response.StatusCode, responseBody);
                 return null;
             }
 
@@ -83,7 +87,7 @@ public class AiChatService
             var choices = doc.RootElement.GetProperty("choices");
             if (choices.GetArrayLength() == 0)
             {
-                Console.WriteLine("[AI/Chat] Response contained no choices");
+                _log.LogInformation("Chat: Response contained no choices");
                 return null;
             }
 
@@ -95,7 +99,7 @@ public class AiChatService
                 var reason = finishReason.GetString();
                 if (reason == "content_filter")
                 {
-                    Console.WriteLine("[AI/Chat] Response blocked by Azure content filter");
+                    _log.LogInformation("Chat: Response blocked by Azure content filter");
                     return "CONTENT_FILTERED";
                 }
             }
@@ -106,13 +110,13 @@ public class AiChatService
                 .GetString();
 
             if (string.IsNullOrEmpty(content))
-                Console.WriteLine("[AI/Chat] Response content was null/empty");
+                _log.LogInformation("Chat: Response content was null/empty");
 
             return content;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI/Chat] Error: {ex.Message}");
+            _log.LogError("Chat: Error: {Message}", ex.Message);
             return null;
         }
     }
@@ -128,7 +132,7 @@ public class AiChatService
         if (azureApiVersion != null) AzureApiVersion = azureApiVersion;
 
         SaveConfig();
-        Console.WriteLine($"[AI/Chat] Configured: deployment={AzureChatDeployment}, configured={IsConfigured}");
+        _log.LogInformation("Chat: Configured: deployment={AzureChatDeployment}, configured={IsConfigured}", AzureChatDeployment, IsConfigured);
     }
 
     private void LoadConfig()
@@ -148,11 +152,11 @@ public class AiChatService
             // Load chat-specific setting
             AzureChatDeployment = config.AzureChatDeployment;
 
-            Console.WriteLine($"[AI/Chat] Config loaded: deployment={AzureChatDeployment ?? "not set"}");
+            _log.LogInformation("Chat: Config loaded: deployment={Value}", AzureChatDeployment ?? "not set");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI/Chat] Failed to load config: {ex.Message}");
+            _log.LogError("Chat: Failed to load config: {Message}", ex.Message);
         }
     }
 
@@ -181,7 +185,7 @@ public class AiChatService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AI/Chat] Failed to save config: {ex.Message}");
+            _log.LogError("Chat: Failed to save config: {Message}", ex.Message);
         }
     }
 

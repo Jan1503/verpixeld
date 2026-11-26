@@ -12,8 +12,11 @@ namespace verpixeld.Services;
 ///     Auto-dismisses after a few seconds; queued if several arrive at once.
 ///     Opaque strip so the compositor's opaque-layer path shows it.
 /// </summary>
+[LogTag("HA Toast")]
 public sealed class HaToastService : IDisposable
 {
+    private readonly ILogger<HaToastService> _log;
+
     private void DrawBdf(SKCanvas sk, string text, int x, int y, SKColor color, string fontName)
     {
         if (string.IsNullOrEmpty(text)) return;
@@ -37,8 +40,9 @@ public sealed class HaToastService : IDisposable
     private bool _disposed;
     private int _barH;
 
-    public HaToastService(CanvasManager canvasManager, int width, int height, HomeAssistantService homeAssistant)
+    public HaToastService(CanvasManager canvasManager, int width, int height, HomeAssistantService homeAssistant, ILogger<HaToastService> log)
     {
+        _log = log;
         _canvasManager = canvasManager;
         _homeAssistant = homeAssistant;
         _width = width;
@@ -46,7 +50,7 @@ public sealed class HaToastService : IDisposable
         _barH = Math.Max(22, height / 5);
         HomeAssistantBridge.Notification += OnNotification;
         _canvasManager.DisplayResized += OnDisplayResized;
-        Console.WriteLine($"[HA Toast] Overlay ready ({width}x{height}, bar={_barH}px, z={ZOrder})");
+        _log.LogInformation("Overlay ready ({Width}x{Height}, bar={BarH}px, z={ZOrder})", width, height, _barH, ZOrder);
     }
 
     private void OnDisplayResized(object? sender, DisplayResizedEventArgs e)
@@ -72,11 +76,11 @@ public sealed class HaToastService : IDisposable
         var opts = SnapshotToast();
         if (!opts.Enabled)
         {
-            Console.WriteLine("[HA Toast] skipped (toasts disabled)");
+            _log.LogInformation("skipped (toasts disabled)");
             return;
         }
 
-        Console.WriteLine($"[HA Toast] event \"{n.Title}\": {n.Message}");
+        _log.LogInformation("event \"{Title}\": {Message}", n.Title, n.Message);
         lock (_lock)
         {
             _queue.Enqueue(n);
@@ -105,7 +109,7 @@ public sealed class HaToastService : IDisposable
 
             _showing = true;
             var severity = ResolveSeverity(n.Severity, n.NotificationId, n.Title, opts.DefaultSeverity);
-            Console.WriteLine($"[HA Toast] showing [{severity}] \"{n.Title}\": {n.Message}");
+            _log.LogInformation("showing [{Severity}] \"{Title}\": {Message}", severity, n.Title, n.Message);
 
             var fontName = ResolveFont(opts.Font);
             var lineH = MeasureLineHeight(fontName);
@@ -163,13 +167,13 @@ public sealed class HaToastService : IDisposable
                 lock (_lock)
                 {
                     try { ShowNext(); }
-                    catch (Exception ex) { Console.WriteLine($"[HA Toast] timer error: {ex.Message}"); }
+                    catch (Exception ex) { _log.LogError("timer error: {Message}", ex.Message); }
                 }
             }, null, duration, Timeout.Infinite);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[HA Toast] render error: {ex.Message}");
+            _log.LogError("render error: {Message}", ex.Message);
             _showing = false;
         }
     }

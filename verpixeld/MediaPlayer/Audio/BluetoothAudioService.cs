@@ -10,8 +10,11 @@ namespace verpixeld.MediaPlayer.Audio;
 ///     Uses BlueZ (bluetoothctl / D-Bus) for discovery, pairing, and connection,
 ///     and delegates PulseAudio sink management to <see cref="AudioOutputService"/>.
 /// </summary>
+[LogTag("BLUETOOTH")]
 public class BluetoothAudioService
 {
+    private readonly ILogger<BluetoothAudioService> _log;
+
     private readonly AudioOutputService _audio;
 
     // Regex to strip ANSI escape codes from terminal output
@@ -21,8 +24,9 @@ public class BluetoothAudioService
     // Store discovered devices from last scan
     private List<BluetoothDevice> _lastDiscoveredDevices = new();
 
-    public BluetoothAudioService(AudioOutputService audioOutputService)
+    public BluetoothAudioService(AudioOutputService audioOutputService, ILogger<BluetoothAudioService> log)
     {
+        _log = log;
         _audio = audioOutputService;
     }
 
@@ -97,49 +101,49 @@ public class BluetoothAudioService
     /// </summary>
     public async Task<bool> PowerOnAsync()
     {
-        Console.WriteLine("[BLUETOOTH] Powering on Bluetooth adapter...");
+        _log.LogInformation("Powering on Bluetooth adapter...");
 
         // Step 1: Check rfkill
         try
         {
-            Console.WriteLine("[BLUETOOTH] Checking rfkill status...");
+            _log.LogInformation("Checking rfkill status...");
             var rfkillCheck = await RunCommandAsync("rfkill", "list bluetooth");
-            Console.WriteLine($"[BLUETOOTH] rfkill status: {rfkillCheck}");
+            _log.LogInformation("rfkill status: {RfkillCheck}", rfkillCheck);
 
             if (rfkillCheck.Contains("Soft blocked: yes") || rfkillCheck.Contains("Hard blocked: yes"))
             {
-                Console.WriteLine("[BLUETOOTH] Bluetooth is blocked by rfkill, unblocking...");
+                _log.LogInformation("Bluetooth is blocked by rfkill, unblocking...");
                 var unblockResult = await RunCommandAsync("rfkill", "unblock bluetooth");
-                Console.WriteLine($"[BLUETOOTH] rfkill unblock result: {unblockResult}");
+                _log.LogInformation("rfkill unblock result: {UnblockResult}", unblockResult);
                 await Task.Delay(500);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[BLUETOOTH] rfkill check failed: {ex.Message}");
+            _log.LogError("rfkill check failed: {Message}", ex.Message);
         }
 
         // Step 2: Ensure bluetooth service is running
         try
         {
-            Console.WriteLine("[BLUETOOTH] Checking bluetooth service...");
+            _log.LogInformation("Checking bluetooth service...");
             var serviceStatus = await RunCommandAsync("systemctl", "is-active bluetooth");
-            Console.WriteLine($"[BLUETOOTH] Service status: {serviceStatus.Trim()}");
+            _log.LogInformation("Service status: {Trim}", serviceStatus.Trim());
 
             if (!serviceStatus.Contains("active"))
             {
-                Console.WriteLine("[BLUETOOTH] Starting bluetooth service...");
+                _log.LogInformation("Starting bluetooth service...");
                 await RunCommandAsync("sudo", "systemctl start bluetooth");
                 await Task.Delay(1000);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[BLUETOOTH] Service check failed: {ex.Message}");
+            _log.LogError("Service check failed: {Message}", ex.Message);
         }
 
         // Step 3: Power on via bluetoothctl
-        Console.WriteLine("[BLUETOOTH] Sending power on command...");
+        _log.LogInformation("Sending power on command...");
         var success = await RunBluetoothCtlCommandAsync("power on");
 
         // Wait and verify
@@ -148,21 +152,20 @@ public class BluetoothAudioService
 
         if (actuallyPoweredOn)
         {
-            Console.WriteLine("[BLUETOOTH] Bluetooth adapter powered on successfully");
+            _log.LogInformation("Bluetooth adapter powered on successfully");
             await EnsurePulseAudioBluetoothModuleAsync();
             return true;
         }
 
-        Console.WriteLine("[BLUETOOTH] Failed to power on Bluetooth adapter");
-        Console.WriteLine(
-            "[BLUETOOTH] Try running manually: sudo rfkill unblock bluetooth && sudo systemctl restart bluetooth");
+        _log.LogError("Failed to power on Bluetooth adapter");
+        _log.LogInformation("Try running manually: sudo rfkill unblock bluetooth && sudo systemctl restart bluetooth");
         return false;
     }
 
     /// <summary>Power off the Bluetooth adapter.</summary>
     public async Task<bool> PowerOffAsync()
     {
-        Console.WriteLine("[BLUETOOTH] Powering off Bluetooth adapter...");
+        _log.LogInformation("Powering off Bluetooth adapter...");
         return await RunBluetoothCtlCommandAsync("power off");
     }
 
@@ -202,7 +205,7 @@ public class BluetoothAudioService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[BLUETOOTH] Error listing devices: {ex.Message}");
+            _log.LogError("Error listing devices: {Message}", ex.Message);
         }
 
         return devices;
@@ -228,7 +231,7 @@ public class BluetoothAudioService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[BLUETOOTH] Error getting discovered devices: {ex.Message}");
+            _log.LogError("Error getting discovered devices: {Message}", ex.Message);
         }
 
         return devices;
@@ -237,7 +240,7 @@ public class BluetoothAudioService
     /// <summary>Start scanning for Bluetooth devices.</summary>
     public async Task<List<BluetoothDevice>> StartScanAsync(int durationSeconds = 10)
     {
-        Console.WriteLine($"[BLUETOOTH] Starting scan for {durationSeconds} seconds...");
+        _log.LogInformation("Starting scan for {DurationSeconds} seconds...", durationSeconds);
         _lastDiscoveredDevices.Clear();
 
         var discoveredDevices = new Dictionary<string, BluetoothDevice>();
@@ -257,7 +260,7 @@ public class BluetoothAudioService
             using var proc = Process.Start(psi);
             if (proc == null)
             {
-                Console.WriteLine("[BLUETOOTH] Failed to start bluetoothctl");
+                _log.LogError("Failed to start bluetoothctl");
                 return new List<BluetoothDevice>();
             }
 
@@ -272,7 +275,7 @@ public class BluetoothAudioService
                         if (rawLine == null) break;
 
                         var line = StripAnsiCodes(rawLine);
-                        Console.WriteLine($"[BLUETOOTH] {line}");
+                        _log.LogInformation("{Line}", line);
 
                         var newMatch = Regex.Match(line, @"\[NEW\]\s+Device\s+([0-9A-F:]{17})\s+(.+)",
                             RegexOptions.IgnoreCase);
@@ -289,21 +292,21 @@ public class BluetoothAudioService
                                     Name = name,
                                     IsPaired = false
                                 };
-                                Console.WriteLine($"[BLUETOOTH] >>> Discovered: {name} ({address})");
+                                _log.LogInformation(">>> Discovered: {Name} ({Address})", name, address);
                             }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[BLUETOOTH] Output read error: {ex.Message}");
+                    _log.LogError("Output read error: {Message}", ex.Message);
                 }
             });
 
             await proc.StandardInput.WriteLineAsync("scan on");
             await proc.StandardInput.FlushAsync();
 
-            Console.WriteLine("[BLUETOOTH] Scanning...");
+            _log.LogInformation("Scanning...");
             await Task.Delay(durationSeconds * 1000);
 
             await proc.StandardInput.WriteLineAsync("scan off");
@@ -316,11 +319,11 @@ public class BluetoothAudioService
             if (!proc.HasExited)
                 try { proc.Kill(); } catch { /* best effort, nothing to recover */ }
 
-            Console.WriteLine($"[BLUETOOTH] Scan complete. Found {discoveredDevices.Count} new devices");
+            _log.LogInformation("Scan complete. Found {Count} new devices", discoveredDevices.Count);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[BLUETOOTH] Scan error: {ex.Message}");
+            _log.LogError("Scan error: {Message}", ex.Message);
         }
 
         var paired = await GetPairedDevicesAsync();
@@ -337,7 +340,7 @@ public class BluetoothAudioService
     public async Task<(bool Success, string Message)> PairDeviceAsync(string address)
     {
         if (!IsDeviceAddress(address)) return (false, "Not a Bluetooth address");
-        Console.WriteLine($"[BLUETOOTH] Starting pairing process for {address}...");
+        _log.LogInformation("Starting pairing process for {Address}...", address);
 
         try
         {
@@ -366,7 +369,7 @@ public class BluetoothAudioService
                         var line = await proc.StandardOutput.ReadLineAsync();
                         if (line == null) break;
                         var cleanLine = StripAnsiCodes(line);
-                        Console.WriteLine($"[BLUETOOTH] {cleanLine}");
+                        _log.LogInformation("{CleanLine}", cleanLine);
                         outputBuilder.AppendLine(cleanLine);
 
                         if (cleanLine.Contains($"Device {address}") && cleanLine.Contains("Connected: yes"))
@@ -376,26 +379,26 @@ public class BluetoothAudioService
                 catch { /* best effort, nothing to recover */ }
             });
 
-            Console.WriteLine("[BLUETOOTH] Trusting device...");
+            _log.LogInformation("Trusting device...");
             await proc.StandardInput.WriteLineAsync($"trust {address}");
             await proc.StandardInput.FlushAsync();
             await Task.Delay(1500);
 
-            Console.WriteLine("[BLUETOOTH] Pairing...");
+            _log.LogInformation("Pairing...");
             await proc.StandardInput.WriteLineAsync($"pair {address}");
             await proc.StandardInput.FlushAsync();
             await Task.Delay(6000);
 
             if (!deviceConnected)
             {
-                Console.WriteLine("[BLUETOOTH] Connecting...");
+                _log.LogInformation("Connecting...");
                 await proc.StandardInput.WriteLineAsync($"connect {address}");
                 await proc.StandardInput.FlushAsync();
                 await Task.Delay(4000);
             }
             else
             {
-                Console.WriteLine("[BLUETOOTH] Device already connected during pairing");
+                _log.LogInformation("Device already connected during pairing");
             }
 
             await proc.StandardInput.WriteLineAsync("quit");
@@ -412,7 +415,7 @@ public class BluetoothAudioService
             if (output.Contains("Failed to pair") ||
                 (output.Contains("org.bluez.Error") && !output.Contains("InProgress")))
             {
-                Console.WriteLine("[BLUETOOTH] Pairing failed");
+                _log.LogError("Pairing failed");
                 return (false, "Pairing failed. Make sure the device is in pairing mode.");
             }
 
@@ -421,7 +424,7 @@ public class BluetoothAudioService
 
             if (deviceInfo?.IsConnected == true)
             {
-                Console.WriteLine($"[BLUETOOTH] Successfully paired and connected to {address}");
+                _log.LogInformation("Successfully paired and connected to {Address}", address);
                 await Task.Delay(2000);
 
                 var sinks = await _audio.GetAudioSinksAsync();
@@ -433,7 +436,7 @@ public class BluetoothAudioService
                 if (btSink != null)
                 {
                     await _audio.SetDefaultSinkAsync(btSink.Name);
-                    Console.WriteLine($"[BLUETOOTH] Set {btSink.Description} as default audio output");
+                    _log.LogInformation("Set {Description} as default audio output", btSink.Description);
                     return (true, $"Connected and set as audio output: {btSink.Description}");
                 }
 
@@ -442,7 +445,7 @@ public class BluetoothAudioService
 
             if (deviceInfo?.IsPaired == true)
             {
-                Console.WriteLine("[BLUETOOTH] Device paired but not connected");
+                _log.LogInformation("Device paired but not connected");
                 return (false,
                     "Device paired but connection failed. The device may not support audio or is out of range.");
             }
@@ -451,7 +454,7 @@ public class BluetoothAudioService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[BLUETOOTH] Pairing error: {ex.Message}");
+            _log.LogError("Pairing error: {Message}", ex.Message);
             return (false, $"Error: {ex.Message}");
         }
     }
@@ -460,43 +463,43 @@ public class BluetoothAudioService
     public async Task<bool> ConnectDeviceAsync(string address)
     {
         if (!IsDeviceAddress(address)) return false;
-        Console.WriteLine($"[BLUETOOTH] Connecting to {address}...");
+        _log.LogInformation("Connecting to {Address}...", address);
 
         await EnsurePulseAudioBluetoothModuleAsync();
 
         var deviceInfo = await GetDeviceInfoAsync(address);
         if (deviceInfo?.IsConnected == true)
         {
-            Console.WriteLine("[BLUETOOTH] Device already connected, checking for audio sink...");
+            _log.LogInformation("Device already connected, checking for audio sink...");
             var existingSinks = await _audio.GetAudioSinksAsync();
             var existingBtSink = existingSinks.FirstOrDefault(s => s.Type == AudioOutputService.AudioOutputType.Bluetooth);
             if (existingBtSink != null)
             {
-                Console.WriteLine($"[BLUETOOTH] Already connected with audio sink: {existingBtSink.Description}");
+                _log.LogInformation("Already connected with audio sink: {Description}", existingBtSink.Description);
                 await _audio.SetDefaultSinkAsync(existingBtSink.Name);
                 return true;
             }
 
-            Console.WriteLine("[BLUETOOTH] Connected but no audio sink, disconnecting...");
+            _log.LogInformation("Connected but no audio sink, disconnecting...");
             await RunBluetoothCtlCommandAsync($"disconnect {address}", 5000);
             await Task.Delay(3000);
         }
 
-        Console.WriteLine("[BLUETOOTH] Now connecting (waiting for A2DP transport)...");
+        _log.LogInformation("Now connecting (waiting for A2DP transport)...");
         var success = await ConnectBluetoothInteractiveAsync(address);
 
         if (!success)
         {
-            Console.WriteLine("[BLUETOOTH] First connection attempt failed, retrying in 3 seconds...");
+            _log.LogError("First connection attempt failed, retrying in 3 seconds...");
             await Task.Delay(3000);
             success = await ConnectBluetoothInteractiveAsync(address);
         }
 
         if (success)
         {
-            Console.WriteLine($"[BLUETOOTH] Connected to {address}");
+            _log.LogInformation("Connected to {Address}", address);
 
-            Console.WriteLine("[BLUETOOTH] Waiting for PulseAudio to detect audio sink...");
+            _log.LogInformation("Waiting for PulseAudio to detect audio sink...");
             await Task.Delay(3000);
 
             var sinks = await _audio.GetAudioSinksAsync();
@@ -511,26 +514,26 @@ public class BluetoothAudioService
             if (btSink != null)
             {
                 await _audio.SetDefaultSinkAsync(btSink.Name);
-                Console.WriteLine($"[BLUETOOTH] Set {btSink.Description} as default audio output");
+                _log.LogInformation("Set {Description} as default audio output", btSink.Description);
             }
             else
             {
-                Console.WriteLine("[BLUETOOTH] Warning: No Bluetooth audio sink found in PulseAudio");
-                Console.WriteLine("[BLUETOOTH] The Bluetooth device connected but PulseAudio can't see it.");
-                Console.WriteLine("[BLUETOOTH] FIX: Run these commands:");
-                Console.WriteLine("[BLUETOOTH]   sudo usermod -aG bluetooth pulse");
-                Console.WriteLine("[BLUETOOTH]   sudo systemctl restart bluetooth");
-                Console.WriteLine("[BLUETOOTH]   sudo systemctl restart pulseaudio");
+                _log.LogWarning("Warning: No Bluetooth audio sink found in PulseAudio");
+                _log.LogInformation("The Bluetooth device connected but PulseAudio can't see it.");
+                _log.LogInformation("FIX: Run these commands:");
+                _log.LogInformation("sudo usermod -aG bluetooth pulse");
+                _log.LogInformation("sudo systemctl restart bluetooth");
+                _log.LogInformation("sudo systemctl restart pulseaudio");
 
                 var activated = await TryActivateBluetoothA2dpProfileAsync(address);
 
                 if (!activated)
                 {
-                    Console.WriteLine("[BLUETOOTH] Could not activate A2DP profile.");
+                    _log.LogWarning("Could not activate A2DP profile.");
 
                     if (_audio.IsPulseAudioSystemMode)
                     {
-                        Console.WriteLine("[BLUETOOTH] Trying to restart PulseAudio service to rescan Bluetooth...");
+                        _log.LogInformation("Trying to restart PulseAudio service to rescan Bluetooth...");
                         await RunCommandAsync("sudo", "systemctl restart pulseaudio");
                         await Task.Delay(3000);
 
@@ -539,17 +542,17 @@ public class BluetoothAudioService
                         if (btSink != null)
                         {
                             await _audio.SetDefaultSinkAsync(btSink.Name);
-                            Console.WriteLine($"[BLUETOOTH] Found sink after service restart: {btSink.Description}");
+                            _log.LogInformation("Found sink after service restart: {Description}", btSink.Description);
                         }
                         else
                         {
-                            Console.WriteLine("[BLUETOOTH] Still no sink after restart.");
-                            Console.WriteLine("[BLUETOOTH] The 'pulse' user is likely not in the 'bluetooth' group.");
+                            _log.LogInformation("Still no sink after restart.");
+                            _log.LogInformation("The 'pulse' user is likely not in the 'bluetooth' group.");
                         }
                     }
                     else
                     {
-                        Console.WriteLine("[BLUETOOTH] Trying to trigger PulseAudio Bluetooth rescan...");
+                        _log.LogInformation("Trying to trigger PulseAudio Bluetooth rescan...");
                         await RunPactlAsync("unload-module module-bluetooth-discover");
                         await RunPactlAsync("unload-module module-bluetooth-policy");
                         await Task.Delay(1000);
@@ -562,11 +565,11 @@ public class BluetoothAudioService
                         if (btSink != null)
                         {
                             await _audio.SetDefaultSinkAsync(btSink.Name);
-                            Console.WriteLine($"[BLUETOOTH] Found sink after reload: {btSink.Description}");
+                            _log.LogInformation("Found sink after reload: {Description}", btSink.Description);
                         }
                         else
                         {
-                            Console.WriteLine("[BLUETOOTH] Still no sink.");
+                            _log.LogInformation("Still no sink.");
                         }
                     }
                 }
@@ -574,7 +577,7 @@ public class BluetoothAudioService
         }
         else
         {
-            Console.WriteLine($"[BLUETOOTH] Failed to connect to {address}");
+            _log.LogError("Failed to connect to {Address}", address);
         }
 
         return success;
@@ -584,9 +587,9 @@ public class BluetoothAudioService
     public async Task<bool> DisconnectDeviceAsync(string address)
     {
         if (!IsDeviceAddress(address)) return false;
-        Console.WriteLine($"[BLUETOOTH] Disconnecting from {address}...");
+        _log.LogInformation("Disconnecting from {Address}...", address);
         var success = await RunBluetoothCtlCommandAsync($"disconnect {address}");
-        if (success) Console.WriteLine($"[BLUETOOTH] Disconnected from {address}");
+        if (success) _log.LogInformation("Disconnected from {Address}", address);
         return success;
     }
 
@@ -594,10 +597,10 @@ public class BluetoothAudioService
     public async Task<bool> RemoveDeviceAsync(string address)
     {
         if (!IsDeviceAddress(address)) return false;
-        Console.WriteLine($"[BLUETOOTH] Removing {address}...");
+        _log.LogInformation("Removing {Address}...", address);
         await DisconnectDeviceAsync(address);
         var success = await RunBluetoothCtlCommandAsync($"remove {address}");
-        if (success) Console.WriteLine($"[BLUETOOTH] Removed {address}");
+        if (success) _log.LogInformation("Removed {Address}", address);
         return success;
     }
 
@@ -612,23 +615,22 @@ public class BluetoothAudioService
         try
         {
             var groupsOutput = await RunCommandAsync("groups", "pulse");
-            Console.WriteLine($"[BLUETOOTH] Pulse user groups: {groupsOutput.Trim()}");
+            _log.LogInformation("Pulse user groups: {Trim}", groupsOutput.Trim());
 
             if (!groupsOutput.Contains("bluetooth"))
             {
-                Console.WriteLine("[BLUETOOTH] WARNING: 'pulse' user is NOT in 'bluetooth' group!");
-                Console.WriteLine("[BLUETOOTH] This will prevent Bluetooth audio from working.");
-                Console.WriteLine(
-                    "[BLUETOOTH] Fix with: sudo usermod -aG bluetooth pulse && sudo systemctl restart pulseaudio");
+                _log.LogWarning("'pulse' user is NOT in 'bluetooth' group!");
+                _log.LogInformation("This will prevent Bluetooth audio from working.");
+                _log.LogInformation("Fix with: sudo usermod -aG bluetooth pulse && sudo systemctl restart pulseaudio");
             }
             else
             {
-                Console.WriteLine("[BLUETOOTH] OK: 'pulse' user is in 'bluetooth' group");
+                _log.LogInformation("OK: 'pulse' user is in 'bluetooth' group");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[BLUETOOTH] Could not check pulse user groups: {ex.Message}");
+            _log.LogWarning("Could not check pulse user groups: {Message}", ex.Message);
         }
     }
 
@@ -639,29 +641,29 @@ public class BluetoothAudioService
         try
         {
             var output = await RunPactlAsync("list modules short");
-            Console.WriteLine($"[BLUETOOTH] Current PulseAudio modules:\n{output}");
+            _log.LogInformation("Current PulseAudio modules:\n{Output}", output);
 
             var hasDiscover = output.Contains("module-bluetooth-discover");
             var hasPolicy = output.Contains("module-bluetooth-policy");
 
             if (_audio.IsPulseAudioSystemMode)
             {
-                Console.WriteLine("[BLUETOOTH] PulseAudio running in system mode");
+                _log.LogInformation("PulseAudio running in system mode");
 
                 if (hasDiscover)
-                    Console.WriteLine("[BLUETOOTH] module-bluetooth-discover already loaded (system mode)");
+                    _log.LogInformation("module-bluetooth-discover already loaded (system mode)");
                 else
                 {
-                    Console.WriteLine("[BLUETOOTH] Warning: module-bluetooth-discover NOT loaded in system mode");
-                    Console.WriteLine("[BLUETOOTH] Add 'load-module module-bluetooth-discover' to /etc/pulse/system.pa");
+                    _log.LogWarning("Warning: module-bluetooth-discover NOT loaded in system mode");
+                    _log.LogInformation("Add 'load-module module-bluetooth-discover' to /etc/pulse/system.pa");
                 }
 
                 if (hasPolicy)
-                    Console.WriteLine("[BLUETOOTH] module-bluetooth-policy already loaded (system mode)");
+                    _log.LogInformation("module-bluetooth-policy already loaded (system mode)");
                 else
                 {
-                    Console.WriteLine("[BLUETOOTH] Warning: module-bluetooth-policy NOT loaded in system mode");
-                    Console.WriteLine("[BLUETOOTH] Add 'load-module module-bluetooth-policy' to /etc/pulse/system.pa");
+                    _log.LogWarning("Warning: module-bluetooth-policy NOT loaded in system mode");
+                    _log.LogInformation("Add 'load-module module-bluetooth-policy' to /etc/pulse/system.pa");
                 }
 
                 return;
@@ -670,38 +672,38 @@ public class BluetoothAudioService
             // User mode: try to load modules if not present
             if (!hasDiscover)
             {
-                Console.WriteLine("[BLUETOOTH] Loading module-bluetooth-discover...");
+                _log.LogInformation("Loading module-bluetooth-discover...");
                 var result = await RunPactlAsync("load-module module-bluetooth-discover");
                 if (!result.Contains("Failure") && !result.Contains("AlreadyExists"))
-                    Console.WriteLine("[BLUETOOTH] module-bluetooth-discover loaded");
+                    _log.LogInformation("module-bluetooth-discover loaded");
                 else
                 {
-                    Console.WriteLine($"[BLUETOOTH] Warning: Could not load module-bluetooth-discover: {result}");
-                    Console.WriteLine("[BLUETOOTH] Try: sudo apt install pulseaudio-module-bluetooth");
+                    _log.LogWarning("Warning: Could not load module-bluetooth-discover: {Result}", result);
+                    _log.LogInformation("Try: sudo apt install pulseaudio-module-bluetooth");
                 }
             }
             else
             {
-                Console.WriteLine("[BLUETOOTH] module-bluetooth-discover already loaded");
+                _log.LogInformation("module-bluetooth-discover already loaded");
             }
 
             if (!hasPolicy)
             {
-                Console.WriteLine("[BLUETOOTH] Loading module-bluetooth-policy...");
+                _log.LogInformation("Loading module-bluetooth-policy...");
                 var result = await RunPactlAsync("load-module module-bluetooth-policy");
                 if (!result.Contains("Failure") && !result.Contains("AlreadyExists"))
-                    Console.WriteLine("[BLUETOOTH] module-bluetooth-policy loaded");
+                    _log.LogInformation("module-bluetooth-policy loaded");
                 else
-                    Console.WriteLine($"[BLUETOOTH] Warning: Could not load module-bluetooth-policy: {result}");
+                    _log.LogWarning("Warning: Could not load module-bluetooth-policy: {Result}", result);
             }
             else
             {
-                Console.WriteLine("[BLUETOOTH] module-bluetooth-policy already loaded");
+                _log.LogInformation("module-bluetooth-policy already loaded");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[BLUETOOTH] Error checking PulseAudio modules: {ex.Message}");
+            _log.LogError("Error checking PulseAudio modules: {Message}", ex.Message);
         }
     }
 
@@ -709,10 +711,10 @@ public class BluetoothAudioService
     {
         try
         {
-            Console.WriteLine($"[BLUETOOTH] Attempting to manually activate A2DP profile for {address}...");
+            _log.LogInformation("Attempting to manually activate A2DP profile for {Address}...", address);
 
             var cardsOutput = await RunPactlAsync("list cards short");
-            Console.WriteLine($"[BLUETOOTH] Available cards:\n{cardsOutput}");
+            _log.LogInformation("Available cards:\n{CardsOutput}", cardsOutput);
 
             var addressFormatted = address.Replace(":", "_");
 
@@ -725,7 +727,7 @@ public class BluetoothAudioService
                     if (parts.Length >= 2)
                     {
                         var cardName = parts[1].Trim();
-                        Console.WriteLine($"[BLUETOOTH] Found Bluetooth card: {cardName}");
+                        _log.LogInformation("Found Bluetooth card: {CardName}", cardName);
 
                         await RunPactlAsync("list cards");
 
@@ -735,7 +737,7 @@ public class BluetoothAudioService
                         {
                             if (profile == "off") continue;
 
-                            Console.WriteLine($"[BLUETOOTH] Trying profile: {profile}");
+                            _log.LogInformation("Trying profile: {Profile}", profile);
                             await RunPactlAsync($"set-card-profile {cardName} {profile}");
 
                             await Task.Delay(1000);
@@ -744,7 +746,7 @@ public class BluetoothAudioService
                             var btSink = sinks.FirstOrDefault(s => s.Type == AudioOutputService.AudioOutputType.Bluetooth);
                             if (btSink != null)
                             {
-                                Console.WriteLine($"[BLUETOOTH] Profile {profile} activated! Sink: {btSink.Description}");
+                                _log.LogInformation("Profile {Profile} activated! Sink: {Description}", profile, btSink.Description);
                                 await _audio.SetDefaultSinkAsync(btSink.Name);
                                 return true;
                             }
@@ -752,12 +754,12 @@ public class BluetoothAudioService
                     }
                 }
 
-            Console.WriteLine("[BLUETOOTH] No Bluetooth card found in PulseAudio");
+            _log.LogInformation("No Bluetooth card found in PulseAudio");
             return false;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[BLUETOOTH] Error activating A2DP profile: {ex.Message}");
+            _log.LogError("Error activating A2DP profile: {Message}", ex.Message);
             return false;
         }
     }
@@ -771,7 +773,7 @@ public class BluetoothAudioService
     {
         try
         {
-            Console.WriteLine("[BLUETOOTH] Connecting via D-Bus...");
+            _log.LogInformation("Connecting via D-Bus...");
 
             var devPath = $"/org/bluez/hci0/dev_{address.Replace(":", "_")}";
             var isRoot = Environment.UserName == "root" || GetEffectiveUserId() == 0;
@@ -789,7 +791,7 @@ public class BluetoothAudioService
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
-                Console.WriteLine($"[BLUETOOTH] D-Bus call (in user session context for uid {uid})");
+                _log.LogInformation("D-Bus call (in user session context for uid {Uid})", uid);
             }
             else
             {
@@ -801,14 +803,13 @@ public class BluetoothAudioService
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
-                Console.WriteLine(
-                    $"[BLUETOOTH] D-Bus call: busctl --system call org.bluez {devPath} org.bluez.Device1 Connect");
+                _log.LogInformation("D-Bus call: busctl --system call org.bluez {DevPath} org.bluez.Device1 Connect", devPath);
             }
 
             using var proc = Process.Start(psi);
             if (proc == null)
             {
-                Console.WriteLine("[BLUETOOTH] Failed to start busctl");
+                _log.LogError("Failed to start busctl");
                 return false;
             }
 
@@ -818,17 +819,17 @@ public class BluetoothAudioService
             var exited = await Task.Run(() => proc.WaitForExit(30000));
             if (!exited)
             {
-                Console.WriteLine("[BLUETOOTH] D-Bus call timed out");
+                _log.LogInformation("D-Bus call timed out");
                 try { proc.Kill(); } catch { /* best effort, nothing to recover */ }
                 return false;
             }
 
             if (!string.IsNullOrEmpty(error) && !error.Contains("warning"))
-                Console.WriteLine($"[BLUETOOTH] D-Bus error: {error.Trim()}");
+                _log.LogError("D-Bus error: {Trim}", error.Trim());
 
             if (proc.ExitCode == 0)
             {
-                Console.WriteLine("[BLUETOOTH] D-Bus Connect succeeded, waiting for A2DP sink...");
+                _log.LogInformation("D-Bus Connect succeeded, waiting for A2DP sink...");
 
                 for (var i = 0; i < 8; i++)
                 {
@@ -837,35 +838,35 @@ public class BluetoothAudioService
                     var btSink = sinks.FirstOrDefault(s => s.Type == AudioOutputService.AudioOutputType.Bluetooth);
                     if (btSink != null)
                     {
-                        Console.WriteLine($"[BLUETOOTH] Success! A2DP sink detected: {btSink.Name}");
+                        _log.LogInformation("Success! A2DP sink detected: {Name}", btSink.Name);
                         return true;
                     }
-                    if (i % 2 == 0) Console.WriteLine($"[BLUETOOTH] Waiting for A2DP sink... ({i + 1}/8)");
+                    if (i % 2 == 0) _log.LogInformation("Waiting for A2DP sink... ({Value}/8)", i + 1);
                 }
 
-                Console.WriteLine("[BLUETOOTH] No sink yet, trying to activate A2DP profile via BlueZ...");
+                _log.LogInformation("No sink yet, trying to activate A2DP profile via BlueZ...");
 
-                Console.WriteLine("[BLUETOOTH] Checking device status via D-Bus...");
+                _log.LogInformation("Checking device status via D-Bus...");
                 var uuidOutput = await RunBusctlAsync($"get-property org.bluez {devPath} org.bluez.Device1 UUIDs");
-                Console.WriteLine($"[BLUETOOTH] Device UUIDs: {uuidOutput.Trim()}");
+                _log.LogInformation("Device UUIDs: {Trim}", uuidOutput.Trim());
 
-                Console.WriteLine("[BLUETOOTH] Attempting to connect A2DP sink profile...");
+                _log.LogInformation("Attempting to connect A2DP sink profile...");
                 var profileResult =
                     await RunBusctlAsync(
                         $"call org.bluez {devPath} org.bluez.Device1 ConnectProfile s 0000110b-0000-1000-8000-00805f9b34fb");
                 if (!string.IsNullOrEmpty(profileResult))
-                    Console.WriteLine($"[BLUETOOTH] ConnectProfile result: {profileResult.Trim()}");
+                    _log.LogInformation("ConnectProfile result: {Trim}", profileResult.Trim());
                 await Task.Delay(2000);
 
                 var quickCheck = await _audio.GetAudioSinksAsync();
                 var btSinkQuick = quickCheck.FirstOrDefault(s => s.Type == AudioOutputService.AudioOutputType.Bluetooth);
                 if (btSinkQuick != null)
                 {
-                    Console.WriteLine($"[BLUETOOTH] Success! A2DP sink detected: {btSinkQuick.Name}");
+                    _log.LogInformation("Success! A2DP sink detected: {Name}", btSinkQuick.Name);
                     return true;
                 }
 
-                Console.WriteLine("[BLUETOOTH] Trying to load bluez5 device directly...");
+                _log.LogInformation("Trying to load bluez5 device directly...");
                 await RunPactlAsync($"load-module module-bluez5-device path={devPath}");
                 await Task.Delay(2000);
 
@@ -873,11 +874,11 @@ public class BluetoothAudioService
                 btSinkQuick = quickCheck.FirstOrDefault(s => s.Type == AudioOutputService.AudioOutputType.Bluetooth);
                 if (btSinkQuick != null)
                 {
-                    Console.WriteLine($"[BLUETOOTH] Success with direct device load! A2DP sink detected: {btSinkQuick.Name}");
+                    _log.LogInformation("Success with direct device load! A2DP sink detected: {Name}", btSinkQuick.Name);
                     return true;
                 }
 
-                Console.WriteLine("[BLUETOOTH] Trying minimal module reload...");
+                _log.LogInformation("Trying minimal module reload...");
                 await RunPactlAsync("unload-module module-bluez5-discover");
                 await Task.Delay(1000);
                 await RunPactlAsync("load-module module-bluez5-discover");
@@ -890,22 +891,22 @@ public class BluetoothAudioService
                     var btSink = sinks.FirstOrDefault(s => s.Type == AudioOutputService.AudioOutputType.Bluetooth);
                     if (btSink != null)
                     {
-                        Console.WriteLine($"[BLUETOOTH] Success after rescan! A2DP sink detected: {btSink.Name}");
+                        _log.LogInformation("Success after rescan! A2DP sink detected: {Name}", btSink.Name);
                         return true;
                     }
                 }
 
-                Console.WriteLine("[BLUETOOTH] D-Bus Connect succeeded but no A2DP sink appeared");
+                _log.LogInformation("D-Bus Connect succeeded but no A2DP sink appeared");
                 return true;
             }
 
-            Console.WriteLine($"[BLUETOOTH] D-Bus Connect failed (exit code {proc.ExitCode})");
-            Console.WriteLine("[BLUETOOTH] Falling back to bluetoothctl...");
+            _log.LogError("D-Bus Connect failed (exit code {ExitCode})", proc.ExitCode);
+            _log.LogInformation("Falling back to bluetoothctl...");
             return await ConnectBluetoothCtlFallbackAsync(address);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[BLUETOOTH] D-Bus connect error: {ex.Message}");
+            _log.LogError("D-Bus connect error: {Message}", ex.Message);
             return await ConnectBluetoothCtlFallbackAsync(address);
         }
     }
@@ -914,7 +915,7 @@ public class BluetoothAudioService
     {
         try
         {
-            Console.WriteLine("[BLUETOOTH] Using interactive bluetoothctl connection...");
+            _log.LogInformation("Using interactive bluetoothctl connection...");
 
             var psi = new ProcessStartInfo("bluetoothctl")
             {
@@ -944,7 +945,7 @@ public class BluetoothAudioService
             await proc.StandardInput.WriteLineAsync($"connect {address}");
             await proc.StandardInput.FlushAsync();
 
-            Console.WriteLine("[BLUETOOTH] Waiting for A2DP handshake (up to 15s)...");
+            _log.LogInformation("Waiting for A2DP handshake (up to 15s)...");
             var startTime = DateTime.Now;
             var connected = false;
             var transportReady = false;
@@ -957,7 +958,7 @@ public class BluetoothAudioService
                 if (currentOutput.Contains("Connection successful"))
                 {
                     connected = true;
-                    Console.WriteLine("[BLUETOOTH] Connection successful, waiting for audio transport...");
+                    _log.LogInformation("Connection successful, waiting for audio transport...");
                 }
 
                 if (currentOutput.Contains("A2DP") ||
@@ -966,14 +967,14 @@ public class BluetoothAudioService
                     currentOutput.Contains("MediaTransport"))
                 {
                     transportReady = true;
-                    Console.WriteLine("[BLUETOOTH] A2DP transport detected!");
+                    _log.LogInformation("A2DP transport detected!");
                     break;
                 }
 
                 if (currentOutput.Contains("Failed to connect") ||
                     currentOutput.Contains("not available"))
                 {
-                    Console.WriteLine("[BLUETOOTH] Connection failed");
+                    _log.LogError("Connection failed");
                     break;
                 }
             }
@@ -984,12 +985,11 @@ public class BluetoothAudioService
                 try { proc.Kill(); } catch { /* best effort, nothing to recover */ }
 
             var fullOutput = StripAnsiCodes(output.ToString());
-            Console.WriteLine(
-                $"[BLUETOOTH] bluetoothctl: {(fullOutput.Length > 200 ? fullOutput[..200] + "..." : fullOutput).Replace("\n", " | ")}");
+            _log.LogInformation("bluetoothctl: {Value}", (fullOutput.Length > 200 ? fullOutput[..200] + "..." : fullOutput).Replace("\n", " | "));
 
             if (connected || transportReady)
             {
-                Console.WriteLine("[BLUETOOTH] Connection established, waiting for PulseAudio sink...");
+                _log.LogInformation("Connection established, waiting for PulseAudio sink...");
                 await Task.Delay(3000);
                 return true;
             }
@@ -998,7 +998,7 @@ public class BluetoothAudioService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[BLUETOOTH] bluetoothctl interactive error: {ex.Message}");
+            _log.LogError("bluetoothctl interactive error: {Message}", ex.Message);
             return false;
         }
     }
@@ -1156,7 +1156,7 @@ public class BluetoothAudioService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[BLUETOOTH] Command error: {ex.Message}");
+            _log.LogError("Command error: {Message}", ex.Message);
             return "";
         }
     }
@@ -1210,7 +1210,7 @@ public class BluetoothAudioService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[BLUETOOTH] Command error: {ex.Message}");
+            _log.LogError("Command error: {Message}", ex.Message);
             return false;
         }
     }

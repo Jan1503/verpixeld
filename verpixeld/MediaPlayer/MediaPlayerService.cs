@@ -11,8 +11,11 @@ namespace verpixeld.MediaPlayer;
 ///     Media player service for playing video and audio content on the LED matrix
 ///     Supports local files, network shares (SMB), and streaming
 /// </summary>
+[LogTag("MEDIA")]
 public class MediaPlayerService : IDisposable
 {
+    private readonly ILogger<MediaPlayerService> _log;
+
     private readonly AlsaAudioService _audio;
     private readonly CanvasManager _canvasManager;
     private readonly IAudioOutputService _audioOutputService;
@@ -44,8 +47,9 @@ public class MediaPlayerService : IDisposable
     private int _width;
 
     public MediaPlayerService(CanvasManager canvasManager, IAudioOutputService audioOutputService,
-        PixToneOutputService vap1, int width, int height)
+        PixToneOutputService vap1, int width, int height, ILogger<MediaPlayerService> log)
     {
+        _log = log;
         _canvasManager = canvasManager;
         _audioOutputService = audioOutputService;
         _width = width;
@@ -53,7 +57,7 @@ public class MediaPlayerService : IDisposable
         _audio = new AlsaAudioService();
         _videoPlayer = new VideoPlayer(width, height, audioOutputService, vap1);
 
-        _videoPlayer.OnPlaybackStarted += () => Console.WriteLine("[MEDIA] Video playback started");
+        _videoPlayer.OnPlaybackStarted += () => _log.LogInformation("Video playback started");
         _videoPlayer.OnPlaybackStopped += OnPlaybackStopped;
         _videoPlayer.OnFirstFrame += OnFirstFrame;
         _videoPlayer.OnError += OnVideoError;
@@ -61,12 +65,12 @@ public class MediaPlayerService : IDisposable
         LoadLayerRect();
         _ = Task.Run(WatchCanvasAsync);
 
-        Console.WriteLine($"[MEDIA] Initialized for {width}x{height} display");
-        Console.WriteLine($"[MEDIA] FFmpeg available: {FFmpegAvailable}");
-        Console.WriteLine($"[MEDIA] FFmpeg HW accel (V4L2 M2M): {FfmpegCapabilities.IsHwAccelAvailable()}");
-        Console.WriteLine($"[MEDIA] FFmpeg SMB support: {FFmpegSmbSupported}");
-        Console.WriteLine($"[MEDIA] yt-dlp available: {YtDlpAvailable}");
-        Console.WriteLine($"[MEDIA] MOD player available: {ModPlayerAvailable}");
+        _log.LogInformation("Initialized for {Width}x{Height} display", width, height);
+        _log.LogInformation("FFmpeg available: {FFmpegAvailable}", FFmpegAvailable);
+        _log.LogInformation("FFmpeg HW accel (V4L2 M2M): {IsHwAccelAvailable}", FfmpegCapabilities.IsHwAccelAvailable());
+        _log.LogInformation("FFmpeg SMB support: {FFmpegSmbSupported}", FFmpegSmbSupported);
+        _log.LogInformation("yt-dlp available: {YtDlpAvailable}", YtDlpAvailable);
+        _log.LogInformation("MOD player available: {ModPlayerAvailable}", ModPlayerAvailable);
     }
 
     // Public properties
@@ -282,9 +286,9 @@ public class MediaPlayerService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[MEDIA] Could not save the media layer: " + ex.Message);
+            _log.LogWarning("Could not save the media layer: {Message}", ex.Message);
         }
-        Console.WriteLine($"[MEDIA] Media layer at {x},{y} {width}x{height}");
+        _log.LogInformation("Media layer at {X},{Y} {Width}x{Height}", x, y, width, height);
     }
 
     private string? _tracksFor;
@@ -299,7 +303,7 @@ public class MediaPlayerService : IDisposable
         var tracks = await MediaProbeService.ListAudioTracksAsync(source);
         _tracksFor = source;
         _tracks = tracks;
-        Console.WriteLine($"[MEDIA] {tracks.Count} audio tracks");
+        _log.LogInformation("{Count} audio tracks", tracks.Count);
         return tracks;
     }
 
@@ -307,7 +311,7 @@ public class MediaPlayerService : IDisposable
     public async Task SetAudioStreamIndexAsync(int index)
     {
         AudioStreamIndex = index;
-        Console.WriteLine($"[MEDIA] Audio track {AudioStreamIndex}");
+        _log.LogInformation("Audio track {AudioStreamIndex}", AudioStreamIndex);
         if (_videoPlayer.IsPlaying && _videoPlayer.CurrentVideo != null)
             await _videoPlayer.SeekAsync(_videoPlayer.Position);
     }
@@ -384,7 +388,7 @@ public class MediaPlayerService : IDisposable
         _replay = () => PlayVideoAsync(videoPath, loop);
         if (!File.Exists(videoPath))
         {
-            Console.WriteLine($"[MEDIA] Video not found: {videoPath}");
+            _log.LogWarning("Video not found: {VideoPath}", videoPath);
             return;
         }
 
@@ -423,8 +427,7 @@ public class MediaPlayerService : IDisposable
         LastPlayedYouTubeUrl = null;
         LastPlayedYouTubeTitle = null;
 
-        Console.WriteLine(
-            $"[MEDIA] Playing network video: {shareName}/{filePath} (protocol: {NetworkProtocol}, seeking: {SeekingSupported})");
+        _log.LogInformation("Playing network video: {ShareName}/{FilePath} (protocol: {NetworkProtocol}, seeking: {SeekingSupported})", shareName, filePath, NetworkProtocol, SeekingSupported);
         await PlayVideoInternalAsync(url, Path.GetFileName(filePath), loop);
     }
 
@@ -443,14 +446,14 @@ public class MediaPlayerService : IDisposable
         if (!YtDlpAvailable)
         {
             LastPlaybackError = "yt-dlp not available. Install with: pip install yt-dlp";
-            Console.WriteLine($"[MEDIA] {LastPlaybackError}");
+            _log.LogError("{LastPlaybackError}", LastPlaybackError);
             return false;
         }
 
         if (!YouTubeService.IsYouTubeUrl(youtubeUrl))
         {
             LastPlaybackError = $"Not a valid YouTube URL: {youtubeUrl}";
-            Console.WriteLine($"[MEDIA] {LastPlaybackError}");
+            _log.LogError("{LastPlaybackError}", LastPlaybackError);
             return false;
         }
 
@@ -459,12 +462,12 @@ public class MediaPlayerService : IDisposable
         // ── Audio-only path: extract best audio URL, no canvas ──
         if (audioOnly)
         {
-            Console.WriteLine($"[YOUTUBE] Audio-only mode for: {youtubeUrl}");
+            _log.LogInformation("[YOUTUBE] Audio-only mode for: {YoutubeUrl}", youtubeUrl);
             var audioInfo = await ytService.GetAudioOnlyPlaybackInfoAsync(youtubeUrl);
             if (audioInfo == null || string.IsNullOrEmpty(audioInfo.AudioUrl))
             {
                 LastPlaybackError = "Failed to get audio URL.";
-                Console.WriteLine($"[YOUTUBE] {LastPlaybackError}");
+                _log.LogError("[YOUTUBE] {LastPlaybackError}", LastPlaybackError);
                 return false;
             }
 
@@ -481,7 +484,7 @@ public class MediaPlayerService : IDisposable
             _mediaCanvas = null;
             _isRunning = true;
 
-            Console.WriteLine($"[YOUTUBE] Playing audio-only: {audioInfo.Title}");
+            _log.LogInformation("[YOUTUBE] Playing audio-only: {Title}", audioInfo.Title);
             _videoPlayer.SetBoardTitle(audioInfo.Title);
             await _videoPlayer.PlayAudioOnlyAsync(audioInfo.AudioUrl!, loop);
             _videoPlayer.SetBoardCover(audioInfo.Thumbnail);
@@ -500,7 +503,7 @@ public class MediaPlayerService : IDisposable
         var canvasWidth = _mediaCanvas?.Width ?? _width;
         var canvasHeight = _mediaCanvas?.Height ?? _height;
 
-        Console.WriteLine($"[YOUTUBE] Getting playback info for canvas {canvasWidth}x{canvasHeight} (current playback continues)...");
+        _log.LogInformation("[YOUTUBE] Getting playback info for canvas {CanvasWidth}x{CanvasHeight} (current playback continues)...", canvasWidth, canvasHeight);
 
         // Get playback info with optimal format selection - this is the slow yt-dlp call
         // Current video keeps playing during this time
@@ -509,7 +512,7 @@ public class MediaPlayerService : IDisposable
         if (playbackInfo == null || string.IsNullOrEmpty(playbackInfo.VideoUrl))
         {
             LastPlaybackError = "Failed to get video URL. The video may be restricted, private, or unavailable in your region.";
-            Console.WriteLine($"[YOUTUBE] {LastPlaybackError}");
+            _log.LogError("[YOUTUBE] {LastPlaybackError}", LastPlaybackError);
             return false;
         }
 
@@ -535,13 +538,13 @@ public class MediaPlayerService : IDisposable
         IsAudioPlayback = false;
         CurrentAudio = null;
 
-        Console.WriteLine($"[YOUTUBE] Playing: {playbackInfo.Title}");
-        Console.WriteLine($"[YOUTUBE] Format: {playbackInfo.Width}x{playbackInfo.Height} ({(playbackInfo.IsAdaptive ? "adaptive" : "combined")})");
+        _log.LogInformation("[YOUTUBE] Playing: {Title}", playbackInfo.Title);
+        _log.LogInformation("[YOUTUBE] Format: {Width}x{Height} ({Value})", playbackInfo.Width, playbackInfo.Height, (playbackInfo.IsAdaptive ? "adaptive" : "combined"));
 
         _isRunning = true;
         _videoPlayer.SetBoardTitle(playbackInfo.Title);
 
-        Console.WriteLine($"[MEDIA] Using canvas: {_mediaCanvas.Name} ({_mediaCanvas.Width}x{_mediaCanvas.Height}) (hidden until first frame)");
+        _log.LogInformation("Using canvas: {Name} ({Width}x{Height}) (hidden until first frame)", _mediaCanvas.Name, _mediaCanvas.Width, _mediaCanvas.Height);
 
         // Start MOD music if set
         if (_audioEnabled && ModFilePath != null) _audio.PlayMod(ModFilePath);
@@ -575,7 +578,7 @@ public class MediaPlayerService : IDisposable
         if (!await WaitForPlaybackStartAsync(TimeSpan.FromSeconds(20)))
         {
             LastPlaybackError ??= "Playback failed to start (403/429 or empty stream)";
-            Console.WriteLine($"[YOUTUBE] {LastPlaybackError}");
+            _log.LogError("[YOUTUBE] {LastPlaybackError}", LastPlaybackError);
             await StopAsync();
             return false;
         }
@@ -591,7 +594,7 @@ public class MediaPlayerService : IDisposable
         // Stop any current playback (but preserve extensions on other canvases)
         await StopAsync(userInitiated: false, keepOverlay: true);
 
-        Console.WriteLine($"[MEDIA] Playing video: {displayName}");
+        _log.LogInformation("Playing video: {DisplayName}", displayName);
         ResetStartGate();
         _isRunning = true;
 
@@ -600,7 +603,7 @@ public class MediaPlayerService : IDisposable
         ReleasePreviousCanvas(previousCanvas);
         HideOwnedOverlayUntilReady(keepLastFrame: true);
 
-        Console.WriteLine($"[MEDIA] Using canvas: {_mediaCanvas.Name} ({_mediaCanvas.Width}x{_mediaCanvas.Height})");
+        _log.LogInformation("Using canvas: {Name} ({Width}x{Height})", _mediaCanvas.Name, _mediaCanvas.Width, _mediaCanvas.Height);
 
         if (_audioEnabled && ModFilePath != null) _audio.PlayMod(ModFilePath);
 
@@ -612,7 +615,7 @@ public class MediaPlayerService : IDisposable
         if (!await WaitForPlaybackStartAsync(TimeSpan.FromSeconds(15)))
         {
             LastPlaybackError ??= "Playback failed to start";
-            Console.WriteLine($"[MEDIA] {LastPlaybackError}");
+            _log.LogError("{LastPlaybackError}", LastPlaybackError);
             await StopAsync();
         }
     }
@@ -652,11 +655,11 @@ public class MediaPlayerService : IDisposable
 
             if (existingCanvas != null)
             {
-                Console.WriteLine($"[MEDIA] Using canvas {existingCanvas.Name} {existingCanvas.Width}x{existingCanvas.Height} at {existingCanvas.XPos},{existingCanvas.YPos}");
+                _log.LogInformation("Using canvas {Name} {Width}x{Height} at {XPos},{YPos}", existingCanvas.Name, existingCanvas.Width, existingCanvas.Height, existingCanvas.XPos, existingCanvas.YPos);
                 return existingCanvas;
             }
 
-            Console.WriteLine($"[MEDIA] Canvas '{wanted}' not found, using full-screen");
+            _log.LogWarning("Canvas '{Wanted}' not found, using full-screen", wanted);
         }
 
         return FullWallOverlay();
@@ -680,7 +683,7 @@ public class MediaPlayerService : IDisposable
 
         if (existing != null)
         {
-            Console.WriteLine($"[MEDIA] Replacing {existing.Width}x{existing.Height} media layer with {w}x{h}");
+            _log.LogInformation("Replacing {Width}x{Height} media layer with {W}x{H}", existing.Width, existing.Height, w, h);
             _canvasManager.RemoveCanvas(existing);
         }
 
@@ -698,7 +701,7 @@ public class MediaPlayerService : IDisposable
         if (!_isRunning && !_videoPlayer.IsPlaying && _mediaCanvas == null) return;
 
         Interlocked.Exchange(ref _userInitiatedStop, userInitiated ? 1 : 0);
-        Console.WriteLine($"[MEDIA] Stopping... (userInitiated={userInitiated}, keepOverlay={keepOverlay})");
+        _log.LogInformation("Stopping... (userInitiated={UserInitiated}, keepOverlay={KeepOverlay})", userInitiated, keepOverlay);
 
         await _videoPlayer.StopAsync();
         _audio.StopMod();
@@ -732,7 +735,7 @@ public class MediaPlayerService : IDisposable
         NetworkProtocol = null;
         // NOTE: Don't clear _audioPlaylist or _currentPlaylistIndex
         // This allows skip buttons to work after stop
-        Console.WriteLine("[MEDIA] Stopped");
+        _log.LogInformation("Stopped");
     }
 
     /// <summary>
@@ -742,7 +745,7 @@ public class MediaPlayerService : IDisposable
     public async Task PlayRadioStreamAsync(string streamUrl, string stationName, string? coverUrl = null)
     {
         _replay = () => PlayRadioStreamAsync(streamUrl, stationName, coverUrl);
-        Console.WriteLine($"[MEDIA] Starting radio stream: \"{stationName}\" → {streamUrl}");
+        _log.LogInformation("Starting radio stream: \"{StationName}\" → {StreamUrl}", stationName, streamUrl);
 
         // Stop any current playback first
         if (_isRunning || _videoPlayer.IsPlaying)
@@ -791,7 +794,7 @@ public class MediaPlayerService : IDisposable
         {
             if (_canvasFromCaller)
             {
-                Console.WriteLine($"[MEDIA] Canvas '{canvasName}' was removed - stopping playback");
+                _log.LogInformation("Canvas '{CanvasName}' was removed - stopping playback", canvasName);
                 await StopAsync();
             }
             else
@@ -827,7 +830,7 @@ public class MediaPlayerService : IDisposable
                 if (current != null && IsOwnedOverlay(canvas))
                 {
                     // Studio resizes by building a new canvas with the same name: follow it.
-                    Console.WriteLine($"[MEDIA] Media layer resized in Studio to {current.Width}x{current.Height}");
+                    _log.LogInformation("Media layer resized in Studio to {Width}x{Height}", current.Width, current.Height);
                     RememberLayer(current);
                     _mediaCanvas = current;
                     current.Show();
@@ -840,7 +843,7 @@ public class MediaPlayerService : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[MEDIA] canvas watch: " + ex.Message);
+                _log.LogWarning("canvas watch: {Message}", ex.Message);
             }
         }
     }
@@ -885,7 +888,7 @@ public class MediaPlayerService : IDisposable
             var overlay = FullWallOverlay();
             _mediaCanvas = overlay;
             overlay.Show();
-            Console.WriteLine($"[MEDIA] {why}: the video continues on its own layer");
+            _log.LogInformation("{Why}: the video continues on its own layer", why);
             await _videoPlayer.MoveToCanvasAsync(overlay);
         }
         finally
@@ -909,7 +912,7 @@ public class MediaPlayerService : IDisposable
     {
         if (!IsRunning)
         {
-            Console.WriteLine("[MEDIA] Cannot seek - not playing");
+            _log.LogWarning("Cannot seek - not playing");
             return;
         }
 
@@ -933,7 +936,7 @@ public class MediaPlayerService : IDisposable
     {
         if (!IsRunning)
         {
-            Console.WriteLine("[MEDIA] Cannot seek - not playing");
+            _log.LogWarning("Cannot seek - not playing");
             return;
         }
 
@@ -966,12 +969,12 @@ public class MediaPlayerService : IDisposable
     {
         if (!File.Exists(filePath))
         {
-            Console.WriteLine($"[MEDIA] MOD file not found: {filePath}");
+            _log.LogWarning("MOD file not found: {FilePath}", filePath);
             return false;
         }
 
         ModFilePath = filePath;
-        Console.WriteLine($"[MEDIA] MOD file set: {Path.GetFileName(filePath)}");
+        _log.LogInformation("MOD file set: {Value}", Path.GetFileName(filePath));
 
         // If already playing, start the MOD
         if (_isRunning && _audioEnabled) _audio.PlayMod(ModFilePath);
@@ -986,7 +989,7 @@ public class MediaPlayerService : IDisposable
     {
         ModFilePath = null;
         _audio.StopMod();
-        Console.WriteLine("[MEDIA] MOD file cleared");
+        _log.LogInformation("MOD file cleared");
     }
 
     /// <summary>
@@ -1009,7 +1012,7 @@ public class MediaPlayerService : IDisposable
         _replay = () => PlayAudioAsync(audioPath, loop);
         if (!File.Exists(audioPath))
         {
-            Console.WriteLine($"[MEDIA] Audio not found: {audioPath}");
+            _log.LogWarning("Audio not found: {AudioPath}", audioPath);
             return;
         }
 
@@ -1033,7 +1036,7 @@ public class MediaPlayerService : IDisposable
         // Build playlist from the current audio folder, starting with this file
         BuildPlaylistFromFile(audioPath);
 
-        Console.WriteLine($"[MEDIA] Playing audio: {CurrentAudio} ({CurrentPlaylistIndex + 1}/{_audioPlaylist.Count})");
+        _log.LogInformation("Playing audio: {CurrentAudio} ({Value}/{Count})", CurrentAudio, CurrentPlaylistIndex + 1, _audioPlaylist.Count);
 
         // Audio playback: NO canvas needed - don't show embedded cover art
         // Pass null canvas to VideoPlayer to indicate audio-only mode
@@ -1069,7 +1072,7 @@ public class MediaPlayerService : IDisposable
         LastPlayedYouTubeUrl = null;
         LastPlayedYouTubeTitle = null;
 
-        Console.WriteLine($"[MEDIA] Playing network audio: {shareName}/{filePath}");
+        _log.LogInformation("Playing network audio: {ShareName}/{FilePath}", shareName, filePath);
 
         // Audio playback: NO canvas needed
         _mediaCanvas = null;
@@ -1098,17 +1101,17 @@ public class MediaPlayerService : IDisposable
                 previous.Clear();
                 previous.Hide();
                 _canvasManager.RemoveCanvas(previous);
-                Console.WriteLine("[MEDIA] Previous media layer removed (new video plays elsewhere)");
+                _log.LogInformation("Previous media layer removed (new video plays elsewhere)");
             }
             else if (!_canvasFromCaller)
             {
                 previous.Clear();
-                Console.WriteLine($"[MEDIA] Cleared the last frame on '{previous.Name}'");
+                _log.LogInformation("Cleared the last frame on '{Name}'", previous.Name);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[MEDIA] Previous canvas: {ex.Message}");
+            _log.LogWarning("Previous canvas: {Message}", ex.Message);
         }
     }
 
@@ -1117,19 +1120,19 @@ public class MediaPlayerService : IDisposable
         if (!IsOwnedOverlay(_mediaCanvas)) return;
         if (keepLastFrame && !_mediaCanvas!.IsHidden)
         {
-            Console.WriteLine("[MEDIA] Keeping last frame on MediaPlayer overlay during switch");
+            _log.LogInformation("Keeping last frame on MediaPlayer overlay during switch");
             return;
         }
         _mediaCanvas!.Hide();
         _mediaCanvas.Clear();
-        Console.WriteLine("[MEDIA] MediaPlayer overlay hidden until the first frame");
+        _log.LogInformation("MediaPlayer overlay hidden until the first frame");
     }
 
     private void RevealOwnedOverlay()
     {
         if (!IsOwnedOverlay(_mediaCanvas)) return;
         _mediaCanvas!.Show();
-        Console.WriteLine("[MEDIA] MediaPlayer overlay shown (first frame)");
+        _log.LogInformation("MediaPlayer overlay shown (first frame)");
     }
 
     private void TeardownOwnedOverlay()
@@ -1143,12 +1146,12 @@ public class MediaPlayerService : IDisposable
             {
                 canvas.Hide();
                 _canvasManager.RemoveCanvas(canvas);
-                Console.WriteLine("[MEDIA] MediaPlayer overlay removed");
+                _log.LogInformation("MediaPlayer overlay removed");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[MEDIA] Overlay teardown: {ex.Message}");
+            _log.LogWarning("Overlay teardown: {Message}", ex.Message);
         }
         _mediaCanvas = null;
     }
@@ -1184,7 +1187,7 @@ public class MediaPlayerService : IDisposable
     private void OnVideoError(string msg)
     {
         LastPlaybackError = msg;
-        Console.WriteLine($"[MEDIA] Error: {msg}");
+        _log.LogError("Error: {Msg}", msg);
         if (Interlocked.CompareExchange(ref _gotFirstFrame, 0, 0) == 0)
             _startGate?.TrySetResult(false);
     }
@@ -1203,7 +1206,7 @@ public class MediaPlayerService : IDisposable
             var wasUserInitiated = Interlocked.Exchange(ref _userInitiatedStop, 0) != 0;
             var isAdvancing = Interlocked.CompareExchange(ref _autoPlayAdvancing, 0, 0) != 0;
             
-            Console.WriteLine($"[MEDIA] Video playback stopped (userInitiated={wasUserInitiated}, autoPlay={AutoPlayFavorites}, advancing={isAdvancing})");
+            _log.LogInformation("Video playback stopped (userInitiated={WasUserInitiated}, autoPlay={AutoPlayFavorites}, advancing={IsAdvancing})", wasUserInitiated, AutoPlayFavorites, isAdvancing);
             _isRunning = false;
 
             // Load never produced a frame (403/429/empty stream): drop the overlay so prior content stays.
@@ -1225,7 +1228,7 @@ public class MediaPlayerService : IDisposable
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[MEDIA] Auto-play advance error: {ex.Message}");
+                        _log.LogError("Auto-play advance error: {Message}", ex.Message);
                         StopAutoPlay();
                     }
                 });
@@ -1235,7 +1238,7 @@ public class MediaPlayerService : IDisposable
             // Stop auto-play if user initiated stop
             if (AutoPlayFavorites && wasUserInitiated)
             {
-                Console.WriteLine("[MEDIA] User stopped playback, disabling auto-play");
+                _log.LogInformation("User stopped playback, disabling auto-play");
                 StopAutoPlay();
             }
 
@@ -1272,7 +1275,7 @@ public class MediaPlayerService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[MEDIA] Playlist folder: {ex.Message}");
+            _log.LogWarning("Playlist folder: {Message}", ex.Message);
         }
         if (!allFiles.Contains(startFile)) allFiles.Insert(0, startFile);
 
@@ -1288,8 +1291,7 @@ public class MediaPlayerService : IDisposable
         }
 
         CurrentPlaylistIndex = _audioPlaylist.IndexOf(startFile);
-        Console.WriteLine(
-            $"[MEDIA] Playlist built with {_audioPlaylist.Count} tracks, starting at index {CurrentPlaylistIndex}");
+        _log.LogInformation("Playlist built with {Count} tracks, starting at index {CurrentPlaylistIndex}", _audioPlaylist.Count, CurrentPlaylistIndex);
     }
 
     /// <summary>
@@ -1299,7 +1301,7 @@ public class MediaPlayerService : IDisposable
     {
         if (_audioPlaylist.Count == 0)
         {
-            Console.WriteLine("[MEDIA] No playlist - cannot skip to next");
+            _log.LogWarning("No playlist - cannot skip to next");
             return false;
         }
 
@@ -1313,7 +1315,7 @@ public class MediaPlayerService : IDisposable
 
             if (availableIndices.Count == 0)
             {
-                Console.WriteLine("[MEDIA] No more tracks in shuffle mode");
+                _log.LogInformation("No more tracks in shuffle mode");
                 return false;
             }
 
@@ -1331,7 +1333,7 @@ public class MediaPlayerService : IDisposable
                 }
                 else
                 {
-                    Console.WriteLine("[MEDIA] End of playlist");
+                    _log.LogInformation("End of playlist");
                     return false;
                 }
             }
@@ -1340,7 +1342,7 @@ public class MediaPlayerService : IDisposable
         var filePath = _audioPlaylist[nextIndex];
         var nextFile = Path.GetFileName(filePath);
 
-        Console.WriteLine($"[MEDIA] Playing next track: {nextFile} (index {nextIndex})");
+        _log.LogInformation("Playing next track: {NextFile} (index {NextIndex})", nextFile, nextIndex);
 
         // Update index before playing to avoid re-triggering
         CurrentPlaylistIndex = nextIndex;
@@ -1367,14 +1369,14 @@ public class MediaPlayerService : IDisposable
     {
         if (_audioPlaylist.Count == 0)
         {
-            Console.WriteLine("[MEDIA] No playlist - cannot skip to previous");
+            _log.LogWarning("No playlist - cannot skip to previous");
             return false;
         }
 
         // If more than 3 seconds into the track, restart it instead of going to previous
         if (_videoPlayer.Position.TotalSeconds > 3)
         {
-            Console.WriteLine("[MEDIA] Restarting current track");
+            _log.LogInformation("Restarting current track");
             await _videoPlayer.SeekAsync(TimeSpan.Zero);
             return true;
         }
@@ -1390,7 +1392,7 @@ public class MediaPlayerService : IDisposable
             else
             {
                 // Just restart the current track
-                Console.WriteLine("[MEDIA] Start of playlist - restarting track");
+                _log.LogInformation("Start of playlist - restarting track");
                 await _videoPlayer.SeekAsync(TimeSpan.Zero);
                 return true;
             }
@@ -1399,7 +1401,7 @@ public class MediaPlayerService : IDisposable
         var filePath = _audioPlaylist[prevIndex];
         var prevFile = Path.GetFileName(filePath);
 
-        Console.WriteLine($"[MEDIA] Playing previous track: {prevFile} (index {prevIndex})");
+        _log.LogInformation("Playing previous track: {PrevFile} (index {PrevIndex})", prevFile, prevIndex);
 
         // Update index before playing
         CurrentPlaylistIndex = prevIndex;
@@ -1437,7 +1439,7 @@ public class MediaPlayerService : IDisposable
     {
         if (items.Count == 0)
         {
-            Console.WriteLine("[AUTOPLAY] No items to play");
+            _log.LogInformation("[AUTOPLAY] No items to play");
             return;
         }
 
@@ -1448,7 +1450,7 @@ public class MediaPlayerService : IDisposable
         AutoPlayFavorites = true;
         Interlocked.Exchange(ref _userInitiatedStop, 0);
         
-        Console.WriteLine($"[AUTOPLAY] Started with {_autoPlayQueue.Count} items (shuffle={shuffle})");
+        _log.LogInformation("[AUTOPLAY] Started with {Count} items (shuffle={Shuffle})", _autoPlayQueue.Count, shuffle);
     }
 
     /// <summary>
@@ -1460,7 +1462,7 @@ public class MediaPlayerService : IDisposable
         AutoPlayRefillCallback = null;
         _autoPlayQueue.Clear();
         _autoPlayCurrentIndex = -1;
-        Console.WriteLine("[AUTOPLAY] Stopped");
+        _log.LogInformation("[AUTOPLAY] Stopped");
     }
 
     /// <summary>
@@ -1477,31 +1479,31 @@ public class MediaPlayerService : IDisposable
             {
                 try
                 {
-                    Console.WriteLine("[AUTOPLAY] Queue empty — requesting refill...");
+                    _log.LogInformation("[AUTOPLAY] Queue empty — requesting refill...");
                     var newItems = await AutoPlayRefillCallback();
                     if (newItems.Count > 0)
                     {
                         _autoPlayQueue.AddRange(newItems);
-                        Console.WriteLine($"[AUTOPLAY] Refilled with {newItems.Count} items (total: {_autoPlayQueue.Count})");
+                        _log.LogInformation("[AUTOPLAY] Refilled with {Count} items (total: {Count2})", newItems.Count, _autoPlayQueue.Count);
                         // nextIndex is still valid — continue below
                     }
                     else
                     {
-                        Console.WriteLine("[AUTOPLAY] Refill returned empty — stopping");
+                        _log.LogInformation("[AUTOPLAY] Refill returned empty — stopping");
                         StopAutoPlay();
                         return;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[AUTOPLAY] Refill error: {ex.Message}");
+                    _log.LogError("[AUTOPLAY] Refill error: {Message}", ex.Message);
                     StopAutoPlay();
                     return;
                 }
             }
             else
             {
-                Console.WriteLine("[AUTOPLAY] Reached end of queue");
+                _log.LogInformation("[AUTOPLAY] Reached end of queue");
                 StopAutoPlay();
                 return;
             }
@@ -1511,7 +1513,7 @@ public class MediaPlayerService : IDisposable
         Interlocked.Exchange(ref _autoPlayAdvancing, 1); // Guard against re-entry from StopAsync inside play methods
         
         var item = _autoPlayQueue[nextIndex];
-        Console.WriteLine($"[AUTOPLAY] Advancing to #{nextIndex + 1}/{_autoPlayQueue.Count}: {item.Name}");
+        _log.LogInformation("[AUTOPLAY] Advancing to #{Value}/{Count}: {Name}", nextIndex + 1, _autoPlayQueue.Count, item.Name);
 
         // Show loading screen on canvas
         ShowAutoPlayLoadingScreen(item.Name, nextIndex + 1, _autoPlayQueue.Count);
@@ -1525,13 +1527,13 @@ public class MediaPlayerService : IDisposable
             }
             else
             {
-                Console.WriteLine("[AUTOPLAY] No play callback registered, stopping auto-play");
+                _log.LogInformation("[AUTOPLAY] No play callback registered, stopping auto-play");
                 StopAutoPlay();
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUTOPLAY] Track failed: {ex.Message} — skipping to next");
+            _log.LogError("[AUTOPLAY] Track failed: {Message} — skipping to next", ex.Message);
             Interlocked.Exchange(ref _autoPlayAdvancing, 0);
 
             // Skip to next track (with a small limit to avoid infinite loops of failures)
@@ -1563,7 +1565,7 @@ public class MediaPlayerService : IDisposable
 
                 _autoPlayCurrentIndex = skipIndex;
                 var nextItem = _autoPlayQueue[skipIndex];
-                Console.WriteLine($"[AUTOPLAY] Retry #{failures + 1}: {nextItem.Name}");
+                _log.LogInformation("[AUTOPLAY] Retry #{Value}: {Name}", failures + 1, nextItem.Name);
 
                 try
                 {
@@ -1576,7 +1578,7 @@ public class MediaPlayerService : IDisposable
                 }
                 catch (Exception retryEx)
                 {
-                    Console.WriteLine($"[AUTOPLAY] Track failed: {retryEx.Message} — skipping");
+                    _log.LogError("[AUTOPLAY] Track failed: {Message} — skipping", retryEx.Message);
                     Interlocked.Exchange(ref _autoPlayAdvancing, 0);
                     failures++;
                 }
@@ -1584,7 +1586,7 @@ public class MediaPlayerService : IDisposable
 
             if (failures >= maxConsecutiveFailures)
             {
-                Console.WriteLine($"[AUTOPLAY] {maxConsecutiveFailures} consecutive failures — stopping");
+                _log.LogInformation("[AUTOPLAY] {MaxConsecutiveFailures} consecutive failures — stopping", maxConsecutiveFailures);
                 StopAutoPlay();
             }
         }
@@ -1601,11 +1603,11 @@ public class MediaPlayerService : IDisposable
     {
         if (!AutoPlayFavorites)
         {
-            Console.WriteLine("[AUTOPLAY] Not in auto-play mode");
+            _log.LogInformation("[AUTOPLAY] Not in auto-play mode");
             return;
         }
 
-        Console.WriteLine("[AUTOPLAY] Skipping to next track");
+        _log.LogInformation("[AUTOPLAY] Skipping to next track");
         Interlocked.Exchange(ref _userInitiatedStop, 0);
         Interlocked.Exchange(ref _autoPlayAdvancing, 1); // Prevent OnPlaybackStopped from also advancing
         
@@ -1668,11 +1670,11 @@ public class MediaPlayerService : IDisposable
             target.Show();
             _mediaCanvas = target;
 
-            Console.WriteLine("[AUTOPLAY] Loading screen displayed");
+            _log.LogInformation("[AUTOPLAY] Loading screen displayed");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUTOPLAY] Failed to show loading screen: {ex.Message}");
+            _log.LogError("[AUTOPLAY] Failed to show loading screen: {Message}", ex.Message);
         }
     }
 

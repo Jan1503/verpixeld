@@ -8,8 +8,11 @@ namespace verpixeld.Layout;
 /// <summary>
 ///     Manages saving and loading of layout configurations to/from disk
 /// </summary>
+[LogTag("LAYOUT STORAGE")]
 public class LayoutStorageManager
 {
+    private readonly ILogger<LayoutStorageManager> _log;
+
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         WriteIndented = true,
@@ -19,8 +22,9 @@ public class LayoutStorageManager
 
     private readonly string _layoutsDirectory;
 
-    public LayoutStorageManager(string? layoutsDirectory = null)
+    public LayoutStorageManager(string? layoutsDirectory = null, ILogger<LayoutStorageManager>? log = null)
     {
+        _log = log ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<LayoutStorageManager>.Instance;
         _layoutsDirectory = layoutsDirectory ?? AppPaths.LayoutsDir;
     }
 
@@ -43,8 +47,8 @@ public class LayoutStorageManager
         var json = JsonSerializer.Serialize(layout, _jsonOptions);
         FileHelper.AtomicWriteAllText(filePath, json);
 
-        Console.WriteLine($"[LAYOUT STORAGE] Saved layout '{layout.Name}' to {filePath}");
-        if (layout.IsDefault) Console.WriteLine($"[LAYOUT STORAGE] '{layout.Name}' is now the default layout");
+        _log.LogInformation("Saved layout '{Name}' to {FilePath}", layout.Name, filePath);
+        if (layout.IsDefault) _log.LogInformation("'{Name}' is now the default layout", layout.Name);
     }
 
     /// <summary>
@@ -67,12 +71,12 @@ public class LayoutStorageManager
                     layout.IsDefault = false;
                     var updatedJson = JsonSerializer.Serialize(layout, _jsonOptions);
                     FileHelper.AtomicWriteAllText(file, updatedJson);
-                    Console.WriteLine($"[LAYOUT STORAGE] Cleared default flag from '{layout.Name}'");
+                    _log.LogInformation("Cleared default flag from '{Name}'", layout.Name);
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[LAYOUT STORAGE] Error clearing default flag in {file}: {ex.Message}");
+                _log.LogError("Error clearing default flag in {File}: {Message}", file, ex.Message);
             }
     }
 
@@ -86,7 +90,7 @@ public class LayoutStorageManager
 
         if (!File.Exists(filePath))
         {
-            Console.WriteLine($"[LAYOUT STORAGE] Layout '{layoutName}' not found");
+            _log.LogWarning("Layout '{LayoutName}' not found", layoutName);
             return null;
         }
 
@@ -120,12 +124,12 @@ public class LayoutStorageManager
                     }
             }
 
-            Console.WriteLine($"[LAYOUT STORAGE] Loaded layout '{layoutName}'");
+            _log.LogInformation("Loaded layout '{LayoutName}'", layoutName);
             return layout;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[LAYOUT STORAGE] Error loading layout '{layoutName}': {ex.Message}");
+            _log.LogError("Error loading layout '{LayoutName}': {Message}", layoutName, ex.Message);
             return null;
         }
     }
@@ -206,7 +210,7 @@ public class LayoutStorageManager
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[LAYOUT STORAGE] Error reading layout file {file}: {ex.Message}");
+                _log.LogError("Error reading layout file {File}: {Message}", file, ex.Message);
             }
 
         return layouts.OrderByDescending(l => l.LastModified).ToList();
@@ -222,19 +226,19 @@ public class LayoutStorageManager
 
         if (!File.Exists(filePath))
         {
-            Console.WriteLine($"[LAYOUT STORAGE] Layout '{layoutName}' not found for deletion");
+            _log.LogWarning("Layout '{LayoutName}' not found for deletion", layoutName);
             return false;
         }
 
         try
         {
             File.Delete(filePath);
-            Console.WriteLine($"[LAYOUT STORAGE] Deleted layout '{layoutName}'");
+            _log.LogInformation("Deleted layout '{LayoutName}'", layoutName);
             return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[LAYOUT STORAGE] Error deleting layout '{layoutName}': {ex.Message}");
+            _log.LogError("Error deleting layout '{LayoutName}': {Message}", layoutName, ex.Message);
             return false;
         }
     }
@@ -301,13 +305,13 @@ public class LayoutStorageManager
                             filter.Parameters = convertedParams;
                         }
 
-                    Console.WriteLine($"[LAYOUT STORAGE] Found default layout: '{layout.Name}'");
+                    _log.LogInformation("Found default layout: '{Name}'", layout.Name);
                     return layout;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[LAYOUT STORAGE] Error reading layout file {file}: {ex.Message}");
+                _log.LogError("Error reading layout file {File}: {Message}", file, ex.Message);
             }
 
         return null;

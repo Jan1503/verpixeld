@@ -11,8 +11,11 @@ namespace verpixeld.Services;
 /// <summary>
 ///     Service that handles application startup, including intro screen and default layout loading
 /// </summary>
+[LogTag("INTRO")]
 public class StartupService
 {
+    private readonly ILogger<StartupService> _log;
+
     private readonly CanvasManager _canvasManager;
 
     // 3D Logo animation particles
@@ -25,8 +28,9 @@ public class StartupService
     private int _charWidth = 22;
     private int _lineHeight = 21;
 
-    public StartupService(CanvasManager canvasManager)
+    public StartupService(CanvasManager canvasManager, ILogger<StartupService> log)
     {
+        _log = log;
         _canvasManager = canvasManager;
         DisplayWidth = canvasManager.Width;
         DisplayHeight = canvasManager.Height;
@@ -62,12 +66,12 @@ public class StartupService
     /// </summary>
     public async Task ShowIntroAsync()
     {
-        Console.WriteLine("[INTRO] Creating intro canvas...");
+        _log.LogInformation("Creating intro canvas...");
 
         // Use a separate canvas for intro with higher z-order so it's on top
         var introCanvas = _canvasManager.GetCanvas(0, 0, DisplayWidth, DisplayHeight, 100, "IntroCanvas");
         introCanvas.Show();
-        Console.WriteLine("[INTRO] Intro canvas created and shown");
+        _log.LogInformation("Intro canvas created and shown");
 
         // Responsive setup: pick a bitmap font that fits the panel (~8 text rows tall) and derive
         // character/line metrics so the splash + system info scale to any resolution.
@@ -90,7 +94,7 @@ public class StartupService
         var glyph = introCanvas.MeasureBdfText("W", _introFont);
         _charWidth = Math.Max(1, (int)Math.Round(glyph.Width));
         _lineHeight = Math.Max(1, (int)Math.Round(glyph.Height) + 1);
-        Console.WriteLine($"[INTRO] Responsive font '{_introFont}' charW={_charWidth} lineH={_lineHeight} scale={_scale:F2}");
+        _log.LogInformation("Responsive font '{IntroFont}' charW={CharWidth} lineH={LineHeight} scale={Scale:F2}", _introFont, _charWidth, _lineHeight, _scale);
 
         // Every intro frame is built off-screen and handed over whole (no half-drawn frames on the wall).
         using var frame = new CanvasFrame(introCanvas);
@@ -105,7 +109,7 @@ public class StartupService
             // Phase 3: System info with countdown
             await ShowSystemInfoWithCountdownAsync(frame);
 
-            Console.WriteLine("[INTRO] Countdown complete, removing intro canvas");
+            _log.LogInformation("Countdown complete, removing intro canvas");
         }
         finally
         {
@@ -116,7 +120,7 @@ public class StartupService
             // Remove the canvas from CanvasManager to prevent it from lingering
             _canvasManager.RemoveCanvas(introCanvas);
 
-            Console.WriteLine("[INTRO] Intro canvas removed");
+            _log.LogInformation("Intro canvas removed");
         }
     }
 
@@ -125,7 +129,7 @@ public class StartupService
     /// </summary>
     private async Task ShowAnimatedSplashAsync(CanvasFrame canvas)
     {
-        Console.WriteLine("[INTRO] Starting animated splash...");
+        _log.LogInformation("Starting animated splash...");
 
         // Initialize starfield particles
         InitializeParticles(80);
@@ -204,7 +208,7 @@ public class StartupService
     /// </summary>
     private async Task ShowTransitionAsync(CanvasFrame canvas)
     {
-        Console.WriteLine("[INTRO] Playing transition...");
+        _log.LogInformation("Playing transition...");
 
         const int transitionFrames = 20;
         const int frameDelay = 25;
@@ -243,7 +247,7 @@ public class StartupService
     /// </summary>
     private async Task ShowSystemInfoWithCountdownAsync(CanvasFrame canvas)
     {
-        Console.WriteLine("[INTRO] Showing system info...");
+        _log.LogInformation("Showing system info...");
 
         // Animate system info appearing
         await AnimateSystemInfoAppearanceAsync(canvas);

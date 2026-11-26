@@ -8,8 +8,11 @@ namespace verpixeld.MediaPlayer.Audio;
 ///     Background service that monitors PulseAudio events using 'pactl subscribe'
 ///     and broadcasts volume/sink changes to connected clients via SSE.
 /// </summary>
+[LogTag("PULSE-SSE")]
 public class PulseAudioEventService : BackgroundService
 {
+    private readonly ILogger<PulseAudioEventService> _log;
+
     private static DateTime _lastSubscribeStartLog = DateTime.MinValue;
     private static int _subscribeRestartCount;
     private readonly object _clientLock = new();
@@ -20,8 +23,9 @@ public class PulseAudioEventService : BackgroundService
     // Event types we care about
     public event Action<string, string>? OnSinkChanged; // (sinkName, changeType)
 
-    public PulseAudioEventService(IAudioOutputService audioOutputService, PixToneOutputService pixTone)
+    public PulseAudioEventService(IAudioOutputService audioOutputService, PixToneOutputService pixTone, ILogger<PulseAudioEventService> log)
     {
+        _log = log;
         _audioOutputService = audioOutputService;
         // A volume change on the audio board's panel goes to the web UI like a sink change.
         pixTone.VolumeChanged += () =>
@@ -75,7 +79,7 @@ public class PulseAudioEventService : BackgroundService
             if (deadClients.Count > 0)
             {
                 foreach (var dead in deadClients) _sseClients.Remove(dead);
-                Console.WriteLine($"[PULSE-SSE] Removed {deadClients.Count} dead client(s)");
+                _log.LogInformation("Removed {Count} dead client(s)", deadClients.Count);
             }
         }
 
@@ -87,11 +91,11 @@ public class PulseAudioEventService : BackgroundService
         // Check if PulseAudio is available
         if (!_audioOutputService.IsPulseAudioAvailable())
         {
-            Console.WriteLine("[PULSE-SSE] PulseAudio not available, event service disabled");
+            _log.LogWarning("PulseAudio not available, event service disabled");
             return;
         }
 
-        Console.WriteLine("[PULSE-SSE] Starting PulseAudio event monitor...");
+        _log.LogInformation("Starting PulseAudio event monitor...");
 
         while (!stoppingToken.IsCancellationRequested)
             try
@@ -104,11 +108,11 @@ public class PulseAudioEventService : BackgroundService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[PULSE-SSE] Error: {ex.Message}, restarting in 5s...");
+                _log.LogError("Error: {Message}, restarting in 5s...", ex.Message);
                 await Task.Delay(5000, stoppingToken);
             }
 
-        Console.WriteLine("[PULSE-SSE] Event monitor stopped");
+        _log.LogInformation("Event monitor stopped");
     }
 
     private async Task RunSubscribeAsync(CancellationToken ct)
@@ -127,7 +131,7 @@ public class PulseAudioEventService : BackgroundService
         _subscribeProcess = Process.Start(psi);
         if (_subscribeProcess == null)
         {
-            Console.WriteLine("[PULSE-SSE] Failed to start pactl subscribe");
+            _log.LogError("Failed to start pactl subscribe");
             // Add delay to prevent rapid retry loop
             await Task.Delay(5000, ct);
             return;
@@ -138,8 +142,7 @@ public class PulseAudioEventService : BackgroundService
         _subscribeRestartCount++;
         if ((now - _lastSubscribeStartLog).TotalSeconds >= 30 || _subscribeRestartCount == 1)
         {
-            Console.WriteLine(
-                $"[PULSE-SSE] pactl subscribe started (PID: {_subscribeProcess.Id}){(_subscribeRestartCount > 1 ? $", restarts: {_subscribeRestartCount}" : "")}");
+            _log.LogInformation("pactl subscribe started (PID: {Id}){Value}", _subscribeProcess.Id, (_subscribeRestartCount > 1 ? $", restarts: {_subscribeRestartCount}" : ""));
             _lastSubscribeStartLog = now;
         }
 

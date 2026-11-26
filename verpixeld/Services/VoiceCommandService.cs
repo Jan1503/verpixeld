@@ -21,8 +21,11 @@ namespace verpixeld.Services;
 ///     - <see cref="VoiceConfig"/> for configuration persistence
 ///     - <see cref="VoiceIntents"/> for intent string constants
 /// </summary>
+[LogTag("VOICE")]
 public class VoiceCommandService : IDisposable
 {
+    private readonly ILogger<VoiceCommandService> _log;
+
     private readonly CanvasManager _canvasManager;
     private readonly AiImageService _aiImageService;
     private readonly AiChatService _aiChatService;
@@ -95,8 +98,9 @@ public class VoiceCommandService : IDisposable
         MediaPlayerService mediaPlayer, ICanvasContentManager contentManager,
         IExtensionDiscovery extensionDiscovery, MusicSearchService musicSearchService,
         RadioBrowserService radioBrowserService, AlertService alertService,
-        LocalCameraService localCameraService, int width, int height)
+        LocalCameraService localCameraService, int width, int height, ILogger<VoiceCommandService> log)
     {
+        _log = log;
         _canvasManager = canvasManager;
         _aiImageService = aiImageService;
         _aiChatService = aiChatService;
@@ -119,14 +123,14 @@ public class VoiceCommandService : IDisposable
         LoadConfig();
 
         _router = new VoiceCommandRouter(_aiChatService, BuildVoiceContext);
-        Console.WriteLine("[VOICE] Services wired: media, content manager, extensions, music search, alert, local camera, router");
+        _log.LogInformation("Services wired: media, content manager, extensions, music search, alert, local camera, router");
 
         SdkAvailable = CheckSpeechSdkAvailable();
-        Console.WriteLine($"[VOICE] Initialized for {width}x{height} display (SDK available: {SdkAvailable})");
+        _log.LogInformation("Initialized for {Width}x{Height} display (SDK available: {SdkAvailable})", width, height, SdkAvailable);
 
         if (!Enabled && IsConfigured && SdkAvailable && HasKeywordModel)
         {
-            Console.WriteLine("[VOICE] Keyword model present — auto-enabling voice listening");
+            _log.LogInformation("Keyword model present — auto-enabling voice listening");
             Enabled = true;
             SaveConfig();
         }
@@ -169,7 +173,7 @@ public class VoiceCommandService : IDisposable
             var content = _contentManager.GetContent("Main");
             ctx.ActiveExtension = content?.ExtensionDisplayName ?? "none";
         }
-        catch (Exception ex) { Console.WriteLine($"[VOICE] Failed to get active extension: {ex.Message}"); ctx.ActiveExtension = "unknown"; }
+        catch (Exception ex) { _log.LogError("Failed to get active extension: {Message}", ex.Message); ctx.ActiveExtension = "unknown"; }
 
         try
         {
@@ -177,7 +181,7 @@ public class VoiceCommandService : IDisposable
             if (extensions != null)
                 ctx.AvailableExtensions = string.Join(", ", extensions.Select(e => e.DisplayName).Take(20));
         }
-        catch (Exception ex) { Console.WriteLine($"[VOICE] Failed to get available extensions: {ex.Message}"); ctx.AvailableExtensions = "unknown"; }
+        catch (Exception ex) { _log.LogError("Failed to get available extensions: {Message}", ex.Message); ctx.AvailableExtensions = "unknown"; }
 
         ctx.AlertCameraState = _alertService.IsActive ? "streaming" : "off";
         ctx.LocalCameraState = _localCameraService.IsStreaming ? "streaming" : "off";
@@ -200,18 +204,18 @@ public class VoiceCommandService : IDisposable
 
     public bool SdkAvailable { get; private set; }
 
-    private static bool CheckSpeechSdkAvailable()
+    private bool CheckSpeechSdkAvailable()
     {
         try
         {
             var assembly = System.Reflection.Assembly.Load("Microsoft.CognitiveServices.Speech.csharp");
-            Console.WriteLine($"[VOICE] Speech SDK loaded: {assembly.GetName().Version}");
+            _log.LogInformation("Speech SDK loaded: {Value}", assembly.GetName().Version);
             return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VOICE] Speech SDK NOT available: {ex.Message}");
-            Console.WriteLine("[VOICE] To fix: publish with 'dotnet publish -r linux-arm64' to include native Speech SDK libraries");
+            _log.LogWarning("Speech SDK NOT available: {Message}", ex.Message);
+            _log.LogInformation("To fix: publish with 'dotnet publish -r linux-arm64' to include native Speech SDK libraries");
             return false;
         }
     }
@@ -257,7 +261,7 @@ public class VoiceCommandService : IDisposable
 
             if (!SdkAvailable)
             {
-                Console.WriteLine("[VOICE] Cannot start — Azure Speech SDK not available");
+                _log.LogWarning("Cannot start — Azure Speech SDK not available");
                 CurrentState = VoiceState.Error;
                 LastError = "Azure Speech SDK not available. Publish with: dotnet publish -r linux-arm64";
                 return;
@@ -265,7 +269,7 @@ public class VoiceCommandService : IDisposable
 
             if (!IsConfigured)
             {
-                Console.WriteLine("[VOICE] Cannot start — speech key/region not configured");
+                _log.LogWarning("Cannot start — speech key/region not configured");
                 CurrentState = VoiceState.Error;
                 LastError = "Speech key/region not configured";
                 return;
@@ -290,7 +294,7 @@ public class VoiceCommandService : IDisposable
             SaveConfig();
 
             _listenTask = Task.Run(() => ListenLoopAsync(_cts.Token));
-            Console.WriteLine("[VOICE] Started listening");
+            _log.LogInformation("Started listening");
         }
     }
 
@@ -300,11 +304,11 @@ public class VoiceCommandService : IDisposable
         {
             if (_listenTask == null) return;
 
-            Console.WriteLine("[VOICE] Stopping...");
+            _log.LogInformation("Stopping...");
             _cts?.Cancel();
 
             try { _listenTask?.Wait(TimeSpan.FromSeconds(5)); }
-            catch (Exception ex) { Console.WriteLine($"[VOICE] Listen task wait error: {ex.Message}"); }
+            catch (Exception ex) { _log.LogError("Listen task wait error: {Message}", ex.Message); }
 
             _listenTask = null;
             _cts?.Dispose();
@@ -315,7 +319,7 @@ public class VoiceCommandService : IDisposable
             SaveConfig();
 
             _overlay.ClearFeedback();
-            Console.WriteLine("[VOICE] Stopped");
+            _log.LogInformation("Stopped");
         }
     }
 
@@ -336,7 +340,7 @@ public class VoiceCommandService : IDisposable
         if (!MicrophoneAvailable())
         {
             LastError = "No microphone detected (no PulseAudio capture source).";
-            Console.WriteLine("[VOICE] Manual trigger ignored — no microphone available");
+            _log.LogInformation("Manual trigger ignored — no microphone available");
             return null;
         }
 
@@ -369,14 +373,14 @@ public class VoiceCommandService : IDisposable
                 else
                 {
                     CurrentState = VoiceState.WaitingForKeyword;
-                    Console.WriteLine("[VOICE] No keyword model — waiting for manual trigger via API");
+                    _log.LogInformation("No keyword model — waiting for manual trigger via API");
                     await Task.Delay(5000, ct);
                 }
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
-                Console.WriteLine($"[VOICE] Listen loop error: {ex.Message}");
+                _log.LogError("Listen loop error: {Message}", ex.Message);
                 CurrentState = VoiceState.Error;
                 LastError = ex.Message;
                 if (!await HandleSessionFailureAsync(ct)) break;
@@ -405,8 +409,7 @@ public class VoiceCommandService : IDisposable
         {
             CurrentState = VoiceState.Error;
             LastError = "Microphone capture keeps failing (parec/PulseAudio). Voice listening paused.";
-            Console.WriteLine(
-                $"[VOICE] Microphone capture failed {_consecutiveFailures} times in a row — pausing voice listening to stop the retry loop.");
+            _log.LogError("Microphone capture failed {ConsecutiveFailures} times in a row — pausing voice listening to stop the retry loop.", _consecutiveFailures);
             Console.WriteLine(
                 "[VOICE] Likely cause: the app runs as root (PulseAudio session not accessible: '/root/.config/pulse: Permission denied'), " +
                 "or no microphone is available. Fix: run verpixeld as the 'pi' user, or set XDG_RUNTIME_DIR/PULSE_SERVER for the service. " +
@@ -416,7 +419,7 @@ public class VoiceCommandService : IDisposable
 
         // Exponential backoff capped at 30s: 2s, 4s, 8s, 16s, 30s...
         var backoffMs = Math.Min(30000, 1000 * (int)Math.Pow(2, _consecutiveFailures));
-        Console.WriteLine($"[VOICE] Audio session failure #{_consecutiveFailures} — retrying in {backoffMs / 1000}s");
+        _log.LogInformation("Audio session failure #{ConsecutiveFailures} — retrying in {Value}s", _consecutiveFailures, backoffMs / 1000);
 
         try { await Task.Delay(backoffMs, ct); }
         catch (OperationCanceledException) { return false; }
@@ -450,7 +453,7 @@ public class VoiceCommandService : IDisposable
                 {
                     keywordDetected = true;
                     CurrentState = VoiceState.Listening;
-                    Console.WriteLine("[VOICE] Wake word detected — listening...");
+                    _log.LogInformation("Wake word detected — listening...");
                 }
                 var partial = StripKeywordPrefix(e.Result.Text);
                 _overlay.ShowFeedback(partial + " _", new SKColor(0, 180, 255), "LISTENING");
@@ -464,31 +467,31 @@ public class VoiceCommandService : IDisposable
                 keywordDetected = true;
                 CurrentState = VoiceState.Listening;
                 _overlay.ShowFeedback("Speak now...", new SKColor(0, 180, 255), "LISTENING");
-                Console.WriteLine($"[VOICE] Wake word detected: \"{e.Result.Text}\"");
+                _log.LogInformation("Wake word detected: \"{Text}\"", e.Result.Text);
             }
             else if (e.Result.Reason == ResultReason.RecognizedSpeech)
             {
                 var text = StripKeywordPrefix(e.Result.Text);
-                Console.WriteLine($"[VOICE] STT result: \"{text}\" (raw: \"{e.Result.Text}\")");
+                _log.LogInformation("STT result: \"{Text}\" (raw: \"{Text2}\")", text, e.Result.Text);
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     speechTcs.TrySetResult(text);
                 }
                 else
                 {
-                    Console.WriteLine("[VOICE] Keyword-only segment — waiting for follow-up speech...");
+                    _log.LogInformation("Keyword-only segment — waiting for follow-up speech...");
                 }
             }
             else if (e.Result.Reason == ResultReason.NoMatch)
             {
                 if (keywordDetected)
-                    Console.WriteLine("[VOICE] No match after keyword — waiting for follow-up...");
+                    _log.LogInformation("No match after keyword — waiting for follow-up...");
             }
         };
 
         _keywordSpeechRecognizer.Canceled += (_, e) =>
         {
-            Console.WriteLine($"[VOICE] Recognition canceled: {e.Reason} — {e.ErrorDetails}");
+            _log.LogInformation("Recognition canceled: {Reason} — {ErrorDetails}", e.Reason, e.ErrorDetails);
             if (e.Reason == CancellationReason.Error)
                 LastError = e.ErrorDetails;
             // EndOfStream / Error here means the microphone stream collapsed (no keyword was being
@@ -505,7 +508,7 @@ public class VoiceCommandService : IDisposable
         };
 
         CurrentState = VoiceState.Idle;
-        Console.WriteLine("[VOICE] Waiting for wake word (unified mode)...");
+        _log.LogInformation("Waiting for wake word (unified mode)...");
         await _keywordSpeechRecognizer.StartKeywordRecognitionAsync(_keywordModel);
 
         var completedTask = await Task.WhenAny(speechTcs.Task, Task.Delay(Timeout.Infinite, ct));
@@ -514,7 +517,7 @@ public class VoiceCommandService : IDisposable
             transcription = await speechTcs.Task;
 
         try { await _keywordSpeechRecognizer.StopKeywordRecognitionAsync(); }
-        catch (Exception ex) { Console.WriteLine($"[VOICE] Stop keyword recognition error: {ex.Message}"); }
+        catch (Exception ex) { _log.LogError("Stop keyword recognition error: {Message}", ex.Message); }
 
         _persistentAudioSession?.PausePush();
         DetachRecognizerEvents();
@@ -525,7 +528,7 @@ public class VoiceCommandService : IDisposable
         }
         else if (keywordDetected && string.IsNullOrEmpty(transcription) && !ct.IsCancellationRequested)
         {
-            Console.WriteLine("[VOICE] Keyword detected but no speech — listening for follow-up...");
+            _log.LogInformation("Keyword detected but no speech — listening for follow-up...");
             _overlay.ShowFeedback("Speak now...", new SKColor(0, 180, 255), "LISTENING");
 
             _persistentAudioSession?.ResumePush();
@@ -571,17 +574,17 @@ public class VoiceCommandService : IDisposable
             if (result.Reason == ResultReason.RecognizedSpeech && !string.IsNullOrWhiteSpace(result.Text))
             {
                 var text = StripKeywordPrefix(result.Text);
-                Console.WriteLine($"[VOICE] Follow-up STT: \"{text}\" (raw: \"{result.Text}\")");
+                _log.LogInformation("Follow-up STT: \"{Text}\" (raw: \"{Text2}\")", text, result.Text);
                 return string.IsNullOrWhiteSpace(text) ? null : text;
             }
 
-            Console.WriteLine($"[VOICE] Follow-up: no speech (reason={result.Reason})");
+            _log.LogInformation("Follow-up: no speech (reason={Reason})", result.Reason);
             return null;
         }
         catch (OperationCanceledException) { return null; }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VOICE] Follow-up listen error: {ex.Message}");
+            _log.LogError("Follow-up listen error: {Message}", ex.Message);
             return null;
         }
     }
@@ -618,7 +621,7 @@ public class VoiceCommandService : IDisposable
     {
         if (_persistentAudioSession != null && !_persistentAudioSession.IsAlive)
         {
-            Console.WriteLine("[VOICE] Audio session died — recreating");
+            _log.LogInformation("Audio session died — recreating");
             DisposeUnifiedSession();
         }
 
@@ -626,26 +629,26 @@ public class VoiceCommandService : IDisposable
         {
             var paSource = PulseAudioHelper.ResolvePaSource(AudioDevice);
             _persistentAudioSession = new ParecAudioSession(paSource);
-            Console.WriteLine("[VOICE] Persistent audio session started");
+            _log.LogInformation("Persistent audio session started");
         }
 
         if (_keywordModel == null)
         {
             _keywordModel = KeywordRecognitionModel.FromFile(KeywordModelPath);
-            Console.WriteLine("[VOICE] Keyword model loaded");
+            _log.LogInformation("Keyword model loaded");
         }
 
         if (_keywordSpeechRecognizer == null)
         {
             var speechConfig = CreateSpeechConfig();
             _keywordSpeechRecognizer = new SpeechRecognizer(speechConfig, _persistentAudioSession.AudioConfig);
-            Console.WriteLine("[VOICE] Unified SpeechRecognizer created");
+            _log.LogInformation("Unified SpeechRecognizer created");
         }
     }
 
     private void DetachRecognizerEvents()
     {
-        try { _keywordSpeechRecognizer?.Dispose(); } catch (Exception ex) { Console.WriteLine($"[VOICE] Recognizer dispose error: {ex.Message}"); }
+        try { _keywordSpeechRecognizer?.Dispose(); } catch (Exception ex) { _log.LogError("Recognizer dispose error: {Message}", ex.Message); }
         _keywordSpeechRecognizer = null;
     }
 
@@ -654,13 +657,13 @@ public class VoiceCommandService : IDisposable
         _overlay.DismissAll();
         DismissVoiceCamera();
 
-        try { _keywordSpeechRecognizer?.Dispose(); } catch (Exception ex) { Console.WriteLine($"[VOICE] Recognizer dispose error: {ex.Message}"); }
+        try { _keywordSpeechRecognizer?.Dispose(); } catch (Exception ex) { _log.LogError("Recognizer dispose error: {Message}", ex.Message); }
         _keywordSpeechRecognizer = null;
 
-        try { _keywordModel?.Dispose(); } catch (Exception ex) { Console.WriteLine($"[VOICE] Keyword model dispose error: {ex.Message}"); }
+        try { _keywordModel?.Dispose(); } catch (Exception ex) { _log.LogError("Keyword model dispose error: {Message}", ex.Message); }
         _keywordModel = null;
 
-        try { _persistentAudioSession?.Dispose(); } catch (Exception ex) { Console.WriteLine($"[VOICE] Audio session dispose error: {ex.Message}"); }
+        try { _persistentAudioSession?.Dispose(); } catch (Exception ex) { _log.LogError("Audio session dispose error: {Message}", ex.Message); }
         _persistentAudioSession = null;
     }
 
@@ -680,13 +683,13 @@ public class VoiceCommandService : IDisposable
             LastTranscription = transcription;
             LastCommandTime = DateTime.UtcNow;
             CommandCount++;
-            Console.WriteLine($"[VOICE] Transcribed: \"{transcription}\"");
+            _log.LogInformation("Transcribed: \"{Transcription}\"", transcription);
 
             // ── Fast-path: match simple commands locally (no LLM roundtrip) ──
             var fastResult = TryMatchLocalIntent(transcription);
             if (fastResult != null)
             {
-                Console.WriteLine($"[VOICE] Fast-path match: {fastResult.Intent}");
+                _log.LogInformation("Fast-path match: {Intent}", fastResult.Intent);
                 LastIntent = fastResult.Intent;
                 LastResponse = fastResult.Response;
                 await ExecuteIntentAsync(fastResult, transcription, ct);
@@ -725,7 +728,7 @@ public class VoiceCommandService : IDisposable
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VOICE] Error processing transcription: {ex.Message}");
+            _log.LogError("Error processing transcription: {Message}", ex.Message);
             LastError = ex.Message;
             CurrentState = VoiceState.Error;
             _overlay.ClearFeedback();
@@ -755,7 +758,7 @@ public class VoiceCommandService : IDisposable
         catch (OperationCanceledException) { return null; }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VOICE] Error: {ex.Message}");
+            _log.LogError("Error: {Message}", ex.Message);
             LastError = ex.Message;
             CurrentState = VoiceState.Error;
             _overlay.ClearFeedback();
@@ -833,7 +836,7 @@ public class VoiceCommandService : IDisposable
 
     private async Task ExecuteIntentAsync(VoiceCommandResult cmd, string transcription, CancellationToken ct)
     {
-        Console.WriteLine($"[VOICE] Executing intent: {cmd.Intent}");
+        _log.LogInformation("Executing intent: {Intent}", cmd.Intent);
 
         switch (cmd.Intent)
         {
@@ -924,7 +927,7 @@ public class VoiceCommandService : IDisposable
         if (!result.Success || result.ImageBase64 == null)
         {
             var err = result.Error ?? "Generation failed";
-            Console.WriteLine($"[VOICE] Generation failed: {err}");
+            _log.LogError("Generation failed: {Err}", err);
             _overlay.ShowFeedback(err, new SKColor(255, 80, 80), "ERROR");
             LastError = err;
             await Task.Delay(3000, ct);
@@ -945,11 +948,11 @@ public class VoiceCommandService : IDisposable
             try
             {
                 _aiImageService.SaveImageToDisk(result.ImageBase64, prompt, DefaultStyle ?? "voice");
-                Console.WriteLine("[VOICE] Image saved to gallery");
+                _log.LogInformation("Image saved to gallery");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[VOICE] Failed to save image to gallery: {ex.Message}");
+                _log.LogError("Failed to save image to gallery: {Message}", ex.Message);
             }
         }
     }
@@ -964,7 +967,7 @@ public class VoiceCommandService : IDisposable
     private void HandleMediaPlayPause(VoiceCommandResult cmd)
     {
         _mediaPlayer.TogglePause();
-        Console.WriteLine($"[VOICE] Media: toggle pause (now {(_mediaPlayer.IsPaused ? "paused" : "playing")})");
+        _log.LogInformation("Media: toggle pause (now {Value})", (_mediaPlayer.IsPaused ? "paused" : "playing"));
     }
 
     private void HandleMediaVolume(VoiceCommandResult cmd)
@@ -982,7 +985,7 @@ public class VoiceCommandService : IDisposable
             var level = cmd.GetActionInt("level", -1);
             if (level >= 0) _mediaPlayer.SetVolume(Math.Clamp(level, 0, 100));
         }
-        Console.WriteLine($"[VOICE] Volume set to {(int)(_mediaPlayer.Volume * 100)}%");
+        _log.LogInformation("Volume set to {Value}%", (int)(_mediaPlayer.Volume * 100));
     }
 
     private void HandleSwitchExtension(VoiceCommandResult cmd)
@@ -997,11 +1000,11 @@ public class VoiceCommandService : IDisposable
         if (match != null)
         {
             _contentManager.AssignExtension("Main", match.DisplayName);
-            Console.WriteLine($"[VOICE] Switched extension to: {match.DisplayName}");
+            _log.LogInformation("Switched extension to: {DisplayName}", match.DisplayName);
         }
         else
         {
-            Console.WriteLine($"[VOICE] Extension not found: {name}");
+            _log.LogWarning("Extension not found: {Name}", name);
         }
     }
 
@@ -1011,7 +1014,7 @@ public class VoiceCommandService : IDisposable
         if (level >= 0)
         {
             _canvasManager.Brightness = Math.Clamp(level / 100f, 0f, 1f);
-            Console.WriteLine($"[VOICE] Brightness set to {level}%");
+            _log.LogInformation("Brightness set to {Level}%", level);
         }
     }
 
@@ -1038,7 +1041,7 @@ public class VoiceCommandService : IDisposable
             return;
         }
 
-        Console.WriteLine($"[VOICE] Playing music ({result.Type}, audioOnly={MusicAudioOnly}): \"{result.Title}\" by {result.Artist} → {result.Url}");
+        _log.LogInformation("Playing music ({Type}, audioOnly={MusicAudioOnly}): \"{Title}\" by {Artist} → {Url}", result.Type, MusicAudioOnly, result.Title, result.Artist, result.Url);
         _overlay.ShowFeedback($"♪ {result.Title}\n{result.Artist}", new SKColor(255, 100, 200), "PLAYING");
 
         try
@@ -1048,7 +1051,7 @@ public class VoiceCommandService : IDisposable
             if (!playSuccess)
             {
                 var error = _mediaPlayer.LastPlaybackError ?? "Wiedergabe fehlgeschlagen";
-                Console.WriteLine($"[VOICE] Music playback failed: {error}");
+                _log.LogError("Music playback failed: {Error}", error);
                 await SpeakAndShowResponseAsync(
                     $"Das Lied konnte nicht abgespielt werden. {error}",
                     new SKColor(255, 80, 80), "ERROR", ct);
@@ -1067,14 +1070,14 @@ public class VoiceCommandService : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[VOICE/TTS] Music confirm error: {ex.Message}");
+                    _log.LogError("TTS: Music confirm error: {Message}", ex.Message);
                 }
                 finally { _overlay.ClearFeedback(); }
             });
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VOICE] Music playback error: {ex.Message}");
+            _log.LogError("Music playback error: {Message}", ex.Message);
             await SpeakAndShowResponseAsync("Fehler beim Abspielen.",
                 new SKColor(255, 80, 80), "ERROR", ct);
         }
@@ -1083,7 +1086,7 @@ public class VoiceCommandService : IDisposable
     private async Task HandleMusicRadioAsync(VoiceCommandResult cmd, CancellationToken ct)
     {
         var genre = cmd.GetActionString("genre", "music");
-        Console.WriteLine($"[VOICE] Starting music radio: \"{genre}\"");
+        _log.LogInformation("Starting music radio: \"{Genre}\"", genre);
 
         _overlay.ShowFeedback($"♪ Radio: {genre}", new SKColor(255, 100, 200), "RADIO");
 
@@ -1099,14 +1102,14 @@ public class VoiceCommandService : IDisposable
         }
 
         var station = stations[0];
-        Console.WriteLine($"[RADIO] Selected: \"{station.Name}\" ({station.Codec} {station.Bitrate}kbps) — {station.StreamUrl}");
+        _log.LogInformation("[RADIO] Selected: \"{Name}\" ({Codec} {Bitrate}kbps) — {StreamUrl}", station.Name, station.Codec, station.Bitrate, station.StreamUrl);
 
         _overlay.ShowFeedback($"♪ {station.Name}", new SKColor(255, 100, 200), "RADIO");
 
         try
         {
             await _mediaPlayer.PlayRadioStreamAsync(station.StreamUrl, station.Name);
-            Console.WriteLine($"[RADIO] Stream started: \"{station.Name}\"");
+            _log.LogInformation("[RADIO] Stream started: \"{Name}\"", station.Name);
 
             _ = Task.Run(async () =>
             {
@@ -1116,7 +1119,7 @@ public class VoiceCommandService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[RADIO] Stream error: {ex.Message}");
+            _log.LogError("[RADIO] Stream error: {Message}", ex.Message);
             await SpeakAndShowResponseAsync("Der Radiosender konnte nicht gestartet werden.",
                 new SKColor(255, 80, 80), "ERROR", ct);
         }
@@ -1129,7 +1132,7 @@ public class VoiceCommandService : IDisposable
     private void HandleShowCamera(VoiceCommandResult cmd)
     {
         var camera = cmd.GetActionString("camera", "alert");
-        Console.WriteLine($"[VOICE] Show camera: {camera}");
+        _log.LogInformation("Show camera: {Camera}", camera);
 
         DismissVoiceCamera();
         _overlay.ClearFeedback();
@@ -1138,26 +1141,26 @@ public class VoiceCommandService : IDisposable
         {
             if (_localCameraService.IsStreaming)
             {
-                Console.WriteLine("[VOICE] Local camera already streaming");
+                _log.LogInformation("Local camera already streaming");
                 return;
             }
 
             var started = _localCameraService.StartStream();
             if (started)
-                Console.WriteLine("[VOICE] Local camera started via voice");
+                _log.LogInformation("Local camera started via voice");
             else
-                Console.WriteLine("[VOICE] Failed to start local camera (no device configured?)");
+                _log.LogError("Failed to start local camera (no device configured?)");
         }
         else
         {
             _alertService.TriggerAlert();
-            Console.WriteLine("[VOICE] Alert camera triggered via voice");
+            _log.LogInformation("Alert camera triggered via voice");
         }
     }
 
     private void HandleHideCamera()
     {
-        Console.WriteLine("[VOICE] Hide camera");
+        _log.LogInformation("Hide camera");
         DismissVoiceCamera();
     }
 
@@ -1170,11 +1173,11 @@ public class VoiceCommandService : IDisposable
                 try
                 {
                     _alertService.DismissAlert();
-                    Console.WriteLine("[VOICE] Alert camera dismissed by new command");
+                    _log.LogInformation("Alert camera dismissed by new command");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[VOICE] Alert dismiss error: {ex.Message}");
+                    _log.LogError("Alert dismiss error: {Message}", ex.Message);
                 }
             });
         }
@@ -1184,11 +1187,11 @@ public class VoiceCommandService : IDisposable
             try
             {
                 _localCameraService.StopStream();
-                Console.WriteLine("[VOICE] Local camera dismissed by new command");
+                _log.LogInformation("Local camera dismissed by new command");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[VOICE] Local camera dismiss error: {ex.Message}");
+                _log.LogError("Local camera dismiss error: {Message}", ex.Message);
             }
         }
     }
@@ -1236,7 +1239,7 @@ public class VoiceCommandService : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[VOICE/TTS] Background TTS error: {ex.Message}");
+                _log.LogError("TTS: Background TTS error: {Message}", ex.Message);
             }
             finally
             {
@@ -1261,7 +1264,7 @@ public class VoiceCommandService : IDisposable
             if (strategy == "Semantic")
             {
                 speechConfig.SetProperty(PropertyId.Speech_SegmentationStrategy, "Semantic");
-                Console.WriteLine($"[VOICE] STT config: lang={SpeechLanguage}, segmentation=Semantic, profanity={ProfanityFilter}, pauseAfterSegment={SilenceTimeoutMs}ms");
+                _log.LogInformation("STT config: lang={SpeechLanguage}, segmentation=Semantic, profanity={ProfanityFilter}, pauseAfterSegment={SilenceTimeoutMs}ms", SpeechLanguage, ProfanityFilter, SilenceTimeoutMs);
             }
             else
             {
@@ -1269,7 +1272,7 @@ public class VoiceCommandService : IDisposable
                 speechConfig.SetProperty(PropertyId.Speech_SegmentationSilenceTimeoutMs, SilenceTimeoutMs.ToString());
                 if (strategy != "Default")
                     speechConfig.SetProperty(PropertyId.Speech_SegmentationStrategy, strategy);
-                Console.WriteLine($"[VOICE] STT config: lang={SpeechLanguage}, silence={SilenceTimeoutMs}ms, segmentation={strategy}, profanity={ProfanityFilter}");
+                _log.LogInformation("STT config: lang={SpeechLanguage}, silence={SilenceTimeoutMs}ms, segmentation={Strategy}, profanity={ProfanityFilter}", SpeechLanguage, SilenceTimeoutMs, strategy, ProfanityFilter);
             }
 
             var paSource = PulseAudioHelper.ResolvePaSource(AudioDevice);
@@ -1303,18 +1306,18 @@ public class VoiceCommandService : IDisposable
                     segments.Add(segmentText);
                     partialText = "";
                     lastActivityTime = DateTime.UtcNow;
-                    Console.WriteLine($"[VOICE] STT segment {segments.Count}: \"{segmentText}\"");
+                    _log.LogInformation("STT segment {Count}: \"{SegmentText}\"", segments.Count, segmentText);
                     _overlay.ShowFeedback(string.Join(" ", segments), new SKColor(0, 180, 255), "LISTENING");
                 }
                 else if (e.Result.Reason == ResultReason.NoMatch)
                 {
-                    Console.WriteLine("[VOICE] No match (silence)");
+                    _log.LogInformation("No match (silence)");
                 }
             };
 
             recognizer.Canceled += (_, e) =>
             {
-                Console.WriteLine($"[VOICE] STT canceled: {e.Reason} — {e.ErrorDetails}");
+                _log.LogInformation("STT canceled: {Reason} — {ErrorDetails}", e.Reason, e.ErrorDetails);
                 lastError = e.ErrorDetails;
                 errorOrSessionEnd.TrySetResult(true);
             };
@@ -1340,13 +1343,13 @@ public class VoiceCommandService : IDisposable
 
                 if (segments.Count > 0 && msSinceActivity >= pauseTimeout)
                 {
-                    Console.WriteLine($"[VOICE] Done: {pauseTimeout}ms silence after {segments.Count} segment(s)");
+                    _log.LogInformation("Done: {PauseTimeout}ms silence after {Count} segment(s)", pauseTimeout, segments.Count);
                     break;
                 }
 
                 if (segments.Count == 0 && string.IsNullOrEmpty(partialText) && msSinceActivity >= 10000)
                 {
-                    Console.WriteLine("[VOICE] No speech detected within 10s");
+                    _log.LogInformation("No speech detected within 10s");
                     break;
                 }
 
@@ -1354,19 +1357,19 @@ public class VoiceCommandService : IDisposable
             }
 
             try { await recognizer.StopContinuousRecognitionAsync(); }
-            catch (Exception ex) { Console.WriteLine($"[VOICE] Stop continuous recognition error: {ex.Message}"); }
+            catch (Exception ex) { _log.LogError("Stop continuous recognition error: {Message}", ex.Message); }
 
             if (lastError != null)
                 LastError = lastError;
 
             if (segments.Count == 0)
             {
-                Console.WriteLine("[VOICE] No segments recognized");
+                _log.LogInformation("No segments recognized");
                 return null;
             }
 
             var fullText = string.Join(" ", segments);
-            Console.WriteLine($"[VOICE] STT complete ({segments.Count} segment(s)): \"{fullText}\"");
+            _log.LogInformation("STT complete ({Count} segment(s)): \"{FullText}\"", segments.Count, fullText);
             return fullText;
         }
         catch (OperationCanceledException)
@@ -1375,7 +1378,7 @@ public class VoiceCommandService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[VOICE] STT error: {ex.Message}");
+            _log.LogError("STT error: {Message}", ex.Message);
             LastError = ex.Message;
             return null;
         }
@@ -1413,13 +1416,13 @@ public class VoiceCommandService : IDisposable
 
         if (!Enabled && IsConfigured && SdkAvailable && HasKeywordModel && !enabled.HasValue)
         {
-            Console.WriteLine("[VOICE] Keyword model present — auto-enabling voice listening");
+            _log.LogInformation("Keyword model present — auto-enabling voice listening");
             Enabled = true;
         }
 
         SyncTtsConfig();
         SaveConfig();
-        Console.WriteLine($"[VOICE] Configured: Region={SpeechRegion}, Keyword={KeywordModelPath ?? "none"}, Audio={AudioDevice ?? "default"}");
+        _log.LogInformation("Configured: Region={SpeechRegion}, Keyword={Value}, Audio={Value2}", SpeechRegion, KeywordModelPath ?? "none", AudioDevice ?? "default");
 
         if (Enabled && IsConfigured && _listenTask == null)
             Start();

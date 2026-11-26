@@ -13,8 +13,11 @@ namespace verpixeld.Services;
 ///     sensor, layout select, night-mode switch + night-active, brightness). Commands arrive on
 ///     <c>verpixeld/wall/#</c> via the existing HA websocket.
 /// </summary>
+[LogTag("HA Device")]
 public sealed class HaWallDevice : IDisposable
 {
+    private readonly ILogger<HaWallDevice> _log;
+
     public const string TopicPrefix = "verpixeld/wall";
 
     private static readonly JsonSerializerOptions MqttJson = new()
@@ -43,8 +46,9 @@ public sealed class HaWallDevice : IDisposable
         INightModeManager night,
         LayoutStorageManager layouts,
         ILayoutLoaderService loader,
-        Func<string?> configUrl)
+        Func<string?> configUrl, ILogger<HaWallDevice> log)
     {
+        _log = log;
         _ha = ha;
         _canvas = canvas;
         _night = night;
@@ -57,9 +61,9 @@ public sealed class HaWallDevice : IDisposable
         _timer = new System.Threading.Timer(_ =>
         {
             try { _ = PublishStateAsync(); }
-            catch (Exception ex) { Console.WriteLine($"[HA Device] state: {ex.Message}"); }
+            catch (Exception ex) { _log.LogWarning("state: {Message}", ex.Message); }
         }, null, TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(15));
-        Console.WriteLine("[HA Device] Wall device ready (MQTT discovery when HA MQTT is available)");
+        _log.LogInformation("Wall device ready (MQTT discovery when HA MQTT is available)");
     }
 
     public object Status()
@@ -102,7 +106,7 @@ public sealed class HaWallDevice : IDisposable
         if (!topic.StartsWith(TopicPrefix, StringComparison.OrdinalIgnoreCase)) return;
         var tail = topic[TopicPrefix.Length..].Trim('/');
         if (IsCommandTopic(tail))
-            Console.WriteLine($"[HA Device] {tail}: {TrimForLog(payload)}");
+            _log.LogInformation("{Tail}: {Value}", tail, TrimForLog(payload));
         _ = HandleCommandAsync(tail, payload);
     }
 
@@ -143,14 +147,14 @@ public sealed class HaWallDevice : IDisposable
                         System.Globalization.CultureInfo.InvariantCulture, out var pct))
                 {
                     _canvas.Brightness = (float)Math.Clamp(pct / 100.0, 0, 1);
-                    Console.WriteLine($"[HA Device] brightness {(int)Math.Round(pct)}%");
+                    _log.LogInformation("brightness {Value}%", (int)Math.Round(pct));
                 }
                 await PublishStateAsync();
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[HA Device] command {tail}: {ex.Message}");
+            _log.LogWarning("command {Tail}: {Message}", tail, ex.Message);
         }
     }
 
@@ -217,7 +221,7 @@ public sealed class HaWallDevice : IDisposable
             ActiveDays = [.. cfg.ActiveDays]
         };
         _night.UpdateConfiguration(next);
-        Console.WriteLine($"[HA Device] night mode {(enabled ? "on" : "off")}");
+        _log.LogInformation("night mode {Value}", (enabled ? "on" : "off"));
     }
 
     private async Task LoadLayoutAsync(string name)
@@ -226,7 +230,7 @@ public sealed class HaWallDevice : IDisposable
         var layout = _layouts.LoadLayout(name);
         if (layout == null)
         {
-            Console.WriteLine($"[HA Device] layout '{name}' not found");
+            _log.LogWarning("layout '{Name}' not found", name);
             return;
         }
 
@@ -335,7 +339,7 @@ public sealed class HaWallDevice : IDisposable
         await _ha.PublishMqttAsync($"{TopicPrefix}/last_toast/state", _lastToastState, retain: true);
         await _ha.PublishMqttAsync($"{TopicPrefix}/last_toast/attrs", _lastToastAttrs, retain: true);
         _published = true;
-        Console.WriteLine("[HA Device] discovery published");
+        _log.LogInformation("discovery published");
         await PublishStateAsync();
     }
 
@@ -354,7 +358,7 @@ public sealed class HaWallDevice : IDisposable
             await _ha.PublishMqttAsync($"homeassistant/{component}/{id}/config", "", retain: true);
         await _ha.PublishMqttAsync($"{TopicPrefix}/availability", "offline", retain: true);
         _published = false;
-        Console.WriteLine("[HA Device] discovery removed");
+        _log.LogInformation("discovery removed");
     }
 
     private async Task PublishStateAsync()

@@ -8,6 +8,7 @@ const consoleState = {
   paused: false,
   pollInterval: null,
   filterText: '',
+  minLevel: 'all', // all | warn | error
   entries: []
 };
 
@@ -128,7 +129,7 @@ function appendLogs(entries) {
  */
 function createLogLine(entry) {
   const line = document.createElement('div');
-  line.className = 'console-line ' + getLogLevel(entry.msg);
+  line.className = 'console-line ' + getLogLevel(entry.msg, entry.level);
   
   const time = document.createElement('span');
   time.className = 'console-time';
@@ -146,9 +147,13 @@ function createLogLine(entry) {
 /**
  * Get log level class from message content
  */
-function getLogLevel(msg) {
-  if (msg.includes('ERROR') || msg.includes('Error') || msg.includes('error:') || msg.includes('Failed')) return 'level-error';
-  if (msg.includes('WARN') || msg.includes('Warning')) return 'level-warn';
+function getLogLevel(msg, level) {
+  // The host sends the level (from ILogger, or guessed for plain console lines); the colour groups below
+  // only add a tint for some sources.
+  if (level === 'error') return 'level-error';
+  if (level === 'warn') return 'level-warn';
+  if (!level && (msg.includes('ERROR') || msg.includes('Error') || msg.includes('error:') || msg.includes('Failed'))) return 'level-error';
+  if (!level && (msg.includes('WARN') || msg.includes('Warning'))) return 'level-warn';
   if (msg.includes('[YOUTUBE]') || msg.includes('[MEDIA]') || msg.includes('[VIDEO]') || msg.includes('[AUDIO]')) return 'level-media';
   if (msg.includes('[INIT]') || msg.includes('[STARTUP]') || msg.includes('[CONFIG]')) return 'level-init';
   if (msg.includes('[FAVORITES]') || msg.includes('[HISTORY]')) return 'level-info';
@@ -159,8 +164,18 @@ function getLogLevel(msg) {
  * Check if entry matches current filter
  */
 function matchesFilter(entry) {
+  if (consoleState.minLevel === 'error' && entry.level !== 'error') return false;
+  if (consoleState.minLevel === 'warn' && entry.level !== 'warn' && entry.level !== 'error') return false;
   if (!consoleState.filterText) return true;
   return entry.msg.toLowerCase().includes(consoleState.filterText.toLowerCase());
+}
+
+/**
+ * Show all lines, warnings and errors, or errors only
+ */
+function filterConsoleLevel(level) {
+  consoleState.minLevel = level;
+  renderAllLogs();
 }
 
 /**
@@ -229,6 +244,7 @@ function updateAutoScrollIndicator() {
 // Expose globally
 window.initConsoleLog = initConsoleLog;
 window.filterConsoleLogs = filterConsoleLogs;
+window.filterConsoleLevel = filterConsoleLevel;
 window.toggleConsolePause = toggleConsolePause;
 window.clearConsoleLog = clearConsoleLog;
 window.scrollConsoleToBottom = scrollConsoleToBottom;

@@ -7,8 +7,11 @@ namespace verpixeld.Services;
 /// <summary>
 ///     Service that manages the render loop between CanvasManager and the matrix hardware
 /// </summary>
+[LogTag("RENDER")]
 public class RenderLoopService : IRenderService, IDisposable
 {
+    private readonly ILogger<RenderLoopService> _log;
+
     private readonly CanvasManager _canvasManager;
     private readonly IMatrixRenderer _matrixRenderer;
     private readonly ImageCorrectionService? _imageCorrection;
@@ -22,9 +25,9 @@ public class RenderLoopService : IRenderService, IDisposable
     /// <summary>
     ///     Creates a new render loop service
     /// </summary>
-    public RenderLoopService(CanvasManager canvasManager, IMatrixRenderer matrixRenderer,
-        ImageCorrectionService? imageCorrection = null, MediaPlayer.Audio.PixToneOutputService? board = null)
+    public RenderLoopService(CanvasManager canvasManager, IMatrixRenderer matrixRenderer, ILogger<RenderLoopService> log, ImageCorrectionService? imageCorrection = null, MediaPlayer.Audio.PixToneOutputService? board = null)
     {
+        _log = log;
         _canvasManager = canvasManager;
         _matrixRenderer = matrixRenderer;
         _imageCorrection = imageCorrection;
@@ -55,13 +58,13 @@ public class RenderLoopService : IRenderService, IDisposable
     /// </summary>
     public void Start()
     {
-        Console.WriteLine("[RENDER] Starting render loop...");
+        _log.LogInformation("Starting render loop...");
         _matrixRenderer.Initialize();
         _canvasManager.Run();
 
         // Give the rendering loop time to start
         Thread.Sleep(100);
-        Console.WriteLine("[RENDER] Render loop started");
+        _log.LogInformation("Render loop started");
     }
 
     /// <summary>
@@ -69,9 +72,9 @@ public class RenderLoopService : IRenderService, IDisposable
     /// </summary>
     public void Stop()
     {
-        Console.WriteLine("[RENDER] Stopping render loop...");
+        _log.LogInformation("Stopping render loop...");
         _canvasManager.Stop();
-        Console.WriteLine("[RENDER] Render loop stopped");
+        _log.LogInformation("Render loop stopped");
     }
 
     /// <summary>
@@ -79,11 +82,11 @@ public class RenderLoopService : IRenderService, IDisposable
     /// </summary>
     public void Restart()
     {
-        Console.WriteLine("[RENDER] Restarting render loop...");
+        _log.LogInformation("Restarting render loop...");
         Stop();
         Thread.Sleep(100);
         Start();
-        Console.WriteLine("[RENDER] Render loop restarted");
+        _log.LogInformation("Render loop restarted");
     }
 
     /// <summary>
@@ -128,7 +131,7 @@ public class RenderLoopService : IRenderService, IDisposable
                 CurrentFps = _frameCount / 30.0;
                 var memory = GC.GetTotalMemory(false) / 1024 / 1024;
 
-                Console.WriteLine($"[RENDER] FPS: {CurrentFps:F1} | Memory: {memory}MB | Total Frames: {TotalFrames}");
+                _log.LogInformation("FPS: {CurrentFps:F1} | Memory: {Memory}MB | Total Frames: {TotalFrames}", CurrentFps, memory, TotalFrames);
                 _frameCount = 0;
                 _lastFpsReport = now;
             }
@@ -143,7 +146,7 @@ public class RenderLoopService : IRenderService, IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[RENDER ERROR] {ex.Message}");
+            _log.LogError("[RENDER ERROR] {Message}", ex.Message);
         }
     }
 

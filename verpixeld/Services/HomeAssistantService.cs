@@ -13,8 +13,11 @@ namespace verpixeld.Services;
 ///     long-lived token, pulls an initial snapshot (get_states) and then follows state_changed events.
 ///     Reconnects automatically with backoff.
 /// </summary>
+[LogTag("HA")]
 public sealed class HomeAssistantService
 {
+    private readonly ILogger<HomeAssistantService> _log;
+
     private const int HistoryHours = 6;
     private const int IdGetStates = 1;
     private const int IdSubEvents = 2;
@@ -45,8 +48,9 @@ public sealed class HomeAssistantService
     /// <summary>Optional wall-device publisher (set after construction to avoid a cycle).</summary>
     public HaWallDevice? WallDevice { get; set; }
 
-    public HomeAssistantService(HomeAssistantOptions options)
+    public HomeAssistantService(HomeAssistantOptions options, ILogger<HomeAssistantService> log)
     {
+        _log = log;
         _options = options;
     }
 
@@ -57,13 +61,13 @@ public sealed class HomeAssistantService
 
         if (!options.Enabled)
         {
-            Console.WriteLine("[HA] Disabled (set HomeAssistant:Enabled = true to enable)");
+            _log.LogInformation("Disabled (set HomeAssistant:Enabled = true to enable)");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(options.Token))
         {
-            Console.WriteLine("[HA] No token configured — skipping Home Assistant connection");
+            _log.LogInformation("No token configured — skipping Home Assistant connection");
             return;
         }
 
@@ -78,7 +82,7 @@ public sealed class HomeAssistantService
 
         _loop = Task.Run(() => RunAsync(_cts.Token));
         _seedLoop = Task.Run(() => SeedLoopAsync(_cts.Token));
-        Console.WriteLine($"[HA] Home Assistant client starting ({options.BaseUrl})");
+        _log.LogInformation("Home Assistant client starting ({BaseUrl})", options.BaseUrl);
     }
 
     /// <summary>Live snapshot for the settings UI (token included so it can be edited).</summary>
@@ -167,7 +171,7 @@ public sealed class HomeAssistantService
 
                 if (!await AuthenticateAsync(ws, ct))
                 {
-                    Console.WriteLine("[HA] Authentication failed — check the token. Retrying in 30s.");
+                    _log.LogError("Authentication failed — check the token. Retrying in 30s.");
                     await Task.Delay(TimeSpan.FromSeconds(30), ct);
                     continue;
                 }
@@ -183,7 +187,7 @@ public sealed class HomeAssistantService
                 await SendAsync(ws, new { id = IdSubMqttAudio, type = "mqtt/subscribe", topic = "verpixeld/audio/#" }, ct);
                 _ = WatchMqttSubscribeAsync(ct);
 
-                Console.WriteLine("[HA] Connected (states + persistent notifications + MQTT device)");
+                _log.LogInformation("Connected (states + persistent notifications + MQTT device)");
                 HomeAssistantBridge.Connected = true;
                 backoffSeconds = 2;
 
@@ -198,7 +202,7 @@ public sealed class HomeAssistantService
                 var hint = wsUrl.Contains(".local", StringComparison.OrdinalIgnoreCase)
                     ? " Docker cannot resolve .local (mDNS). Use the Home Assistant LAN IP, e.g. http://192.168.10.20:8123"
                     : "";
-                Console.WriteLine($"[HA] Connection error: {ex.Message}.{hint}");
+                _log.LogError("Connection error: {Message}.{Hint}", ex.Message, hint);
             }
 
             HomeAssistantBridge.Connected = false;
@@ -234,7 +238,7 @@ public sealed class HomeAssistantService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[HA] history seed loop error: {ex.Message}");
+                _log.LogError("history seed loop error: {Message}", ex.Message);
             }
 
             await Task.Delay(TimeSpan.FromSeconds(15), ct).ContinueWith(_ => { }, ct);
@@ -252,13 +256,13 @@ public sealed class HomeAssistantService
             var samples = ParseHistory(json);
             if (samples.Count > 0) HomeAssistantBridge.SeedHistory(entityId, samples);
             HomeAssistantBridge.MarkSeeded(entityId);
-            Console.WriteLine($"[HA] Seeded {samples.Count} history points for {entityId}");
+            _log.LogInformation("Seeded {Count} history points for {EntityId}", samples.Count, entityId);
         }
         catch (Exception ex)
         {
             // Mark seeded anyway so we don't hammer HA; live samples still accumulate.
             HomeAssistantBridge.MarkSeeded(entityId);
-            Console.WriteLine($"[HA] history fetch failed for {entityId}: {ex.Message}");
+            _log.LogError("history fetch failed for {EntityId}: {Message}", entityId, ex.Message);
         }
     }
 
@@ -319,9 +323,9 @@ public sealed class HomeAssistantService
         catch (OperationCanceledException) { return; }
         if (_mqttResultSeen) return;
         MqttAvailable = false;
-        Console.WriteLine("[HA] MQTT subscribe timed out — enable the MQTT integration in Home Assistant to expose the wall as a device");
+        _log.LogInformation("MQTT subscribe timed out — enable the MQTT integration in Home Assistant to expose the wall as a device");
         try { DeviceChannelReady?.Invoke(); }
-        catch (Exception ex) { Console.WriteLine($"[HA] DeviceChannelReady: {ex.Message}"); }
+        catch (Exception ex) { _log.LogWarning("DeviceChannelReady: {Message}", ex.Message); }
     }
 
     private void NoteMqttResult(bool ok)
@@ -333,7 +337,7 @@ public sealed class HomeAssistantService
             ? "[HA] MQTT device channel ready"
             : "[HA] MQTT not available (add the Mosquitto addon / MQTT integration — REST notify still works)");
         try { DeviceChannelReady?.Invoke(); }
-        catch (Exception ex) { Console.WriteLine($"[HA] DeviceChannelReady: {ex.Message}"); }
+        catch (Exception ex) { _log.LogWarning("DeviceChannelReady: {Message}", ex.Message); }
     }
 
     private async Task<bool> AuthenticateAsync(ClientWebSocket ws, CancellationToken ct)
@@ -377,7 +381,7 @@ public sealed class HomeAssistantService
                     if (!success)
                     {
                         var err = root.TryGetProperty("error", out var errEl) ? errEl.ToString() : "";
-                        Console.WriteLine($"[HA] command {cmdId} failed: {err}");
+                        _log.LogError("command {CmdId} failed: {Err}", cmdId, err);
                         if (cmdId == IdSubMqtt) NoteMqttResult(false);
                         break;
                     }
@@ -400,7 +404,7 @@ public sealed class HomeAssistantService
                             ? pEl.ValueKind == JsonValueKind.String ? pEl.GetString() ?? "" : pEl.GetRawText()
                             : "";
                         try { MqttMessage?.Invoke(topic, payload); }
-                        catch (Exception ex) { Console.WriteLine($"[HA] MQTT handler: {ex.Message}"); }
+                        catch (Exception ex) { _log.LogWarning("MQTT handler: {Message}", ex.Message); }
                         break;
                     }
                     if (ev.TryGetProperty("notifications", out _))
@@ -424,7 +428,7 @@ public sealed class HomeAssistantService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[HA] message parse error: {ex.Message}");
+            _log.LogError("message parse error: {Message}", ex.Message);
         }
     }
 
@@ -506,21 +510,21 @@ public sealed class HomeAssistantService
     ///     HA 2023.6+ websocket push from <c>persistent_notification/subscribe</c>.
     ///     <c>current</c> is the snapshot at subscribe time (do not toast). <c>added</c>/<c>updated</c> are live.
     /// </summary>
-    private static void HandlePersistentNotifications(JsonElement ev)
+    private void HandlePersistentNotifications(JsonElement ev)
     {
         var kind = ev.TryGetProperty("type", out var t) ? t.GetString()
             : ev.TryGetProperty("update_type", out var ut) ? ut.GetString()
             : null;
         if (!ev.TryGetProperty("notifications", out var notes)) return;
 
-        Console.WriteLine($"[HA] persistent_notification event: {kind ?? "(no type)"}");
+        _log.LogInformation("persistent_notification event: {Value}", kind ?? "(no type)");
 
         if (kind is "current" or "removed")
         {
             var n = notes.ValueKind == JsonValueKind.Object ? notes.EnumerateObject().Count()
                 : notes.ValueKind == JsonValueKind.Array ? notes.GetArrayLength() : 0;
             if (kind == "current")
-                Console.WriteLine($"[HA] persistent notifications: {n} existing (not toasted)");
+                _log.LogInformation("persistent notifications: {N} existing (not toasted)", n);
             return;
         }
 
@@ -538,13 +542,13 @@ public sealed class HomeAssistantService
         }
     }
 
-    private static void RaiseFromNotification(JsonElement n, string? key = null)
+    private void RaiseFromNotification(JsonElement n, string? key = null)
     {
         var title = ReadAttr(n, "title") ?? "Home Assistant";
         var msg = ReadAttr(n, "message");
         if (string.IsNullOrWhiteSpace(msg)) return;
         var id = ReadAttr(n, "notification_id") ?? key;
-        Console.WriteLine($"[HA] persistent notification ({id}): {title}: {msg}");
+        _log.LogInformation("persistent notification ({Id}): {Title}: {Msg}", id, title, msg);
         HomeAssistantBridge.RaiseNotification(title, msg, id);
     }
 

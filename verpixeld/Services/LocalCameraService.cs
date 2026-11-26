@@ -12,8 +12,11 @@ namespace verpixeld.Services;
 ///     to a canvas on the LED matrix via FFmpeg.
 ///     Uses <see cref="FfmpegFrameStreamer"/> for the FFmpeg-to-canvas pipeline.
 /// </summary>
+[LogTag("LOCALCAM")]
 public class LocalCameraService : IDisposable
 {
+    private readonly ILogger<LocalCameraService> _log;
+
     private readonly CanvasManager _canvasManager;
     private readonly string _configPath;
 
@@ -40,8 +43,9 @@ public class LocalCameraService : IDisposable
     // When false, the canvas is owned by the caller (e.g. a Studio content step) and must NOT be removed on stop.
     private bool _ownsCanvas = true;
 
-    public LocalCameraService(CanvasManager canvasManager, int width, int height)
+    public LocalCameraService(CanvasManager canvasManager, int width, int height, ILogger<LocalCameraService> log)
     {
+        _log = log;
         _canvasManager = canvasManager;
         _width = width;
         _height = height;
@@ -49,7 +53,7 @@ public class LocalCameraService : IDisposable
         _configPath = AppPaths.LocalCamConfig;
         LoadConfig();
         _canvasManager.DisplayResized += OnDisplayResized;
-        Console.WriteLine($"[LOCALCAM] Initialized for {width}x{height} display");
+        _log.LogInformation("Initialized for {Width}x{Height} display", width, height);
     }
 
     private void OnDisplayResized(object? sender, DisplayResizedEventArgs e)
@@ -70,11 +74,11 @@ public class LocalCameraService : IDisposable
 
             if (string.IsNullOrEmpty(VideoDevice))
             {
-                Console.WriteLine("[LOCALCAM] No video device configured");
+                _log.LogInformation("No video device configured");
                 return false;
             }
 
-            Console.WriteLine($"[LOCALCAM] Starting stream from {VideoDevice}");
+            _log.LogInformation("Starting stream from {VideoDevice}", VideoDevice);
             IsStreaming = true;
             _ownsCanvas = true;
 
@@ -119,13 +123,13 @@ public class LocalCameraService : IDisposable
             var fx = !string.IsNullOrWhiteSpace(effect) ? effect : ActiveEffect;
             if (string.IsNullOrEmpty(dev))
             {
-                Console.WriteLine("[LOCALCAM] No video device configured");
+                _log.LogInformation("No video device configured");
                 return false;
             }
 
             var w = canvas.Width;
             var h = canvas.Height;
-            Console.WriteLine($"[LOCALCAM] Streaming {dev} into canvas {w}x{h} (effect={fx})");
+            _log.LogInformation("Streaming {Dev} into canvas {W}x{H} (effect={Fx})", dev, w, h, fx);
             IsStreaming = true;
             _ownsCanvas = false;
             _cameraCanvas = canvas;
@@ -157,7 +161,7 @@ public class LocalCameraService : IDisposable
         {
             if (!IsStreaming) return;
 
-            Console.WriteLine("[LOCALCAM] Stopping stream");
+            _log.LogInformation("Stopping stream");
             IsStreaming = false;
 
             streamer = _streamer;
@@ -190,10 +194,10 @@ public class LocalCameraService : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[LOCALCAM] Canvas cleanup error: {ex.Message}");
+                _log.LogError("Canvas cleanup error: {Message}", ex.Message);
             }
 
-        Console.WriteLine("[LOCALCAM] Stream stopped");
+        _log.LogInformation("Stream stopped");
     }
 
     /// <summary>
@@ -248,7 +252,7 @@ public class LocalCameraService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[LOCALCAM] Capture frame error: {ex.Message}");
+            _log.LogError("Capture frame error: {Message}", ex.Message);
             return null;
         }
     }
@@ -459,7 +463,7 @@ public class LocalCameraService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[LOCALCAM] Device discovery error: {ex.Message}");
+            Console.WriteLine($"[LOCALCAM] ERROR Device discovery error: {ex.Message}");
         }
 
         return devices;
@@ -519,7 +523,7 @@ public class LocalCameraService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[LOCALCAM] pactl failed: {ex.Message}");
+            Console.WriteLine($"[LOCALCAM] ERROR pactl failed: {ex.Message}");
         }
 
         // Fallback: read /proc/asound/cards
@@ -555,7 +559,7 @@ public class LocalCameraService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[LOCALCAM] /proc/asound/cards error: {ex.Message}");
+            Console.WriteLine($"[LOCALCAM] ERROR /proc/asound/cards error: {ex.Message}");
         }
 
         Console.WriteLine($"[LOCALCAM] Found {devices.Count} audio device(s) total");
@@ -608,7 +612,7 @@ public class LocalCameraService : IDisposable
         if (activeEffect != null) ActiveEffect = activeEffect;
 
         SaveConfig();
-        Console.WriteLine($"[LOCALCAM] Configured: Device={VideoDevice}, FPS={Fps}, Format={InputFormat}, Effect={ActiveEffect}");
+        _log.LogInformation("Configured: Device={VideoDevice}, FPS={Fps}, Format={InputFormat}, Effect={ActiveEffect}", VideoDevice, Fps, InputFormat, ActiveEffect);
     }
 
     private void LoadConfig()
@@ -629,7 +633,7 @@ public class LocalCameraService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[LOCALCAM] Failed to load config: {ex.Message}");
+            _log.LogError("Failed to load config: {Message}", ex.Message);
         }
     }
 
@@ -651,7 +655,7 @@ public class LocalCameraService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[LOCALCAM] Failed to save config: {ex.Message}");
+            _log.LogError("Failed to save config: {Message}", ex.Message);
         }
     }
 

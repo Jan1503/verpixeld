@@ -19,8 +19,11 @@ public sealed record FrameReport(
 ///     when it goes over budget. On the Pi a slow extension starves the compositor and the whole wall stutters.
 ///     Render times exist for extensions on <see cref="ExtensionLoop"/>; the others report fps only.
 /// </summary>
-public sealed class FrameBudgetMonitor(CanvasManager canvases, ICanvasContentManager contents) : BackgroundService
+[LogTag("PERF")]
+public sealed class FrameBudgetMonitor(CanvasManager canvases, ICanvasContentManager contents, ILogger<FrameBudgetMonitor> log) : BackgroundService
 {
+    private readonly ILogger<FrameBudgetMonitor> _log = log;
+
     /// <summary>Half a 60 fps frame: what one canvas may spend so several can share the CPU.</summary>
     public const double BudgetMs = 8.0;
 
@@ -53,8 +56,8 @@ public sealed class FrameBudgetMonitor(CanvasManager canvases, ICanvasContentMan
                     if (!r.OverBudget) continue;
                     if (_warned.TryGetValue(r.Canvas, out var at) && DateTime.UtcNow - at < TimeSpan.FromMinutes(1)) continue;
                     _warned[r.Canvas] = DateTime.UtcNow;
-                    Console.WriteLine(
-                        $"[PERF] {r.Extension ?? r.Canvas}: {r.AvgRenderMs:0.0} ms per frame (max {r.MaxRenderMs:0.0}), budget {BudgetMs} ms");
+                    _log.LogWarning("{Source}: {AvgMs:0.0} ms per frame (max {MaxMs:0.0}), budget {BudgetMs} ms",
+                        r.Extension ?? r.Canvas, r.AvgRenderMs, r.MaxRenderMs, BudgetMs);
                 }
             }
             catch (OperationCanceledException)
@@ -63,7 +66,7 @@ public sealed class FrameBudgetMonitor(CanvasManager canvases, ICanvasContentMan
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[PERF] " + ex.Message);
+                _log.LogError(ex, "Frame budget check failed");
             }
         }
     }

@@ -8,16 +8,20 @@ namespace verpixeld.Layout;
 /// <summary>
 ///     Manages layout scheduling - automatic layout switching based on time
 /// </summary>
+[LogTag("SCHEDULER")]
 public class LayoutScheduleManager : ILayoutScheduleManager
 {
+    private readonly ILogger<LayoutScheduleManager> _log;
+
     private readonly LayoutStorageManager _layoutStorage;
     private readonly string _schedulesDirectory;
     private LayoutSchedule? _activeSchedule;
     private DateTime _lastCheckTime;
     private Timer? _schedulerTimer;
 
-    public LayoutScheduleManager(LayoutStorageManager layoutStorage)
+    public LayoutScheduleManager(LayoutStorageManager layoutStorage, ILogger<LayoutScheduleManager> log)
     {
+        _log = log;
         _layoutStorage = layoutStorage;
 
         _schedulesDirectory = AppPaths.SchedulesDir;
@@ -40,12 +44,11 @@ public class LayoutScheduleManager : ILayoutScheduleManager
         if (defaultSchedule != null && defaultSchedule.Enabled)
         {
             _activeSchedule = defaultSchedule;
-            Console.WriteLine(
-                $"[SCHEDULER] Loaded default schedule: '{_activeSchedule.Name}' with {_activeSchedule.Entries.Count} entries");
+            _log.LogInformation("Loaded default schedule: '{Name}' with {Count} entries", _activeSchedule.Name, _activeSchedule.Entries.Count);
         }
         else
         {
-            Console.WriteLine("[SCHEDULER] No default schedule found");
+            _log.LogInformation("No default schedule found");
         }
 
         // ✅ Calculate delay to next minute boundary for precise timing
@@ -53,8 +56,8 @@ public class LayoutScheduleManager : ILayoutScheduleManager
         var nextMinute = now.Date.AddHours(now.Hour).AddMinutes(now.Minute + 1);
         var initialDelay = nextMinute - now;
 
-        Console.WriteLine($"[SCHEDULER] Current time: {now:HH:mm:ss}");
-        Console.WriteLine($"[SCHEDULER] Next check at: {nextMinute:HH:mm:ss} (in {initialDelay.TotalSeconds:F1}s)");
+        _log.LogInformation("Current time: {Now:HH:mm:ss}", now);
+        _log.LogInformation("Next check at: {NextMinute:HH:mm:ss} (in {TotalSeconds:F1}s)", nextMinute, initialDelay.TotalSeconds);
 
         // Start timer: fire at next minute boundary, then every minute
         _schedulerTimer = new Timer(
@@ -64,7 +67,7 @@ public class LayoutScheduleManager : ILayoutScheduleManager
             TimeSpan.FromMinutes(1) // Then every minute
         );
 
-        Console.WriteLine("[SCHEDULER] Scheduler started (synchronized to minute boundaries)");
+        _log.LogInformation("Scheduler started (synchronized to minute boundaries)");
     }
 
     /// <summary>
@@ -74,7 +77,7 @@ public class LayoutScheduleManager : ILayoutScheduleManager
     {
         _schedulerTimer?.Dispose();
         _schedulerTimer = null;
-        Console.WriteLine("[SCHEDULER] Scheduler stopped");
+        _log.LogInformation("Scheduler stopped");
     }
 
     /// <summary>
@@ -98,12 +101,12 @@ public class LayoutScheduleManager : ILayoutScheduleManager
             var json = JsonSerializer.Serialize(schedule, options);
             FileHelper.AtomicWriteAllText(filepath, json);
 
-            Console.WriteLine($"[SCHEDULER] Saved schedule '{schedule.Name}' to {filepath}");
+            _log.LogInformation("Saved schedule '{Name}' to {Filepath}", schedule.Name, filepath);
             return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[SCHEDULER] Error saving schedule '{schedule.Name}': {ex.Message}");
+            _log.LogError("Error saving schedule '{Name}': {Message}", schedule.Name, ex.Message);
             return false;
         }
     }
@@ -120,7 +123,7 @@ public class LayoutScheduleManager : ILayoutScheduleManager
 
             if (!File.Exists(filepath))
             {
-                Console.WriteLine($"[SCHEDULER] Schedule file not found: {filepath}");
+                _log.LogWarning("Schedule file not found: {Filepath}", filepath);
                 return null;
             }
 
@@ -135,12 +138,12 @@ public class LayoutScheduleManager : ILayoutScheduleManager
 
             var schedule = JsonSerializer.Deserialize<LayoutSchedule>(json, options);
 
-            Console.WriteLine($"[SCHEDULER] Loaded schedule '{schedule?.Name}' from {filepath}");
+            _log.LogInformation("Loaded schedule '{Name}' from {Filepath}", schedule?.Name, filepath);
             return schedule;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[SCHEDULER] Error loading schedule '{scheduleName}': {ex.Message}");
+            _log.LogError("Error loading schedule '{ScheduleName}': {Message}", scheduleName, ex.Message);
             return null;
         }
     }
@@ -185,12 +188,12 @@ public class LayoutScheduleManager : ILayoutScheduleManager
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[SCHEDULER] Error loading schedule from {file}: {ex.Message}");
+                    _log.LogError("Error loading schedule from {File}: {Message}", file, ex.Message);
                 }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[SCHEDULER] Error reading schedules directory: {ex.Message}");
+            _log.LogError("Error reading schedules directory: {Message}", ex.Message);
         }
 
         return schedules.OrderBy(s => s.Name).ToList();
@@ -208,25 +211,25 @@ public class LayoutScheduleManager : ILayoutScheduleManager
 
             if (!File.Exists(filepath))
             {
-                Console.WriteLine($"[SCHEDULER] Schedule file not found: {filepath}");
+                _log.LogWarning("Schedule file not found: {Filepath}", filepath);
                 return false;
             }
 
             File.Delete(filepath);
-            Console.WriteLine($"[SCHEDULER] Deleted schedule '{scheduleName}'");
+            _log.LogInformation("Deleted schedule '{ScheduleName}'", scheduleName);
 
             // If this was the active schedule, clear it
             if (_activeSchedule?.Name == scheduleName)
             {
                 _activeSchedule = null;
-                Console.WriteLine("[SCHEDULER] Cleared active schedule");
+                _log.LogInformation("Cleared active schedule");
             }
 
             return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[SCHEDULER] Error deleting schedule '{scheduleName}': {ex.Message}");
+            _log.LogError("Error deleting schedule '{ScheduleName}': {Message}", scheduleName, ex.Message);
             return false;
         }
     }
@@ -258,15 +261,15 @@ public class LayoutScheduleManager : ILayoutScheduleManager
             if (targetSchedule.Enabled)
             {
                 _activeSchedule = targetSchedule;
-                Console.WriteLine($"[SCHEDULER] Activated default schedule '{scheduleName}'");
+                _log.LogInformation("Activated default schedule '{ScheduleName}'", scheduleName);
             }
 
-            Console.WriteLine($"[SCHEDULER] Set '{scheduleName}' as default schedule");
+            _log.LogInformation("Set '{ScheduleName}' as default schedule", scheduleName);
             return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[SCHEDULER] Error setting default schedule: {ex.Message}");
+            _log.LogError("Error setting default schedule: {Message}", ex.Message);
             return false;
         }
     }
@@ -287,13 +290,13 @@ public class LayoutScheduleManager : ILayoutScheduleManager
         var schedule = LoadSchedule(scheduleName);
         if (schedule == null)
         {
-            Console.WriteLine($"[SCHEDULER] Cannot activate schedule '{scheduleName}' - not found");
+            _log.LogWarning("Cannot activate schedule '{ScheduleName}' - not found", scheduleName);
             return false;
         }
 
         _activeSchedule = schedule;
-        Console.WriteLine($"[SCHEDULER] Activated schedule '{scheduleName}' with {schedule.Entries.Count} entries");
-        Console.WriteLine($"[SCHEDULER]   Enabled: {schedule.Enabled}, IsDefault: {schedule.IsDefault}");
+        _log.LogInformation("Activated schedule '{ScheduleName}' with {Count} entries", scheduleName, schedule.Entries.Count);
+        _log.LogInformation("Enabled: {Enabled}, IsDefault: {IsDefault}", schedule.Enabled, schedule.IsDefault);
         return true;
     }
 
@@ -309,7 +312,7 @@ public class LayoutScheduleManager : ILayoutScheduleManager
             if (reloaded != null)
             {
                 _activeSchedule = reloaded;
-                Console.WriteLine($"[SCHEDULER] Refreshed active schedule '{_activeSchedule.Name}'");
+                _log.LogInformation("Refreshed active schedule '{Name}'", _activeSchedule.Name);
             }
         }
         else
@@ -327,7 +330,7 @@ public class LayoutScheduleManager : ILayoutScheduleManager
         // If there's already an active schedule, don't change it
         if (_activeSchedule != null && _activeSchedule.Enabled)
         {
-            Console.WriteLine($"[SCHEDULER] Active schedule already exists: '{_activeSchedule.Name}'");
+            _log.LogInformation("Active schedule already exists: '{Name}'", _activeSchedule.Name);
             return;
         }
 
@@ -336,7 +339,7 @@ public class LayoutScheduleManager : ILayoutScheduleManager
         if (defaultSchedule != null && defaultSchedule.Enabled)
         {
             _activeSchedule = defaultSchedule;
-            Console.WriteLine($"[SCHEDULER] Auto-activated default schedule: '{_activeSchedule.Name}'");
+            _log.LogInformation("Auto-activated default schedule: '{Name}'", _activeSchedule.Name);
             return;
         }
 
@@ -345,11 +348,11 @@ public class LayoutScheduleManager : ILayoutScheduleManager
         if (enabledSchedules.Count > 0)
         {
             _activeSchedule = enabledSchedules.First();
-            Console.WriteLine($"[SCHEDULER] Auto-activated first enabled schedule: '{_activeSchedule.Name}'");
+            _log.LogInformation("Auto-activated first enabled schedule: '{Name}'", _activeSchedule.Name);
         }
         else
         {
-            Console.WriteLine("[SCHEDULER] No enabled schedules found to activate");
+            _log.LogInformation("No enabled schedules found to activate");
         }
     }
 
@@ -368,14 +371,13 @@ public class LayoutScheduleManager : ILayoutScheduleManager
     {
         if (_activeSchedule == null)
         {
-            Console.WriteLine("[SCHEDULER] GetNextScheduledChange: No active schedule");
+            _log.LogInformation("GetNextScheduledChange: No active schedule");
             return null;
         }
 
         if (!_activeSchedule.Enabled)
         {
-            Console.WriteLine(
-                $"[SCHEDULER] GetNextScheduledChange: Active schedule '{_activeSchedule.Name}' is disabled");
+            _log.LogInformation("GetNextScheduledChange: Active schedule '{Name}' is disabled", _activeSchedule.Name);
             return null;
         }
 
@@ -428,7 +430,7 @@ public class LayoutScheduleManager : ILayoutScheduleManager
     {
         if (_activeSchedule != null)
         {
-            Console.WriteLine($"[SCHEDULER] Clearing active schedule '{_activeSchedule.Name}' (user override)");
+            _log.LogInformation("Clearing active schedule '{Name}' (user override)", _activeSchedule.Name);
             _activeSchedule = null;
         }
     }
@@ -443,17 +445,16 @@ public class LayoutScheduleManager : ILayoutScheduleManager
         var currentDay = (int)now.DayOfWeek;
 
         // ✅ ADD DEBUG LOGGING
-        Console.WriteLine($"[SCHEDULER] CheckSchedules() fired at {currentTime}");
-        Console.WriteLine(
-            $"[SCHEDULER]   Active schedule: {(_activeSchedule != null ? $"'{_activeSchedule.Name}' (Enabled: {_activeSchedule.Enabled})" : "NONE")}");
+        _log.LogInformation("CheckSchedules() fired at {CurrentTime}", currentTime);
+        _log.LogInformation("Active schedule: {Value}", (_activeSchedule != null ? $"'{_activeSchedule.Name}' (Enabled: {_activeSchedule.Enabled})" : "NONE"));
 
         if (_activeSchedule == null || !_activeSchedule.Enabled)
         {
-            Console.WriteLine("[SCHEDULER]   Skipping check - no active enabled schedule");
+            _log.LogInformation("Skipping check - no active enabled schedule");
             return;
         }
 
-        Console.WriteLine($"[SCHEDULER]   Checking {_activeSchedule.Entries.Count(e => e.Enabled)} enabled entries");
+        _log.LogInformation("Checking {Value} enabled entries", _activeSchedule.Entries.Count(e => e.Enabled));
 
         // Prevent duplicate triggers within the same minute
         if (now.Year == _lastCheckTime.Year &&
@@ -462,7 +463,7 @@ public class LayoutScheduleManager : ILayoutScheduleManager
             now.Hour == _lastCheckTime.Hour &&
             now.Minute == _lastCheckTime.Minute)
         {
-            Console.WriteLine("[SCHEDULER]   Skipping - already checked this minute");
+            _log.LogInformation("Skipping - already checked this minute");
             return;
         }
 
@@ -470,20 +471,19 @@ public class LayoutScheduleManager : ILayoutScheduleManager
 
         foreach (var entry in _activeSchedule.Entries.Where(e => e.Enabled))
         {
-            Console.WriteLine($"[SCHEDULER]   Entry: '{entry.LayoutName}' at {entry.Time}");
+            _log.LogInformation("Entry: '{LayoutName}' at {Time}", entry.LayoutName, entry.Time);
 
             // Check if time matches
             if (entry.Time != currentTime)
             {
-                Console.WriteLine($"[SCHEDULER]     Time mismatch: '{entry.Time}' != '{currentTime}'");
+                _log.LogInformation("Time mismatch: '{Time}' != '{CurrentTime}'", entry.Time, currentTime);
                 continue;
             }
 
             // Check if day matches (empty list means all days)
             if (entry.ActiveDays.Count > 0 && !entry.ActiveDays.Contains(currentDay))
             {
-                Console.WriteLine(
-                    $"[SCHEDULER]     Day mismatch: {currentDay} not in [{string.Join(",", entry.ActiveDays)}]");
+                _log.LogInformation("Day mismatch: {CurrentDay} not in [{Value}]", currentDay, string.Join(",", entry.ActiveDays));
                 continue;
             }
 
@@ -493,13 +493,12 @@ public class LayoutScheduleManager : ILayoutScheduleManager
                 entry.LastTriggered.Value.Hour == now.Hour &&
                 entry.LastTriggered.Value.Minute == now.Minute)
             {
-                Console.WriteLine("[SCHEDULER]     Already triggered at this time today");
+                _log.LogInformation("Already triggered at this time today");
                 continue;
             }
 
             // Trigger the layout change
-            Console.WriteLine(
-                $"[SCHEDULER] ✅ TRIGGERED: '{entry.LayoutName}' at {currentTime} (Entry: {entry.Description})");
+            _log.LogInformation("✅ TRIGGERED: '{LayoutName}' at {CurrentTime} (Entry: {Description})", entry.LayoutName, currentTime, entry.Description);
             entry.LastTriggered = now;
 
             // Fire event

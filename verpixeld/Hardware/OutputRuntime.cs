@@ -11,16 +11,20 @@ namespace verpixeld.Hardware;
     ///     talks to a disposed device. A network wall resize updates the compositor live. Other
     ///     geometry changes still require a process restart.
 /// </summary>
+[LogTag("OUTPUT")]
 public sealed class OutputRuntime : IMatrixRenderer, IDisposable
 {
+    private readonly ILogger<OutputRuntime> _log;
+
     private readonly object _lock = new();
     private IMatrixRenderer _inner = null!;
     private bool _started;
     private bool _outputEnabled = true;
 
     public OutputRuntime(AppOptions app, MatrixOptions matrix, HdmiOptions hdmi, SpiOptions spi,
-        NetworkOptions network, ImageCorrectionService imageCorrection)
+        NetworkOptions network, ImageCorrectionService imageCorrection, ILogger<OutputRuntime> log)
     {
+        _log = log;
         App = app;
         Matrix = matrix;
         Hdmi = hdmi;
@@ -108,9 +112,8 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
             // FM6126A config, which killed the whole process before the web UI
             // could come up. A managed failure (or a now-fixed ABI mismatch that
             // returns NULL) must keep the app running so the output can be switched.
-            Console.WriteLine($"[OUTPUT] GPIO init failed: {ex.Message}");
-            Console.WriteLine(
-                "[OUTPUT] Falling back to simulation so the web UI stays up. Switch Active Output to Network (or fix Hardware rows/cols) and Save.");
+            _log.LogError("GPIO init failed: {Message}", ex.Message);
+            _log.LogInformation("Falling back to simulation so the web UI stays up. Switch Active Output to Network (or fix Hardware rows/cols) and Save.");
             try
             {
                 if (_inner is IDisposable d) d.Dispose();
@@ -127,7 +130,7 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
         }
 
         _started = true;
-        Console.WriteLine($"[OUTPUT] Active: {Mode} ({_inner.Width}x{_inner.Height})");
+        _log.LogInformation("Active: {Mode} ({Width}x{Height})", Mode, _inner.Width, _inner.Height);
     }
 
     public void Initialize()
@@ -218,7 +221,7 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
                 _inner = placeholder;
             }
 
-            try { old.Shutdown(); } catch (Exception ex) { Console.WriteLine($"[OUTPUT] old shutdown: {ex.Message}"); }
+            try { old.Shutdown(); } catch (Exception ex) { _log.LogWarning("old shutdown: {Message}", ex.Message); }
             if (old is IDisposable od)
                 try { od.Dispose(); } catch { /* ignore */ }
 
@@ -231,12 +234,12 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
                 App.SimulationMode = mode == "simulation";
             }
 
-            Console.WriteLine($"[OUTPUT] Switched live → {mode} ({Width}x{Height})");
+            _log.LogInformation("Switched live → {Mode} ({Width}x{Height})", mode, Width, Height);
             return new OutputSwitchResult(true, false, mode, mode, $"Now outputting via {mode}.");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[OUTPUT] Live switch to {mode} failed: {ex.Message}");
+            _log.LogError("Live switch to {Mode} failed: {Message}", mode, ex.Message);
             return new OutputSwitchResult(false, true, Mode, mode,
                 $"Live switch to {mode} failed ({ex.Message}). Setting saved; restart to apply.");
         }
@@ -301,7 +304,7 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[OUTPUT] persist mode failed: {ex.Message}");
+            _log.LogError("persist mode failed: {Message}", ex.Message);
         }
     }
 }

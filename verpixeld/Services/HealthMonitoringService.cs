@@ -5,15 +5,19 @@ namespace verpixeld.Services;
 /// <summary>
 ///     Background service that monitors system health and memory usage
 /// </summary>
+[LogTag("HEALTH")]
 public class HealthMonitoringService : IDisposable
 {
+    private readonly ILogger<HealthMonitoringService> _log;
+
     private readonly CancellationTokenSource _cts = new();
     private readonly TimeSpan _interval;
     private readonly long _memoryWarningThresholdMb;
     private Task? _monitorTask;
 
-    public HealthMonitoringService(TimeSpan? interval = null, long memoryWarningThresholdMb = 50)
+    public HealthMonitoringService(TimeSpan? interval = null, long memoryWarningThresholdMb = 50, ILogger<HealthMonitoringService>? log = null)
     {
+        _log = log ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<HealthMonitoringService>.Instance;
         _interval = interval ?? TimeSpan.FromSeconds(10);
         _memoryWarningThresholdMb = memoryWarningThresholdMb;
     }
@@ -40,7 +44,7 @@ public class HealthMonitoringService : IDisposable
         LastMemoryMb = GC.GetTotalMemory(false) / 1024 / 1024;
 
         _monitorTask = Task.Run(MonitorLoopAsync, _cts.Token);
-        Console.WriteLine("[HEALTH] Monitoring started");
+        _log.LogInformation("Monitoring started");
     }
 
     /// <summary>
@@ -49,7 +53,7 @@ public class HealthMonitoringService : IDisposable
     public void Stop()
     {
         _cts.Cancel();
-        Console.WriteLine("[HEALTH] Monitoring stopped");
+        _log.LogInformation("Monitoring stopped");
     }
 
     private async Task MonitorLoopAsync()
@@ -67,17 +71,15 @@ public class HealthMonitoringService : IDisposable
 
                 LastMemoryMb = currentMemory / 1024 / 1024;
 
-                Console.WriteLine(
-                    $"[HEALTH] Uptime: {uptime.TotalMinutes:F1}min | " +
-                    $"Memory: {LastMemoryMb}MB (Δ{memoryDeltaMb:+0;-0}MB) | " +
-                    $"Threads: {Process.GetCurrentProcess().Threads.Count}");
+                _log.LogInformation("Uptime: {UptimeMin:F1}min | Memory: {MemoryMb}MB (Δ{DeltaMb:+0;-0}MB) | Threads: {Threads}",
+                    uptime.TotalMinutes, LastMemoryMb, memoryDeltaMb, Process.GetCurrentProcess().Threads.Count);
 
                 // Warning if memory increasing rapidly
                 if (memoryDeltaMb > _memoryWarningThresholdMb)
                 {
                     // Only report: a forced, compacting GC here stalled the render loop and hid real leaks.
                     // POST /api/gc/run collects on demand when investigating.
-                    Console.WriteLine($"[HEALTH] WARNING: Memory increased by {memoryDeltaMb}MB - possible leak!");
+                    _log.LogWarning("Memory increased by {MemoryDeltaMb}MB - possible leak!", memoryDeltaMb);
                 }
 
                 lastMemory = currentMemory;
@@ -88,7 +90,7 @@ public class HealthMonitoringService : IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[HEALTH] Monitor error: {ex.Message}");
+                _log.LogError("Monitor error: {Message}", ex.Message);
             }
     }
 

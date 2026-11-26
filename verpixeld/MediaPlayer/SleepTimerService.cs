@@ -6,8 +6,11 @@ namespace verpixeld.MediaPlayer;
 ///     Stops playback after a while. On the audio board the last 20 seconds fade out, then the
 ///     board's own volume comes back for the next time.
 /// </summary>
+[LogTag("SLEEP")]
 public sealed class SleepTimerService
 {
+    private readonly ILogger<SleepTimerService> _log;
+
     private static readonly int[] Steps = { 15, 30, 60, 90 };
     private const int FadeSeconds = 20;
 
@@ -19,8 +22,9 @@ public sealed class SleepTimerService
 
     public event Action? Changed;
 
-    public SleepTimerService(MediaPlayerService media, PixToneOutputService board)
+    public SleepTimerService(MediaPlayerService media, PixToneOutputService board, ILogger<SleepTimerService> log)
     {
+        _log = log;
         _media = media;
         _board = board;
     }
@@ -52,7 +56,8 @@ public sealed class SleepTimerService
             gen = _generation;
             _until = minutes > 0 ? DateTime.UtcNow.AddMinutes(Math.Min(minutes, 24 * 60)) : null;
         }
-        Console.WriteLine(minutes > 0 ? $"[SLEEP] Stop in {minutes} min" : "[SLEEP] Off");
+        if (minutes > 0) _log.LogInformation("Stop in {Minutes} min", minutes);
+        else _log.LogInformation("Off");
         if (minutes > 0) _ = Task.Run(() => RunAsync(gen));
         Changed?.Invoke();
     }
@@ -102,7 +107,7 @@ public sealed class SleepTimerService
                     if (v != _board.Volume) _board.SetVolume(v);
                 }
                 if (left > TimeSpan.Zero) continue;
-                Console.WriteLine("[SLEEP] Time is up");
+                _log.LogInformation("Time is up");
                 await _media.StopAsync();
                 lock (_gate)
                 {
@@ -114,7 +119,7 @@ public sealed class SleepTimerService
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[SLEEP] " + ex.Message);
+            _log.LogWarning("{Message}", ex.Message);
         }
         finally
         {

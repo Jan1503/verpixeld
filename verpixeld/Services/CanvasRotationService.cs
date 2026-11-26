@@ -13,8 +13,11 @@ namespace verpixeld.Services;
 ///     on a timer, with an optional fade transition. Each canvas rotates independently; the rest of the
 ///     display stays put. Complements the scene playlist (which swaps the whole layout).
 /// </summary>
+[LogTag("ROTATE")]
 public class CanvasRotationService
 {
+    private readonly ILogger<CanvasRotationService> _log;
+
     private readonly Dictionary<string, bool> _advancing = new();
     private readonly Dictionary<string, CanvasRotationConfig> _configs = new(StringComparer.OrdinalIgnoreCase);
     private readonly CanvasManager _cm;
@@ -29,8 +32,9 @@ public class CanvasRotationService
     // Multi-instance, video-only player so several canvases can play different videos simultaneously.
     private readonly CanvasVideoService _video;
 
-    public CanvasRotationService(CanvasManager cm, ICanvasContentManager content, MediaPlayer.Audio.PixToneOutputService vap1)
+    public CanvasRotationService(CanvasManager cm, ICanvasContentManager content, MediaPlayer.Audio.PixToneOutputService vap1, ILogger<CanvasRotationService> log)
     {
+        _log = log;
         _cm = cm;
         _content = content;
         _video = new CanvasVideoService(cm, vap1);
@@ -348,7 +352,7 @@ public class CanvasRotationService
             {
                 try { _content.StopContent(canvas); } catch { /* canvas may have no extension */ }
                 try { _cm.GetCanvasByName(canvas)?.Clear(); } catch { /* ignore */ }
-                Console.WriteLine($"[ROTATE] '{canvas}' content cleared (last item removed)");
+                _log.LogInformation("'{Canvas}' content cleared (last item removed)", canvas);
                 return;
             }
 
@@ -394,7 +398,7 @@ public class CanvasRotationService
             cfg.Enabled = true;
             Save();
             if (CanvasIsLive(canvas)) StartInternal(canvas);
-            else Console.WriteLine($"[ROTATE] '{canvas}' not started (canvas not in current layout)");
+            else _log.LogInformation("'{Canvas}' not started (canvas not in current layout)", canvas);
         }
     }
 
@@ -425,7 +429,7 @@ public class CanvasRotationService
                 StopInternal(name);
             }
 
-            if (_suspendedRunning.Count > 0) Console.WriteLine($"[ROTATE] Suspended {_suspendedRunning.Count} (editing)");
+            if (_suspendedRunning.Count > 0) _log.LogInformation("Suspended {Count} (editing)", _suspendedRunning.Count);
             return _suspendedRunning.Count > 0;
         }
     }
@@ -441,7 +445,7 @@ public class CanvasRotationService
                 if (_configs.TryGetValue(name, out var cfg) && cfg.Steps.Count > 0 && CanvasIsLive(name))
                     StartInternal(name);
                 else if (!CanvasIsLive(name))
-                    Console.WriteLine($"[ROTATE] '{name}' not resumed (canvas not in current layout)");
+                    _log.LogInformation("'{Name}' not resumed (canvas not in current layout)", name);
             _suspendedRunning.Clear();
         }
     }
@@ -520,7 +524,7 @@ public class CanvasRotationService
         if (cfg.Steps.Count == 0) return;
         if (!CanvasIsLive(canvas))
         {
-            Console.WriteLine($"[ROTATE] '{canvas}' not started (canvas not in current layout)");
+            _log.LogInformation("'{Canvas}' not started (canvas not in current layout)", canvas);
             return;
         }
         StopInternal(canvas);
@@ -529,8 +533,8 @@ public class CanvasRotationService
         timer.Elapsed += (_, _) => _ = AdvanceAsync(canvas, 1);
         _timers[canvas] = timer;
         timer.Start();
-        Console.WriteLine(
-            $"[ROTATE] '{canvas}': {cfg.Steps.Count} steps, {cfg.IntervalSeconds}s, {cfg.Transition}");
+        _log.LogInformation("'{Canvas}': {Steps} steps, {Interval}s, {Transition}", canvas, cfg.Steps.Count,
+            cfg.IntervalSeconds, cfg.Transition);
         _ = Task.Run(() => AdvanceAsync(canvas, 1)); // show first step immediately
     }
 
@@ -540,7 +544,7 @@ public class CanvasRotationService
         {
             timer.Stop();
             timer.Dispose();
-            Console.WriteLine($"[ROTATE] '{canvas}' stopped");
+            _log.LogInformation("'{Canvas}' stopped", canvas);
         }
     }
 
@@ -593,7 +597,7 @@ public class CanvasRotationService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ROTATE] '{canvas}' advance error: {ex.Message}");
+            _log.LogError("'{Canvas}' advance error: {Message}", canvas, ex.Message);
         }
         finally
         {
@@ -640,7 +644,7 @@ public class CanvasRotationService
             var path = MediaLibrary.ResolveVideo(file);
             if (path == null)
             {
-                Console.WriteLine($"[CVID] File not found: '{file}' (looked under {MediaLibrary.VideoRoot} and {AppPaths.VideosDir})");
+                _log.LogWarning("[CVID] File not found: '{File}' (looked under {VideoRoot} and {VideosDir})", file, MediaLibrary.VideoRoot, AppPaths.VideosDir);
                 return;
             }
 
@@ -704,7 +708,7 @@ public class CanvasRotationService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ROTATE] load config failed: {ex.Message}");
+            _log.LogError("load config failed: {Message}", ex.Message);
         }
     }
 
@@ -717,7 +721,7 @@ public class CanvasRotationService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[ROTATE] save config failed: {ex.Message}");
+            _log.LogError("save config failed: {Message}", ex.Message);
         }
     }
 }
