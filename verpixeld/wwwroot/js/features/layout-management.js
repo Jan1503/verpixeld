@@ -2,10 +2,20 @@
    LAYOUT MANAGEMENT - Layout Profiles, Canvas Display & Extension Assignment
    ============================================================================ */
 
+import { ICONS } from '../constants.js';
+import { api } from '../core/api.js';
+import { fetchBrightnessLevels } from './brightness.js';
+import { updateCameraTargetCanvases } from './camera-stream.js';
+import { updateDrawTargetCanvases } from './draw-mode.js';
+import { editExtensionParameters } from './extension-management.js';
+import { fetchSavedLayouts } from './saved-layouts.js';
+import { showConfirm, showMessage } from '../ui/modal.js';
+import { contentTargetCanvases, escapeHtml, formatUptime, isSystemOverlayCanvas, mediaPlaybackCanvasName, onAction, setButtonLoading } from '../utils/helpers.js';
+
 /**
  * Refresh current layout information
  */
-async function refreshLayoutInfo() {
+export async function refreshLayoutInfo() {
   try {
     const layoutResult = await api.get('/api/layout/current');
     const layout = layoutResult.data;
@@ -106,7 +116,7 @@ function displayCanvases(canvases) {
 /**
  * Apply selected layout profile
  */
-async function applyLayout() {
+export async function applyLayout() {
   const select = document.getElementById('layout-profile');
   const profile = select.value;
   const applyBtn = document.getElementById('apply-layout-btn');
@@ -125,7 +135,6 @@ async function applyLayout() {
     try {
       await api.post(`/api/layout/apply/${profile}`);
 
-      currentLoadedLayoutName = null;
       localStorage.removeItem('activeLayoutName');
 
       toast.success('Scene loaded', `Started from profile ${profile}`);
@@ -148,7 +157,7 @@ async function applyLayout() {
 /**
  * Show extension picker for canvas assignment
  */
-async function assignExtensionToCanvas(canvasName, onPick) {
+export async function assignExtensionToCanvas(canvasName, onPick) {
   if (typeof isSystemOverlayCanvas === 'function' && isSystemOverlayCanvas(canvasName)) {
     if (typeof showMessage === 'function')
       showMessage(`'${canvasName}' is a host overlay — pick another canvas for content`, 'info');
@@ -172,10 +181,6 @@ async function assignExtensionToCanvas(canvasName, onPick) {
       return;
     }
 
-    // Stop media player
-    if (typeof stopDemoPlayback === 'function') {
-      await stopDemoPlayback();
-    }
   }
 
   const html = `
@@ -302,11 +307,4 @@ async function stopCanvasContent(canvasName) {
 }
 
 // Expose globally
-window.refreshLayoutInfo = refreshLayoutInfo;
-window.displayCanvases = displayCanvases;
-window.applyLayout = applyLayout;
-window.assignExtensionToCanvas = assignExtensionToCanvas;
-window.closeExtensionPicker = closeExtensionPicker;
-window.confirmExtensionAssignment = confirmExtensionAssignment;
-window.stopCanvasContent = stopCanvasContent;
 window.refreshLayout = refreshLayoutInfo; // Alias

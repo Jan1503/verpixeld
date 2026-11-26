@@ -3,6 +3,9 @@
    Handles tab switching, media player bar, and active extensions display
    ============================================================================ */
 
+import { setMediaVolume } from '../features/media-player.js';
+import { mediaPlaybackCanvasName, onReady, wire } from '../utils/helpers.js';
+
 // Tab state
 const tabState = {
   activeTab: 'studio',
@@ -15,7 +18,7 @@ let mediaPlayerUserClosed = false;
 /**
  * Initialize tab navigation system
  */
-function initTabs() {
+export function initTabs() {
   // Restore last active tab from localStorage
   const savedTab = localStorage.getItem('verpixeld-active-tab');
   if (savedTab && tabState.tabs.includes(savedTab)) {
@@ -40,7 +43,7 @@ function initTabs() {
  * @param {string} tabId - The tab identifier
  * @param {boolean} saveState - Whether to save state to localStorage (default: true)
  */
-function switchTab(tabId, saveState = true) {
+export function switchTab(tabId, saveState = true) {
   if (!tabState.tabs.includes(tabId)) {
     console.warn(`[TABS] Unknown tab: ${tabId}`);
     return;
@@ -124,7 +127,6 @@ function mpbVolumeInput(el) {
     if (typeof setMediaVolume === 'function') setMediaVolume(el.value);
   }, 120);
 }
-window.mpbVolumeInput = mpbVolumeInput;
 
 // Scrubbing on the progress bar and the seek that follows it.
 const mpbScrub = { active: false, pos: 0 };
@@ -180,7 +182,7 @@ function mpbInitScrub() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', mpbInitScrub);
+onReady(mpbInitScrub);
 
 // Picture of what plays (video frame, embedded cover, station logo, YouTube thumbnail).
 let mpbArtKey = null;
@@ -224,7 +226,7 @@ const MPB_ICONS = {
 /**
  * Update media player bar - both visibility and contents
  */
-function updateMediaPlayerBar() {
+export function updateMediaPlayerBar() {
   const bar = document.getElementById('media-player-bar');
   if (!bar) return;
   
@@ -679,18 +681,8 @@ function initCollapsibleSections() {
 }
 
 // Expose globally
-window.initTabs = initTabs;
-window.switchTab = switchTab;
-window.updateStatusPlayer = updateStatusPlayer;
 window.updateMediaPlayerBar = updateMediaPlayerBar;
-window.hideMediaPlayerBar = hideMediaPlayerBar;
 window.showMediaPlayerBar = showMediaPlayerBar;
-window.updateActiveExtensions = updateActiveExtensions;
-window.statusPlayerSeek = statusPlayerSeek;
-window.navigateToSection = navigateToSection;
-window.tabState = tabState;
-window.toggleCollapsibleSection = toggleCollapsibleSection;
-window.initCollapsibleSections = initCollapsibleSections;
 
 // Controls of #media-player-bar in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('media-player-bar'), {

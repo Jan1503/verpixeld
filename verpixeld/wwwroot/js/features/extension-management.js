@@ -2,6 +2,15 @@
    EXTENSION MANAGEMENT - Extension Parameter Editing & Method Invocation
    ============================================================================ */
 
+import { ICONS } from '../constants.js';
+import { api } from '../core/api.js';
+import { captureStepFromLiveCanvas } from './layer-editor.js';
+import { showMessage } from '../ui/modal.js';
+import { createColorInputWithAlpha, dataAttrs, escapeHtml, getColorWithAlpha, markerAttrs, onAction, valuesEqual, wire } from '../utils/helpers.js';
+
+// Debounce for applying parameter changes to the running extension
+let extensionUpdateTimer = null;
+
 /**
  * Update extension parameter and schedule server update
  */
@@ -140,7 +149,7 @@ async function applyExtensionParameterUpdate(canvasName) {
 /**
  * Edit extension parameters for a canvas
  */
-async function editExtensionParameters(canvasName) {
+export async function editExtensionParameters(canvasName) {
   try {
     const contentResult = await api.get(`/api/layout/content/${canvasName}`);
     const content = contentResult.data;
@@ -175,7 +184,7 @@ async function editExtensionParameters(canvasName) {
    ---------------------------------------------------------------------------- */
 
 /** Normalises a field/param descriptor to a leaf widget kind. */
-function leafKind(field) {
+export function leafKind(field) {
   const k = (field.kind || '').toLowerCase();
   if (k === 'enum' || (field.isEnum && field.enumValues && field.enumValues.length)) return 'enum';
   if (k === 'color') return 'color';
@@ -261,7 +270,7 @@ function haDomainFor(field) {
 }
 
 /** Renders a labelled nested field row (used inside cards / object groups). */
-function renderField(field, value, fieldId, marker) {
+export function renderField(field, value, fieldId, marker) {
   const k = leafKind(field);
   const ro = field.isReadOnly === true;
   const label = escapeHtml(field.displayName || field.name);
@@ -275,7 +284,7 @@ function renderField(field, value, fieldId, marker) {
 }
 
 /** Reads one leaf field's value from the DOM, coerced to the right JS type. */
-function readFieldValue(field, fieldId) {
+export function readFieldValue(field, fieldId) {
   const k = leafKind(field);
   if (k === 'color') return getColorWithAlpha(fieldId);
   const el = document.getElementById(fieldId);
@@ -722,23 +731,10 @@ function closeExtensionEditModal() {
   }
 }
 
-// Expose globally
-window.updateExtensionParameter = updateExtensionParameter;
-window.applyExtensionParameterUpdate = applyExtensionParameterUpdate;
-window.editExtensionParameters = editExtensionParameters;
-window.showExtensionEditForm = showExtensionEditForm;
-window.switchExtensionTab = switchExtensionTab;
-window.invokeExtensionMethod = invokeExtensionMethod;
-window.closeExtensionEditModal = closeExtensionEditModal;
-window.extAddItem = extAddItem;
-window.extRemoveItem = extRemoveItem;
-window.extMoveItem = extMoveItem;
-window.extFieldChanged = extFieldChanged;
-
 // ── Home Assistant entity picker ───────────────────────────────────────────
 const HA_DOMAINS = ['', 'sensor', 'weather', 'climate', 'media_player', 'binary_sensor', 'light', 'switch'];
 
-async function haPickEntity(fieldId, domain, multi) {
+export async function haPickEntity(fieldId, domain, multi) {
   const target = document.getElementById(fieldId);
   if (!target) return;
   ensureHaPickStyles();
@@ -845,7 +841,7 @@ function haPickClose() {
 }
 
 // ── Place search (Nominatim via the host) ──────────────────────────────────
-async function geoPickPlace(fieldId) {
+export async function geoPickPlace(fieldId) {
   const target = document.getElementById(fieldId);
   if (!target) return;
   ensureHaPickStyles();
@@ -957,7 +953,3 @@ function ensureHaPickStyles() {
   document.head.appendChild(el);
 }
 
-window.haPickEntity = haPickEntity;
-window.haPickChoose = haPickChoose;
-window.haPickClose = haPickClose;
-window.geoPickPlace = geoPickPlace;

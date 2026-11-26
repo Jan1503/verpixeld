@@ -2,6 +2,11 @@
    CANVAS STACKING - Layer Management UI
    ============================================================================ */
 
+import { api } from '../core/api.js';
+import { removeOverlayCanvas } from './canvas-editor.js';
+import { showMessage } from '../ui/modal.js';
+import { contentTargetCanvases, escapeHtml, mediaPlaybackCanvasName, onAction } from '../utils/helpers.js';
+
 /**
  * Toggle the canvas stack help/info section
  */
@@ -17,7 +22,7 @@ function toggleStackInfo() {
 /**
  * Load and display the canvas stack
  */
-async function loadCanvasStack() {
+export async function loadCanvasStack() {
   try {
     if (!window.canvasContent) {
       const contentResult = await api.get('/api/layout/content');
@@ -198,5 +203,3 @@ async function sendCanvasToBack(canvasName) {
   }
 }
 
-// Expose globally
-window.loadCanvasStack = loadCanvasStack;

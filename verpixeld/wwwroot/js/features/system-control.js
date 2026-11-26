@@ -2,10 +2,16 @@
    SYSTEM CONTROL - Connection Status & System Operations
    ============================================================================ */
 
+import { fetchFilters, fetchStatus } from '../core/init.js';
+import { refreshLayoutInfo } from './layout-management.js';
+import { fetchSavedLayouts } from './saved-layouts.js';
+import { showConfirm } from '../ui/modal.js';
+import { setButtonLoading } from '../utils/helpers.js';
+
 /**
  * Update connection status indicator
  */
-function updateConnectionStatus(status) {
+export function updateConnectionStatus(status) {
   const indicator = document.getElementById('connection-status');
   if (!indicator) return;
   
@@ -30,7 +36,7 @@ function updateConnectionStatus(status) {
 /**
  * Restart render loop with confirmation
  */
-async function confirmRestartRender() {
+export async function confirmRestartRender() {
   const confirmed = await showConfirm({
     title: '↻ Restart Render Loop',
     message: 'This will stop and restart the display render loop. Use this if the display appears frozen or unresponsive. Extensions will continue running.',
@@ -55,7 +61,7 @@ async function confirmRestartRender() {
   }
 }
 
-function applyHostRestartButton() {
+export function applyHostRestartButton() {
   const btn = document.getElementById('reboot-btn');
   if (!btn) return;
   if (window.__inContainer) {
@@ -70,7 +76,7 @@ function applyHostRestartButton() {
 /**
  * System reboot (Pi) or container process restart (Docker).
  */
-async function confirmSystemReboot() {
+export async function confirmSystemReboot() {
   const inContainer = !!window.__inContainer;
   const confirmed = await showConfirm(inContainer ? {
     title: '↻ Restart container',
@@ -115,7 +121,7 @@ async function confirmSystemReboot() {
 /**
  * Check for system reconnection after reboot
  */
-function startReconnectionCheck() {
+export function startReconnectionCheck() {
   let attempts = 0;
   const maxAttempts = 60; // Check for 2 minutes (every 2 seconds)
   
@@ -148,9 +154,3 @@ function startReconnectionCheck() {
   }, 2000);
 }
 
-// Expose globally
-window.updateConnectionStatus = updateConnectionStatus;
-window.confirmRestartRender = confirmRestartRender;
-window.confirmSystemReboot = confirmSystemReboot;
-window.applyHostRestartButton = applyHostRestartButton;
-window.startReconnectionCheck = startReconnectionCheck;

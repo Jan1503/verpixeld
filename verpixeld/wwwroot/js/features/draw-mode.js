@@ -3,6 +3,11 @@
    Includes: Pencil, Eraser, Shapes, Live Mode, Save/Load/Export
    ============================================================================ */
 
+import { API_BASE } from '../constants.js';
+import { api } from '../core/api.js';
+import { closeModal, showConfirm } from '../ui/modal.js';
+import { escapeHtml, hexToRgba, onAction, onReady, setButtonLoading, wire } from '../utils/helpers.js';
+
 // ============================================================================
 // DRAW STATE
 // ============================================================================
@@ -39,7 +44,7 @@ function isShapeTool(tool) {
 // INITIALIZATION
 // ============================================================================
 
-function initDrawMode() {
+export function initDrawMode() {
   const canvas = document.getElementById('draw-canvas');
   if (!canvas) return;
 
@@ -582,7 +587,7 @@ function toggleDrawGrid() {
   }
 }
 
-async function updateDrawTargetCanvases() {
+export async function updateDrawTargetCanvases() {
   const select = document.getElementById('draw-target-canvas');
   if (!select) return;
   
@@ -1263,25 +1268,6 @@ function exportDrawingAsPng() {
 // ============================================================================
 // EXPOSE GLOBALLY
 // ============================================================================
-
-window.drawState = drawState;
-window.initDrawMode = initDrawMode;
-window.updateDrawTargetCanvases = updateDrawTargetCanvases;
-window.onDrawTargetCanvasChange = onDrawTargetCanvasChange;
-window.selectDrawTool = selectDrawTool;
-window.toggleFillMode = toggleFillMode;
-window.clearDrawingCanvas = clearDrawingCanvas;
-window.toggleLiveDrawMode = toggleLiveDrawMode;
-window.toggleDrawGrid = toggleDrawGrid;
-window.applyDrawingToCanvas = applyDrawingToCanvas;
-window.showSaveDrawingDialog = showSaveDrawingDialog;
-window.confirmSaveDrawing = confirmSaveDrawing;
-window.showDrawingGallery = showDrawingGallery;
-window.refreshDrawingGallery = refreshDrawingGallery;
-window.loadDrawing = loadDrawing;
-window.deleteDrawing = deleteDrawing;
-window.clearAllDrawings = clearAllDrawings;
-window.exportDrawingAsPng = exportDrawingAsPng;
 
 // Controls of #tab-canvas in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('tab-canvas'), {

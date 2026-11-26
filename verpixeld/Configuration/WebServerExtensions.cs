@@ -177,6 +177,11 @@ public static class WebServerExtensions
                 {
                     if (WebApi.AssetVersioning.IsVersioned(ctx.Context))
                         ctx.Context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+                    // Scripts and styles without ?v= are the ES modules main.js imports (import URLs carry no
+                    // hash): revalidate every time (a cheap 304 on the LAN), never run a stale module.
+                    else if (ctx.File.Name.EndsWith(".js", StringComparison.OrdinalIgnoreCase)
+                             || ctx.File.Name.EndsWith(".css", StringComparison.OrdinalIgnoreCase))
+                        ctx.Context.Response.Headers.CacheControl = "no-cache";
                 }
             });
 

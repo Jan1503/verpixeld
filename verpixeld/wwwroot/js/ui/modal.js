@@ -2,10 +2,12 @@
    MODAL & DIALOG SYSTEM
    ============================================================================ */
 
+import { escapeHtml, onAction, wire } from '../utils/helpers.js';
+
 /**
  * Show a confirmation dialog
  */
-function showConfirm(options) {
+export function showConfirm(options) {
   return new Promise((resolve) => {
     const {
       title = 'Confirm Action',
@@ -50,7 +52,7 @@ function showConfirm(options) {
  * Ask for a line of text in the app's own dialog (instead of the browser's prompt()).
  * Resolves with the trimmed text, or null on Cancel, Escape, a click on the backdrop or empty input.
  */
-function showPrompt(options) {
+export function showPrompt(options) {
   return new Promise((resolve) => {
     const { title = 'Enter a value', message = '', value = '', placeholder = '', confirmText = 'OK', cancelText = 'Cancel' } = options;
     const overlay = showModal(`
@@ -89,7 +91,7 @@ function showPrompt(options) {
 /**
  * Show loading overlay
  */
-function showLoading(message = 'Loading...') {
+export function showLoading(message = 'Loading...') {
   hideLoading();
 
   const overlay = document.createElement('div');
@@ -110,7 +112,7 @@ function showLoading(message = 'Loading...') {
 /**
  * Hide loading overlay
  */
-function hideLoading() {
+export function hideLoading() {
   const overlay = document.getElementById('loading-overlay');
   if (overlay) {
     overlay.remove();
@@ -139,7 +141,7 @@ function showModal(htmlContent, onBackdrop) {
 /**
  * Close all modals
  */
-function closeModal() {
+export function closeModal() {
   // Only remove dynamically created modal overlays, not static modals
   const dynamicModals = document.querySelectorAll('.modal-overlay:not(.static-modal)');
   dynamicModals.forEach(modal => modal.remove());
@@ -156,7 +158,7 @@ function closeModal() {
 /**
  * Show a message using toast (wrapper for backwards compatibility)
  */
-function showMessage(text, typeOrIsError = 'success') {
+export function showMessage(text, typeOrIsError = 'success') {
   if (!window.toast) {
     console.warn('Toast not initialized, message:', text);
     return;
@@ -181,9 +183,3 @@ function showMessage(text, typeOrIsError = 'success') {
 
 // Expose globally
 window.showConfirm = showConfirm;
-window.showPrompt = showPrompt;
-window.showLoading = showLoading;
-window.hideLoading = hideLoading;
-window.showModal = showModal;
-window.closeModal = closeModal;
-window.showMessage = showMessage;

@@ -2,6 +2,8 @@
    MOBILE NAVIGATION & COLLAPSIBLE SECTIONS
    ============================================================================ */
 
+import { onReady, wire } from '../utils/helpers.js';
+
 /**
  * Initialize mobile navigation
  */
@@ -97,7 +99,7 @@ function updateActiveNavOnScroll(sections) {
 /**
  * Restore collapsed states from localStorage
  */
-function restoreCollapsedStates() {
+export function restoreCollapsedStates() {
   try {
     const collapsedSections = JSON.parse(localStorage.getItem('collapsedSections') || '{}');
     
@@ -135,17 +137,7 @@ function toggleQuickSettingsExpand() {
 }
 
 // Initialize mobile nav when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initMobileNav);
-} else {
-  initMobileNav();
-}
-
-// Expose globally
-window.initMobileNav = initMobileNav;
-window.setActiveNavItem = setActiveNavItem;
-window.restoreCollapsedStates = restoreCollapsedStates;
-window.toggleQuickSettingsExpand = toggleQuickSettingsExpand;
+onReady(initMobileNav);
 
 // Controls of #brightness-expanded in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('brightness-expanded'), {

@@ -2,6 +2,10 @@
    NIGHT MODE - Automatic Brightness Scheduling
    ============================================================================ */
 
+import { ICONS } from '../constants.js';
+import { closeModal, showMessage } from '../ui/modal.js';
+import { onReady, wire } from '../utils/helpers.js';
+
 /**
  * Fetch night mode configuration from server
  */
@@ -17,7 +21,7 @@ async function fetchNightModeConfig() {
 /**
  * Refresh the night mode status display
  */
-async function refreshNightModeStatus() {
+export async function refreshNightModeStatus() {
   try {
     const statusResult = await window.api.get('/api/nightmode/status');
     const configResult = await window.api.get('/api/nightmode/config');
@@ -224,9 +228,6 @@ async function testNightModeNow() {
     showMessage(error.message || 'Failed to test night mode', 'error');
   }
 }
-
-// Expose globally
-window.refreshNightModeStatus = refreshNightModeStatus;
 
 // Controls of #tab-schedule in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('tab-schedule'), {

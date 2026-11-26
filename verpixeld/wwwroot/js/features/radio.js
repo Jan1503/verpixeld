@@ -4,6 +4,11 @@
    stream), recently played, import/export and the sleep timer.
    ============================================================================ */
 
+import { api } from '../core/api.js';
+import { searchMusic, switchMediaPage } from './media-player.js';
+import { showConfirm, showPrompt } from '../ui/modal.js';
+import { escapeHtml, onReady, wire } from '../utils/helpers.js';
+
 const radioState = {
   stations: [],
   current: -1,
@@ -392,7 +397,7 @@ async function radioImport(input) {
 
 // ---- page life -------------------------------------------------------------
 
-function radioPageShown() {
+export function radioPageShown() {
   loadRadioStations().then(loadRadioAlarms);
   loadRadioRecent();
   refreshRadioNow();
@@ -409,7 +414,7 @@ function radioPageShown() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+onReady(() => {
   const page = document.getElementById('media-page-radio');
   if (page && page.classList.contains('active')) radioPageShown();
 });
@@ -665,4 +670,3 @@ onReady(() => wire(document.getElementById('tab-media'), {
 }));
 
 // Still called from classic scripts.
-window.radioPageShown = radioPageShown;

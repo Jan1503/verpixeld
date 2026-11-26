@@ -2,6 +2,10 @@
    FAVORITES & HISTORY - JavaScript for favorites and play history management
    ============================================================================ */
 
+import { api } from '../core/api.js';
+import { showConfirm, showPrompt } from '../ui/modal.js';
+import { escapeHtml, onAction, onReady, wire } from '../utils/helpers.js';
+
 console.log('[FAVORITES] Module loading...');
 
 // State
@@ -687,19 +691,7 @@ function updateAutoPlayUI() {
 window.fetchHistory = fetchHistory;
 window.updateAutoPlayFromStatus = updateAutoPlayFromStatus;
 
-console.log('[FAVORITES] Functions exposed globally');
-
-// Initialize - handle case where DOMContentLoaded already fired
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(initFavorites, 100);
-  });
-} else {
-  // DOM already loaded
-  setTimeout(initFavorites, 100);
-}
-
-console.log('[FAVORITES] Module fully loaded');
+onReady(() => setTimeout(initFavorites, 100));
 
 // Controls of #tab-media in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('tab-media'), {

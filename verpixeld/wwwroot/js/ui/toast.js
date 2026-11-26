@@ -2,6 +2,9 @@
    TOAST NOTIFICATION SYSTEM
    ============================================================================ */
 
+import { ICONS } from '../constants.js';
+import { escapeHtml } from '../utils/helpers.js';
+
 class ToastManager {
   constructor() {
     this.container = null;

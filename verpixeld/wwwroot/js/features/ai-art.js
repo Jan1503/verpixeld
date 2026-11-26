@@ -4,6 +4,11 @@
  * and provider configuration (Azure OpenAI / OpenAI)
  */
 
+import { api } from '../core/api.js';
+import { loadVoiceConfig, saveVoiceConfig } from './voice-commands.js';
+import { showConfirm } from '../ui/modal.js';
+import { escapeHtml, onAction, onReady, wire } from '../utils/helpers.js';
+
 // Base URL for img src (gallery thumbs) - api client handles fetch paths
 const AI_GALLERY_BASE = (window.API_BASE || '') + '/api/ai';
 
@@ -247,7 +252,7 @@ async function saveAiEditToGallery() {
 // History
 // ═══════════════════════════════════════════════════════════════
 
-async function loadAiHistory() {
+export async function loadAiHistory() {
   try {
     const result = await api.get('/api/ai/history');
     aiState.history = result.history || [];
@@ -888,16 +893,10 @@ function stopGallerySlideshow() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Expose globally
 // ═══════════════════════════════════════════════════════════════
 
-
 // Initialize
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initAiArt);
-} else {
-  initAiArt();
-}
+onReady(initAiArt);
 
 // Controls of #tab-ai-art in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('tab-ai-art'), {
@@ -938,4 +937,3 @@ onReady(() => wire(document.getElementById('tab-ai-art'), {
 }));
 
 // Still called from classic scripts.
-window.loadAiHistory = loadAiHistory;

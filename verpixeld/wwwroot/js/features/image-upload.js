@@ -4,6 +4,8 @@
  * ES module: nothing here is global, the controls are wired at the end of the file.
  */
 
+import { onReady, wire } from '../utils/helpers.js';
+
 let uploadState = {
   file: null,
   type: null,     // 'image' or 'video'

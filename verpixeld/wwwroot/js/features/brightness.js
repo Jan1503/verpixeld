@@ -2,6 +2,8 @@
    BRIGHTNESS CONTROL - Global and Per-Canvas Brightness Management
    ============================================================================ */
 
+import { escapeHtml, onReady, wire } from '../utils/helpers.js';
+
 let brightnessUpdateTimer = null;
 
 /**
@@ -44,7 +46,7 @@ async function updateCanvasBrightness(canvasName, value) {
 /**
  * Fetch current brightness levels
  */
-async function fetchBrightnessLevels() {
+export async function fetchBrightnessLevels() {
   try {
     const globalResult = await window.api.get('/api/brightness/global');
     const percentage = globalResult.data.percentage;
@@ -93,9 +95,6 @@ function displayCanvasBrightnessControls(canvases) {
     });
   }
 }
-
-// Expose globally
-window.fetchBrightnessLevels = fetchBrightnessLevels;
 
 // Controls of #global-controls in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('global-controls'), {

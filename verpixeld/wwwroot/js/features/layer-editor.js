@@ -2,7 +2,20 @@
    LAYER EDITOR - drag & drop / resize canvases live over the display preview
    ============================================================================ */
 
-const layerEditor = {
+import { API_BASE, ICONS } from '../constants.js';
+import { updateCameraTargetCanvases } from './camera-stream.js';
+import { loadCanvasStack } from './canvas-stack.js';
+import { updateDrawTargetCanvases } from './draw-mode.js';
+import { editExtensionParameters, geoPickPlace, haPickEntity, leafKind, readFieldValue, renderField } from './extension-management.js';
+import { assignExtensionToCanvas } from './layout-management.js';
+import { openPlaylistDialog } from './playlist.js';
+import { deleteSavedLayout, fetchSavedLayouts, loadSavedLayout, setAsDefaultLayout } from './saved-layouts.js';
+import { showConfirm, showMessage, showPrompt } from '../ui/modal.js';
+import { switchTab } from '../ui/tabs.js';
+import { escapeHtml, onAction, wire } from '../utils/helpers.js';
+import { refreshAllCanvasSelectors } from './canvas-selectors.js';
+
+export const layerEditor = {
   open: false,
   dispW: 128,
   dispH: 128,
@@ -407,7 +420,7 @@ function wireStudio(panel) {
   });
 }
 
-function refreshStudioDisplay(w, h) {
+export function refreshStudioDisplay(w, h) {
   if (!(w > 0) || !(h > 0)) return;
   layerEditor.dispW = w;
   layerEditor.dispH = h;
@@ -1219,7 +1232,7 @@ async function layerEditorRemove() {
     await refreshLayerEditor();
     if (typeof updateDrawTargetCanvases === 'function') updateDrawTargetCanvases();
     if (typeof updateCameraTargetCanvases === 'function') updateCameraTargetCanvases();
-    if (typeof populateDemoCanvasSelector === 'function') populateDemoCanvasSelector();
+    refreshAllCanvasSelectors();
     window.dispatchEvent(new CustomEvent('layoutChanged'));
   } catch (e) {
     if (typeof showMessage === 'function') showMessage('Remove failed: ' + (e.message || e), 'error');
@@ -2046,7 +2059,7 @@ async function contentFullParams(i) {
 
 // After the full editor closes for a rotation step, persist the live canvas's current parameters
 // back into that step so the rotation keeps the edits (the full editor writes to the live canvas).
-async function captureStepFromLiveCanvas(name, index) {
+export async function captureStepFromLiveCanvas(name, index) {
   try {
     await leLoadSchemas();
     const r = await window.api.get('/api/layout/content/' + encodeURIComponent(name));
@@ -2193,60 +2206,4 @@ function ensureLayerEditorStyles() {
   el.textContent = css;
   document.head.appendChild(el);
 }
-
-window.openLayerEditor = openLayerEditor;
-window.closeLayerEditor = closeLayerEditor;
-window.selectLayerCanvas = selectLayerCanvas;
-window.layerEditorAdd = layerEditorAdd;
-window.layerEditorFillWall = layerEditorFillWall;
-window.layerEditorDuplicate = layerEditorDuplicate;
-window.layerEditorRename = layerEditorRename;
-window.layerEditorRemove = layerEditorRemove;
-window.layerEditorZ = layerEditorZ;
-window.layerEditorSetTransparent = layerEditorSetTransparent;
-window.layerEditorSetOpacity = layerEditorSetOpacity;
-window.layerEditorSetBrightness = layerEditorSetBrightness;
-window.layerEditorSetLocked = layerEditorSetLocked;
-window.layerEditorSetAspect = layerEditorSetAspect;
-window.layerEditorSetPanelBits = layerEditorSetPanelBits;
-window.layerEditorToggleDraw = layerEditorToggleDraw;
-window.layerEditorToggleVisible = layerEditorToggleVisible;
-window.layerEditorAlign = layerEditorAlign;
-window.layerEditorFit = layerEditorFit;
-window.layerEditorPreset = layerEditorPreset;
-window.leSaveScene = leSaveScene;
-window.leSaveSceneClose = leSaveSceneClose;
-window.leSaveSceneConfirm = leSaveSceneConfirm;
-window.leApplyTransform = leApplyTransform;
-window.leUndo = leUndo;
-window.leRedo = leRedo;
-window.leCaptureAppear = leCaptureAppear;
-window.leCommitAppear = leCommitAppear;
-window.leToggleScenes = leToggleScenes;
-window.leToggleNew = leToggleNew;
-window.leOpenScene = leOpenScene;
-window.leSceneDefault = leSceneDefault;
-window.leSceneDelete = leSceneDelete;
-window.leApplyProfile = leApplyProfile;
-window.contentAdd = contentAdd;
-window.contentAddMedia = contentAddMedia;
-window.contentAddCamera = contentAddCamera;
-window.leCamClose = leCamClose;
-window.leCamAdd = leCamAdd;
-window.leMediaClose = leMediaClose;
-window.leMediaAdd = leMediaAdd;
-window.contentApply = contentApply;
-window.contentChangeSingle = contentChangeSingle;
-window.contentRemove = contentRemove;
-window.contentClear = contentClear;
-window.contentDuplicate = contentDuplicate;
-window.contentMove = contentMove;
-window.contentRotationSettings = contentRotationSettings;
-window.contentToggleParams = contentToggleParams;
-window.contentSaveParams = contentSaveParams;
-window.contentFullParams = contentFullParams;
-window.captureStepFromLiveCanvas = captureStepFromLiveCanvas;
-window.refreshStudioDisplay = refreshStudioDisplay;
-
-
 

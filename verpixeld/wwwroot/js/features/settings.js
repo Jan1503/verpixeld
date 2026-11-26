@@ -2,6 +2,11 @@
    SETTINGS - Output, global, per-backend, Home Assistant
    ============================================================================ */
 
+import { api } from '../core/api.js';
+import { refreshStudioDisplay } from './layer-editor.js';
+import { showConfirm } from '../ui/modal.js';
+import { escapeHtml, onReady, wire } from '../utils/helpers.js';
+
 const OUTPUT_LABELS = {
   network: 'Network',
   hdmi: 'HDMI',
@@ -1516,39 +1521,6 @@ async function applySeam(save) {
   }
 }
 
-window.selectOutputPanel = selectOutputPanel;
-window.toggleHardwareOutput = toggleHardwareOutput;
-window.requestOutputSwitch = requestOutputSwitch;
-window.saveHdmiSettings = saveHdmiSettings;
-window.saveSpiSettings = saveSpiSettings;
-window.saveHomeAssistant = saveHomeAssistant;
-window.testHaToast = testHaToast;
-window.loadSeam = loadSeam;
-window.toggleSeamEnabled = toggleSeamEnabled;
-window.applySeam = applySeam;
-window.selectSeamBits = selectSeamBits;
-window.setSeamPreview = setSeamPreview;
-window.resetSeamCurve = resetSeamCurve;
-window.resetSeamGainLift = resetSeamGainLift;
-window.loadNetworkConfig = loadNetworkConfig;
-window.applyNetworkConfig = applyNetworkConfig;
-window.scanPanels = scanPanels;
-window.identifyScannedPanel = identifyScannedPanel;
-window.useScannedPanel = useScannedPanel;
-window.unbindPanel = unbindPanel;
-window.loadImageCorrection = loadImageCorrection;
-window.onImageCorrectionInput = onImageCorrectionInput;
-window.saveImageCorrection = saveImageCorrection;
-window.resetImageCorrection = resetImageCorrection;
-window.initSettings = initSettings;
-window.loadCurrentSettings = loadCurrentSettings;
-window.saveMatrixConfig = saveMatrixConfig;
-window.saveAppSettings = saveAppSettings;
-window.updateCalculatedResolution = updateCalculatedResolution;
-window.uploadCertificate = uploadCertificate;
-window.regenerateCertificate = regenerateCertificate;
-window.loadCertificateInfo = loadCertificateInfo;
-
 async function reloadPlugins() {
   const btn = document.getElementById('plugin-reload-btn');
   const status = document.getElementById('plugin-reload-status');
@@ -1573,8 +1545,6 @@ async function reloadPlugins() {
     if (btn) btn.disabled = false;
   }
 }
-
-window.reloadPlugins = reloadPlugins;
 
 window.addEventListener('tabChanged', (e) => {
   if (e.detail?.tab === 'settings') {

@@ -2,10 +2,26 @@
    APPLICATION INITIALIZATION - Core startup and global function exposure
    ============================================================================ */
 
+import { fetchBrightnessLevels } from '../features/brightness.js';
+import { loadCanvasStack } from '../features/canvas-stack.js';
+import { initDrawMode } from '../features/draw-mode.js';
+import { clearAllFilters, displayFilters, fetchAvailableFilters, showFilterPicker } from '../features/filter-management.js';
+import { applyLayout, refreshLayoutInfo } from '../features/layout-management.js';
+import { refreshNightModeStatus } from '../features/night-mode.js';
+import { fetchSavedLayouts, showSaveLayoutDialog } from '../features/saved-layouts.js';
+import { fetchSchedules } from '../features/scheduler.js';
+import { applyHostRestartButton, confirmRestartRender, confirmSystemReboot, startReconnectionCheck, updateConnectionStatus } from '../features/system-control.js';
+import { initVisualizer } from '../features/visualizer.js';
+import { restoreCollapsedStates } from '../ui/navigation.js';
+import { initTabs } from '../ui/tabs.js';
+import { initTheme } from '../ui/theme.js';
+import { isBusy, onReady, trackAction } from '../utils/helpers.js';
+import { refreshAllCanvasSelectors } from '../features/canvas-selectors.js';
+
 /**
  * Format filter type name for display
  */
-function formatFilterName(typeName) {
+export function formatFilterName(typeName) {
   return typeName
     .replace(/Filter$/, '')
     .replace(/([A-Z])/g, ' $1')
@@ -15,7 +31,7 @@ function formatFilterName(typeName) {
 /**
  * Format filter parameters for display
  */
-function formatParameters(params) {
+export function formatParameters(params) {
   return Object.entries(params)
     .filter(([key]) => !['FilterName', 'Name'].includes(key))
     .map(([key, value]) => {
@@ -28,7 +44,7 @@ function formatParameters(params) {
 /**
  * Fetch application status from server
  */
-async function fetchStatus() {
+export async function fetchStatus() {
   try {
     const result = await window.api.get('/api/status');
     if (result.data) {
@@ -56,23 +72,9 @@ async function fetchStatus() {
 }
 
 /**
- * Fetch available filters from server
- */
-async function fetchAvailableFilters() {
-  try {
-    const result = await window.api.get('/api/filters/available');
-    if (result.data) {
-      availableFilters = result.data;
-    }
-  } catch (error) {
-    console.error('Failed to fetch available filters:', error);
-  }
-}
-
-/**
  * Fetch active filters from server
  */
-async function fetchFilters() {
+export async function fetchFilters() {
   try {
     const result = await window.api.get('/api/filters');
     if (result.data) {
@@ -89,10 +91,6 @@ async function fetchFilters() {
 function initializeApplication() {
   console.log('DOM loaded, initializing application...');
 
-  // Restore last loaded layout from localStorage
-  currentLoadedLayoutName = localStorage.getItem('activeLayoutName') || null;
-  console.log('📋 Active layout from localStorage:', currentLoadedLayoutName || 'none');
-
   // Initial data load
   fetchStatus();
   fetchAvailableFilters();
@@ -106,15 +104,11 @@ function initializeApplication() {
   initTheme();
   
   // Initialize all canvas selectors
-  if (typeof refreshAllCanvasSelectors === 'function') {
-    refreshAllCanvasSelectors();
-  }
+  refreshAllCanvasSelectors();
   
   // Listen for layout changes to refresh canvas selectors
   window.addEventListener('layoutChanged', () => {
-    if (typeof refreshAllCanvasSelectors === 'function') {
-      refreshAllCanvasSelectors();
-    }
+    refreshAllCanvasSelectors();
   });
 
   // Static buttons with an id; trackAction gives them the same busy state and error toast as wired ones.
@@ -126,9 +120,6 @@ function initializeApplication() {
   onClick('refresh-layout-btn', () => refreshLayoutInfo());
   onClick('save-current-layout-btn', () => showSaveLayoutDialog());
   onClick('refresh-saved-layouts-btn', () => fetchSavedLayouts());
-  onClick('start-local-mode-btn', () => startSelectedLocalMode());
-  onClick('stop-local-mode-btn', () => setMode('stop'));
-  onClick('configure-mode-btn', () => showModeConfig());
   onClick('add-filter-btn', () => showFilterPicker());
   onClick('clear-all-filters-btn', () => clearAllFilters());
   onClick('reboot-btn', () => confirmSystemReboot());
@@ -157,17 +148,8 @@ function initEnhancedUI() {
   }
 }
 
-// Expose globally
-window.formatFilterName = formatFilterName;
-window.formatParameters = formatParameters;
-window.fetchStatus = fetchStatus;
-window.fetchAvailableFilters = fetchAvailableFilters;
-window.fetchFilters = fetchFilters;
-window.initializeApplication = initializeApplication;
-window.initEnhancedUI = initEnhancedUI;
-
 // DOMContentLoaded handler
-document.addEventListener('DOMContentLoaded', initializeApplication);
+onReady(initializeApplication);
 
 // Auto-refresh interval
 setInterval(() => {
@@ -180,22 +162,8 @@ setInterval(() => {
 }, 5000);
 
 // Initialize enhanced UI features when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    initEnhancedUI();
-    if (typeof initDrawMode === 'function') {
-      initDrawMode();
-    }
-    if (typeof initVisualizer === 'function') {
-      initVisualizer();
-    }
-  });
-} else {
+onReady(() => {
   initEnhancedUI();
-  if (typeof initDrawMode === 'function') {
-    initDrawMode();
-  }
-  if (typeof initVisualizer === 'function') {
-    initVisualizer();
-  }
-}
+  initDrawMode();
+  initVisualizer();
+});

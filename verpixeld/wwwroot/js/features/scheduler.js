@@ -2,13 +2,18 @@
    LAYOUT SCHEDULER - Time-based Layout Automation
    ============================================================================ */
 
+import { ICONS } from '../constants.js';
+import { api } from '../core/api.js';
+import { showConfirm, showMessage } from '../ui/modal.js';
+import { escapeHtml, generateGuid, onAction, onReady, wire } from '../utils/helpers.js';
+
 // Entry counter for unique IDs
 let scheduleEntryCounter = 0;
 
 /**
  * Fetch all schedules from server
  */
-async function fetchSchedules() {
+export async function fetchSchedules() {
   try {
     const result = await api.get('/api/schedule/list');
     displaySchedules(result.data);
@@ -755,9 +760,6 @@ async function toggleSchedule(scheduleName, currentlyEnabled) {
 
 // Auto-refresh schedule status every minute
 setInterval(updateScheduleStatus, 60000);
-
-// Expose globally
-window.fetchSchedules = fetchSchedules;
 
 // Controls of #tab-schedule in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('tab-schedule'), {

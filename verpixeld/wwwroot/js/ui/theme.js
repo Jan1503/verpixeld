@@ -5,7 +5,7 @@
 /**
  * Initialize theme based on saved preference
  */
-function initTheme() {
+export function initTheme() {
   const themeToggle = document.getElementById('theme-toggle');
   const savedTheme = localStorage.getItem('theme') || 'light';
 
@@ -76,5 +76,3 @@ function getTheme() {
   return document.documentElement.getAttribute('data-theme') || 'light';
 }
 
-// Expose globally
-window.initTheme = initTheme;

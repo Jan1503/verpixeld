@@ -2,6 +2,15 @@
    VISUAL CANVAS EDITOR - Overlay Canvas Creation
    ============================================================================ */
 
+import { ICONS } from '../constants.js';
+import { updateCameraTargetCanvases } from './camera-stream.js';
+import { loadCanvasStack } from './canvas-stack.js';
+import { updateDrawTargetCanvases } from './draw-mode.js';
+import { refreshLayoutInfo } from './layout-management.js';
+import { closeModal, showConfirm, showMessage } from '../ui/modal.js';
+import { wire } from '../utils/helpers.js';
+import { refreshAllCanvasSelectors } from './canvas-selectors.js';
+
 // Actual display size — resolved from the live canvas stack each time the dialog opens (no longer
 // hardcoded to the 384x192 panel), so overlay canvases are sized for whatever display is connected.
 let DISPLAY_WIDTH = 384;
@@ -529,9 +538,7 @@ async function confirmAddCanvas() {
     if (typeof updateCameraTargetCanvases === 'function') {
       updateCameraTargetCanvases();
     }
-    if (typeof populateDemoCanvasSelector === 'function') {
-      populateDemoCanvasSelector();
-    }
+    refreshAllCanvasSelectors();
     
     // Dispatch event for other listeners
     window.dispatchEvent(new CustomEvent('layoutChanged'));
@@ -544,7 +551,7 @@ async function confirmAddCanvas() {
 /**
  * Remove overlay canvas
  */
-async function removeOverlayCanvas(canvasName) {
+export async function removeOverlayCanvas(canvasName) {
   const confirmed = await showConfirm({
     title: 'Remove overlay canvas',
     message: `Remove overlay canvas "${canvasName}"?\n\nThis will permanently delete the canvas and any content on it.`,
@@ -574,9 +581,7 @@ async function removeOverlayCanvas(canvasName) {
       if (typeof updateCameraTargetCanvases === 'function') {
         updateCameraTargetCanvases();
       }
-      if (typeof populateDemoCanvasSelector === 'function') {
-        populateDemoCanvasSelector();
-      }
+      refreshAllCanvasSelectors();
       
       // Dispatch event for other listeners
       window.dispatchEvent(new CustomEvent('layoutChanged'));
@@ -586,5 +591,3 @@ async function removeOverlayCanvas(canvasName) {
   }
 }
 
-// Expose globally
-window.removeOverlayCanvas = removeOverlayCanvas;

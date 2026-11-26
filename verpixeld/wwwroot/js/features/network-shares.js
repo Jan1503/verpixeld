@@ -2,6 +2,12 @@
    NETWORK SHARES - SMB/CIFS Configuration Management
    ============================================================================ */
 
+import { api } from '../core/api.js';
+import { loadCanvasStack } from './canvas-stack.js';
+import { fetchMediaStatus } from './media-player.js';
+import { showConfirm } from '../ui/modal.js';
+import { escapeHtml, onAction, onReady, wire } from '../utils/helpers.js';
+
 let networkShares = [];
 let editingShareId = null;
 let networkStreamingSupported = true;
@@ -516,11 +522,8 @@ function updateNetworkSharesUI() {
   });
 }
 
-
 // Initialize on load
-document.addEventListener('DOMContentLoaded', () => {
-  fetchNetworkShares();
-});
+onReady(fetchNetworkShares);
 
 // Controls of #tab-media in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('tab-media'), {

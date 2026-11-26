@@ -1,3 +1,5 @@
+import { escapeHtml, onReady, wire } from '../utils/helpers.js';
+
 // ==========================================================================
 // CAMERA STREAM MODULE
 // Live camera streaming to LED matrix canvas
@@ -764,18 +766,12 @@ function stopCameraStream() {
   CameraStream.stop();
 }
 
-function updateCameraTargetCanvases() {
+export function updateCameraTargetCanvases() {
   CameraStream.updateTargetCanvases();
 }
 
 // Initialize when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    CameraStream.init();
-  });
-} else {
-  CameraStream.init();
-}
+onReady(() => CameraStream.init());
 
 // Controls of #tab-canvas in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('tab-canvas'), {
@@ -786,4 +782,3 @@ onReady(() => wire(document.getElementById('tab-canvas'), {
 }));
 
 // Still called from classic scripts.
-window.updateCameraTargetCanvases = updateCameraTargetCanvases;

@@ -3,7 +3,10 @@
  * Wake word detection + Speech-to-Text → AI image generation
  * Also handles Local USB Camera management.
  */
-'use strict';
+
+import { api } from '../core/api.js';
+import { loadAiHistory } from './ai-art.js';
+import { onReady, wire } from '../utils/helpers.js';
 
 let voiceState = {
   pollInterval: null,
@@ -217,7 +220,7 @@ async function manualVoiceTrigger() {
 // Voice Configuration
 // ═══════════════════════════════════════════════════════════════
 
-async function loadVoiceConfig() {
+export async function loadVoiceConfig() {
   try {
     const data = await api.get('/api/voice/status');
     const setVal = (id, val) => {
@@ -289,7 +292,7 @@ function getSelectedAudioDevice() {
   return select.value;
 }
 
-async function saveVoiceConfig(opts = {}) {
+export async function saveVoiceConfig(opts = {}) {
   const payload = {
     speechKey: document.getElementById('voice-speech-key')?.value || undefined,
     speechRegion: document.getElementById('voice-speech-region')?.value || undefined,
@@ -496,28 +499,10 @@ async function saveVoiceImageSettings() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Expose globally
 // ═══════════════════════════════════════════════════════════════
 
-window.onAudioDeviceChange = onAudioDeviceChange;
-window.startVoiceListening = startVoiceListening;
-window.stopVoiceListening = stopVoiceListening;
-window.manualVoiceTrigger = manualVoiceTrigger;
-window.saveVoiceConfig = saveVoiceConfig;
-window.saveVoiceImageSettings = saveVoiceImageSettings;
-window.uploadKeywordModel = uploadKeywordModel;
-window.startLocalCamera = startLocalCamera;
-window.stopLocalCamera = stopLocalCamera;
-window.captureLocalCameraFrame = captureLocalCameraFrame;
-window.saveLocalCamConfig = saveLocalCamConfig;
-window.refreshLocalCamDevices = refreshLocalCamDevices;
-
 // Initialize
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initVoiceCommands);
-} else {
-  initVoiceCommands();
-}
+onReady(initVoiceCommands);
 
 // Controls of #tab-ai-art in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('tab-ai-art'), {

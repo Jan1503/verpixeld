@@ -2,10 +2,10 @@
    CONSTANTS & GLOBALS
    ============================================================================ */
 
-const API_BASE = '';
+export const API_BASE = '';
 
 // Unified Icon Set - Use these constants throughout the application
-const ICONS = {
+export const ICONS = {
   // Actions
   ADD: '➕',
   EDIT: '✏️',
@@ -48,11 +48,5 @@ const ICONS = {
   DETAILS: '📋'
 };
 
-// Global state
-let currentLoadedLayoutName = null;
-let availableFilters = [];
-let extensionUpdateTimer = null;
-
 // Expose globally
-window.ICONS = ICONS;
 window.API_BASE = API_BASE;

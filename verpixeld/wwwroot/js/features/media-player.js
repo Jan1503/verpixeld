@@ -2,6 +2,13 @@
    MEDIA PLAYER - Video and audio playback functionality
    ============================================================================ */
 
+import { api } from '../core/api.js';
+import { loadCanvasStack } from './canvas-stack.js';
+import { radioPageShown } from './radio.js';
+import { showConfirm, showMessage } from '../ui/modal.js';
+import { updateMediaPlayerBar } from '../ui/tabs.js';
+import { contentTargetCanvases, escapeHtml, onAction, onReady, wire } from '../utils/helpers.js';
+
 // Global media state - exposed immediately for other scripts
 window.mediaState = window.mediaState || {};
 
@@ -370,7 +377,7 @@ async function toggleMediaMute() {
  * and refreshing the audio output section. This is kept for compatibility
  * but delegates to the tabs.js version if available.
  */
-async function setMediaVolume(volume) {
+export async function setMediaVolume(volume) {
   try {
     // Update local state immediately
     mediaState.volume = volume;
@@ -889,7 +896,7 @@ function updateAudioList() {
 /**
  * Fetch media status
  */
-async function fetchMediaStatus() {
+export async function fetchMediaStatus() {
   try {
     const result = await api.get('/api/media/status');
     const wasRunning = mediaState.isRunning;
@@ -987,36 +994,11 @@ function formatDuration(seconds) {
 
 // Expose globally
 window.mediaState = mediaState;
-window.playMediaVideo = playMediaVideo;
-window.stopMediaPlayback = stopMediaPlayback;
-window.toggleMediaPause = toggleMediaPause;
-window.seekMediaVideo = seekMediaVideo;
-window.toggleMediaMute = toggleMediaMute;
-window.setMediaVolume = setMediaVolume;
-window.setAudioSync = setAudioSync;
-window.setScaleFilter = setScaleFilter;
-window.selectModFile = selectModFile;
-window.stopModMusic = stopModMusic;
-window.uploadMediaVideo = uploadMediaVideo;
-window.uploadModFile = uploadModFile;
-window.uploadAudioFile = uploadAudioFile;
-window.playAudioFile = playAudioFile;
-window.deleteAudioFile = deleteAudioFile;
-window.deleteMediaVideo = deleteMediaVideo;
-window.fetchMediaStatus = fetchMediaStatus;
-window.startMediaStatusPolling = startMediaStatusPolling;
-window.stopMediaStatusPolling = stopMediaStatusPolling;
-window.updateMediaUI = updateMediaUI;
-window.updateAudioList = updateAudioList;
-window.playNextTrack = playNextTrack;
-window.playPreviousTrack = playPreviousTrack;
-window.toggleShuffleMode = toggleShuffleMode;
-window.toggleRepeatMode = toggleRepeatMode;
 
 /**
  * Populate the target canvas selector with available canvases
  */
-async function populateMediaCanvasSelector() {
+export async function populateMediaCanvasSelector() {
   const select = document.getElementById('media-target-canvas');
   if (!select) return;
   
@@ -1304,7 +1286,7 @@ function filterLocalMediaBrowser(query) {
 /**
  * Switch between media sub-pages (Favorites, Local, Network, YouTube, Tools)
  */
-function switchMediaPage(page) {
+export function switchMediaPage(page) {
   // Update nav buttons
   document.querySelectorAll('.media-nav-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.mediaPage === page);
@@ -1501,21 +1483,6 @@ async function getYouTubeInfo(url) {
   }
 }
 
-// Expose YouTube functions globally
-window.playYouTubeVideo = playYouTubeVideo;
-window.showYouTubeInfo = showYouTubeInfo;
-window.getYouTubeInfo = getYouTubeInfo;
-window.checkYouTubeAvailability = checkYouTubeAvailability;
-
-// Expose canvas selector functions globally
-window.populateMediaCanvasSelector = populateMediaCanvasSelector;
-window.setMediaTargetCanvas = setMediaTargetCanvas;
-window.switchMediaSubTab = switchMediaSubTab;
-window.switchMediaPage = switchMediaPage;
-window.browseLocalMedia = browseLocalMedia;
-window.filterLocalMediaBrowser = filterLocalMediaBrowser;
-window.playLocalMediaItem = playLocalMediaItem;
-
 // ═══════════════════════════════════════════
 // CAMERA ALERT
 // ═══════════════════════════════════════════
@@ -1553,11 +1520,11 @@ async function dismissAlert() {
   try {
     const result = await api.post('/api/alert/dismiss');
     if (result.success) {
-      showToast('Alert dismissed', 'success');
+      showMessage('Alert dismissed', 'success');
     }
   } catch (error) {
     console.error('Failed to dismiss alert:', error);
-    showToast('Failed to dismiss alert', 'error');
+    showMessage('Failed to dismiss alert', 'error');
   }
 }
 
@@ -1570,7 +1537,7 @@ async function saveAlertConfig() {
   const scaleFilter = document.getElementById('alert-scale-filter')?.value;
   
   if (!streamUrl) {
-    showToast('Please enter a stream URL', 'warning');
+    showMessage('Please enter a stream URL', 'warning');
     return;
   }
   
@@ -1582,13 +1549,13 @@ async function saveAlertConfig() {
     
     const result = await api.post(`/api/alert/configure?${params}`);
     if (result.success) {
-      showToast('Alert configuration saved', 'success');
+      showMessage('Alert configuration saved', 'success');
     } else {
-      showToast('Failed to save configuration', 'error');
+      showMessage('Failed to save configuration', 'error');
     }
   } catch (error) {
     console.error('Failed to save alert config:', error);
-    showToast('Failed to save alert configuration', 'error');
+    showMessage('Failed to save alert configuration', 'error');
   }
 }
 
@@ -1599,13 +1566,13 @@ async function testAlertTrigger() {
   try {
     const result = await api.post('/api/alert/trigger');
     if (result.active) {
-      showToast('Alert triggered! Camera stream starting...', 'success');
+      showMessage('Alert triggered! Camera stream starting...', 'success');
     } else {
-      showToast(result.message || 'Alert trigger failed', 'warning');
+      showMessage(result.message || 'Alert trigger failed', 'warning');
     }
   } catch (error) {
     console.error('Failed to trigger alert:', error);
-    showToast('Failed to trigger alert', 'error');
+    showMessage('Failed to trigger alert', 'error');
   }
 }
 
@@ -1632,12 +1599,6 @@ async function loadAlertConfig() {
     console.error('Failed to load alert config:', error);
   }
 }
-
-// Expose alert functions globally
-window.dismissAlert = dismissAlert;
-window.saveAlertConfig = saveAlertConfig;
-window.testAlertTrigger = testAlertTrigger;
-window.loadAlertConfig = loadAlertConfig;
 
 // ════════════════════════════════════════════════════════════
 // MUSIC SEARCH (YouTube Music)
@@ -1670,7 +1631,7 @@ function setMusicMode(mode) {
 /**
  * Search YouTube Music and display results
  */
-async function searchMusic() {
+export async function searchMusic() {
   const input = document.getElementById('music-search-input');
   const query = input?.value?.trim();
   if (!query) {
@@ -1777,13 +1738,8 @@ async function playMusicResult(index) {
   }
 }
 
-// Expose music functions globally
-window.searchMusic = searchMusic;
-window.playMusicResult = playMusicResult;
-window.setMusicMode = setMusicMode;
-
 // Initialize on load
-document.addEventListener('DOMContentLoaded', () => {
+onReady(() => {
   // Start continuous status polling - essential to detect media from any source
   startMediaStatusPolling();
   populateMediaCanvasSelector();

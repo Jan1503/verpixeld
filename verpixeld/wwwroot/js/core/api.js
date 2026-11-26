@@ -17,7 +17,7 @@
      const response = await api.get('/api/preview/stream', { raw: true });
    ============================================================================ */
 
-const api = (() => {
+export const api = (() => {
     const BASE = window.API_BASE || '';
 
     /**

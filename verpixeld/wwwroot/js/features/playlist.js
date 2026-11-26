@@ -3,6 +3,10 @@
  * Complements the time-of-day scheduler (which picks the active layout by time).
  */
 
+import { api } from '../core/api.js';
+import { showMessage } from '../ui/modal.js';
+import { escapeHtml, onAction } from '../utils/helpers.js';
+
 window.playlistState = {
   config: { enabled: false, intervalSeconds: 15, loop: true, transition: 'Fade', layouts: [] },
   isRunning: false,
@@ -10,7 +14,7 @@ window.playlistState = {
   available: [] // all saved layout names
 };
 
-async function openPlaylistDialog() {
+export async function openPlaylistDialog() {
   try {
     const [statusRes, savedRes] = await Promise.all([
       api.get('/api/playlist'),
@@ -248,4 +252,3 @@ function ensurePlaylistStyles() {
   document.head.appendChild(style);
 }
 
-window.openPlaylistDialog = openPlaylistDialog;

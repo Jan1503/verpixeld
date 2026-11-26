@@ -5,6 +5,9 @@
    volume shortcuts never steal arrow keys from a game.
    ============================================================================ */
 
+import { api } from '../core/api.js';
+import { layerEditor } from './layer-editor.js';
+
 (function () {
   const ALIAS = {
     space: 'Space',

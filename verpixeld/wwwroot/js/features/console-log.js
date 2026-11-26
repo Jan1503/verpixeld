@@ -2,6 +2,8 @@
    CONSOLE LOG - Streams backend logs to the GUI
    ============================================================================ */
 
+import { onReady, wire } from '../utils/helpers.js';
+
 const consoleState = {
   latestSequence: 0,
   autoScroll: true,
@@ -247,8 +249,4 @@ function updateAutoScrollIndicator() {
 }
 
 // Initialize when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initConsoleLog);
-} else {
-  setTimeout(initConsoleLog, 100);
-}
+onReady(initConsoleLog);

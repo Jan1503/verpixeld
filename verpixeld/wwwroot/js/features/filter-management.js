@@ -2,13 +2,36 @@
    FILTER MANAGEMENT - Active Filters & Filter Configuration
    ============================================================================ */
 
+import { ICONS } from '../constants.js';
+import { api } from '../core/api.js';
+import { fetchFilters, fetchStatus, formatFilterName, formatParameters } from '../core/init.js';
+import { showMessage } from '../ui/modal.js';
+import { createColorInputWithAlpha, dataAttrs, escapeHtml, getColorWithAlpha, markerAttrs, onAction, onReady, updateSlider, wire } from '../utils/helpers.js';
+
 // Live update timer for filter editing
 let liveUpdateTimer = null;
+
+// Filter types the host offers (name, category, parameters), loaded once
+let availableFilters = [];
+
+/**
+ * Fetch available filters from server
+ */
+export async function fetchAvailableFilters() {
+  try {
+    const result = await api.get('/api/filters/available');
+    if (result.data) {
+      availableFilters = result.data;
+    }
+  } catch (error) {
+    console.error('Failed to fetch available filters:', error);
+  }
+}
 
 /**
  * Display active filters in the UI
  */
-function displayFilters(filters) {
+export function displayFilters(filters) {
   const container = document.getElementById('active-filters');
 
   if (filters.length === 0) {
@@ -52,7 +75,7 @@ function displayFilters(filters) {
 /**
  * Show filter picker modal
  */
-async function showFilterPicker() {
+export async function showFilterPicker() {
   const html = `
     <div class="modal-overlay" id="filter-picker-modal">
       <div class="modal-content" style="max-width: 900px;">
@@ -460,7 +483,7 @@ async function removeFilter(index) {
 /**
  * Clear all filters
  */
-async function clearAllFilters() {
+export async function clearAllFilters() {
   try {
     const result = await api.post('/api/filters/clear');
     showMessage(result.data || 'Filters cleared', false);
@@ -470,19 +493,6 @@ async function clearAllFilters() {
     showMessage('Failed to clear filters: ' + (error.message || 'Unknown error'), true);
   }
 }
-
-// Expose globally
-window.displayFilters = displayFilters;
-window.showFilterPicker = showFilterPicker;
-window.closeFilterPicker = closeFilterPicker;
-window.showFilterForm = showFilterForm;
-window.hideFilterForm = hideFilterForm;
-window.addFilter = addFilter;
-window.editFilter = editFilter;
-window.updateSliderAndFilter = updateSliderAndFilter;
-window.applyLiveFilterUpdate = applyLiveFilterUpdate;
-window.removeFilter = removeFilter;
-window.clearAllFilters = clearAllFilters;
 
 // Controls of #filter-form-container in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('filter-form-container'), {

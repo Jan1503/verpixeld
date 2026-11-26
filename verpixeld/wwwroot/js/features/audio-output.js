@@ -2,6 +2,11 @@
    AUDIO OUTPUT & BLUETOOTH - Manage audio outputs and Bluetooth speakers
    ============================================================================ */
 
+import { API_BASE } from '../constants.js';
+import { api } from '../core/api.js';
+import { showConfirm } from '../ui/modal.js';
+import { escapeHtml, onReady, wire } from '../utils/helpers.js';
+
 let audioSystemStatus = {
   pulseAudioAvailable: false,
   bluetoothAdapterPresent: false,
@@ -774,9 +779,7 @@ async function powerOffBluetooth() {
 window.refreshAudioStatus = refreshAudioStatus;
 
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  initAudioOutput();
-});
+onReady(initAudioOutput);
 
 // Controls of #tab-settings in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('tab-settings'), {

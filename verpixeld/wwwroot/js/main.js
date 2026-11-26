@@ -1,0 +1,41 @@
+/* ============================================================================
+   ENTRY POINT - the only script index.html loads besides the splash.
+   Imports every module of the page in its start order; each module imports what it uses.
+   ============================================================================ */
+import './constants.js';
+import './core/api.js';
+import './utils/helpers.js';
+import './features/canvas-selectors.js';
+import './ui/toast.js';
+import './ui/modal.js';
+import './ui/theme.js';
+import './ui/tabs.js';
+import './ui/navigation.js';
+import './features/draw-mode.js';
+import './features/night-mode.js';
+import './features/scheduler.js';
+import './features/canvas-stack.js';
+import './features/brightness.js';
+import './features/saved-layouts.js';
+import './features/playlist.js';
+import './features/canvas-editor.js';
+import './features/layer-editor.js';
+import './features/system-control.js';
+import './features/filter-management.js';
+import './features/extension-management.js';
+import './features/game-input.js';
+import './features/layout-management.js';
+import './features/camera-stream.js';
+import './features/media-player.js';
+import './features/network-shares.js';
+import './features/audio-output.js';
+import './features/favorites.js';
+import './features/radio.js';
+import './features/visualizer.js';
+import './features/console-log.js';
+import './features/image-upload.js';
+import './features/ai-art.js';
+import './features/voice-commands.js';
+import './features/live-preview.js';
+import './features/settings.js';
+import './core/init.js';

@@ -2,10 +2,19 @@
    SAVED LAYOUTS - Layout Persistence and Management
    ============================================================================ */
 
+import { ICONS } from '../constants.js';
+import { api } from '../core/api.js';
+import { updateCameraTargetCanvases } from './camera-stream.js';
+import { updateDrawTargetCanvases } from './draw-mode.js';
+import { refreshLayoutInfo } from './layout-management.js';
+import { closeModal, hideLoading, showConfirm, showLoading, showMessage } from '../ui/modal.js';
+import { escapeHtml, onAction } from '../utils/helpers.js';
+import { refreshAllCanvasSelectors } from './canvas-selectors.js';
+
 /**
  * Fetch and display saved layouts
  */
-async function fetchSavedLayouts() {
+export async function fetchSavedLayouts() {
   const container = document.getElementById('saved-layouts-list');
 
   // Show loading skeleton
@@ -52,7 +61,7 @@ async function displaySavedLayouts(layouts) {
   const html = layouts.map(layout => {
     const modifiedDate = new Date(layout.lastModified).toLocaleString();
     const isDefault = layout.isDefault === true;
-    const isActive = currentLoadedLayoutName && layout.name === currentLoadedLayoutName;
+    const isActive = layout.name === localStorage.getItem('activeLayoutName');
 
     return `
   <div class="card ${isActive ? 'card-success' : isDefault ? 'card-info' : ''} card-interactive saved-layout-card${isDefault ? ' is-default' : ''}${isActive ? ' is-active' : ''}">
@@ -106,7 +115,7 @@ async function displaySavedLayouts(layouts) {
 /**
  * Show save layout dialog
  */
-async function showSaveLayoutDialog() {
+export async function showSaveLayoutDialog() {
   try {
     const layoutResult = await api.get('/api/layout/current');
     const contentResult = await api.get('/api/layout/content');
@@ -234,7 +243,7 @@ async function confirmSaveLayout() {
 /**
  * Load a saved layout
  */
-async function loadSavedLayout(layoutName) {
+export async function loadSavedLayout(layoutName) {
   const confirmed = await showConfirm({
     title: 'Load Scene',
     message: `Load scene "${layoutName}"? This will stop all active content and apply the saved scene.`,
@@ -250,21 +259,11 @@ async function loadSavedLayout(layoutName) {
   showLoading(`Loading layout "${layoutName}"...`);
 
   try {
-    // Stop video playback before loading new layout (but keep audio playing)
-    const mediaState = window.mediaState || {};
-    if (mediaState.isRunning && !mediaState.isAudioPlayback) {
-      console.log('[LAYOUT] Stopping video playback before loading new layout');
-      if (typeof stopDemoPlayback === 'function') {
-        await stopDemoPlayback();
-      }
-    }
-    
     const result = await api.post(`/api/layout/load/${encodeURIComponent(layoutName)}`);
 
     toast.success('Scene loaded', result.data.message);
 
       // Track the loaded layout name
-      currentLoadedLayoutName = layoutName;
       localStorage.setItem('activeLayoutName', layoutName);
 
       // Refresh all UI
@@ -276,9 +275,7 @@ async function loadSavedLayout(layoutName) {
       if (typeof updateCameraTargetCanvases === 'function') {
         updateCameraTargetCanvases();
       }
-      if (typeof populateDemoCanvasSelector === 'function') {
-        populateDemoCanvasSelector();
-      }
+      refreshAllCanvasSelectors();
       
       // Dispatch event for other listeners
       window.dispatchEvent(new CustomEvent('layoutChanged'));
@@ -293,7 +290,7 @@ async function loadSavedLayout(layoutName) {
 /**
  * Delete a saved layout
  */
-async function deleteSavedLayout(layoutName) {
+export async function deleteSavedLayout(layoutName) {
   const confirmed = await showConfirm({
     title: 'Delete Scene',
     message: `Delete scene "${layoutName}"? This action cannot be undone.`,
@@ -321,7 +318,7 @@ async function deleteSavedLayout(layoutName) {
 /**
  * Set a layout as default
  */
-async function setAsDefaultLayout(layoutName) {
+export async function setAsDefaultLayout(layoutName) {
   try {
     const result = await api.post(`/api/layout/saved/${encodeURIComponent(layoutName)}/set-default`);
 
@@ -459,15 +456,3 @@ function closeLayoutDetailsModal() {
   if (modal) modal.remove();
 }
 
-// Expose globally
-window.fetchSavedLayouts = fetchSavedLayouts;
-window.displaySavedLayouts = displaySavedLayouts;
-window.showSaveLayoutDialog = showSaveLayoutDialog;
-window.closeSaveLayoutModal = closeSaveLayoutModal;
-window.confirmSaveLayout = confirmSaveLayout;
-window.loadSavedLayout = loadSavedLayout;
-window.deleteSavedLayout = deleteSavedLayout;
-window.setAsDefaultLayout = setAsDefaultLayout;
-window.clearDefaultLayout = clearDefaultLayout;
-window.viewLayoutDetails = viewLayoutDetails;
-window.closeLayoutDetailsModal = closeLayoutDetailsModal;

@@ -9,7 +9,7 @@
  * innerHTML or an attribute goes through it.
  */
 const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-function escapeHtml(text) {
+export function escapeHtml(text) {
   return String(text ?? '').replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
 }
 
@@ -19,7 +19,7 @@ function escapeHtml(text) {
  * spinner (`is-busy`, `aria-busy`). An error the handler did not handle itself becomes a toast instead
  * of vanishing. `disabled` is left alone on purpose, handlers set it themselves (e.g. Undo).
  */
-function trackAction(el, result) {
+export function trackAction(el, result) {
   if (!el || !result || typeof result.then !== 'function') return;
   el._busy = true;
   const timer = setTimeout(() => {
@@ -53,7 +53,7 @@ function reportError(area, error) {
 }
 
 /** True while `el` (or the form it submits) still runs its last action: the new event is dropped. */
-function isBusy(el, event) {
+export function isBusy(el, event) {
   if (!el?._busy) return false;
   event.preventDefault();
   event.stopPropagation();
@@ -67,7 +67,7 @@ function isBusy(el, event) {
  * dataset), so names and paths never end up inside JavaScript code in an onclick attribute.
  * Safe to call on every render: a container is bound once. Async handlers get trackAction feedback.
  */
-function onAction(container, handlers) {
+export function onAction(container, handlers) {
   if (!container) return;
   container._actionHandlers = handlers;
   if (container._actionsBound) return;
@@ -83,10 +83,16 @@ function onAction(container, handlers) {
   });
 }
 
-/** Runs `fn` once the page's DOM is ready (at once if it already is). */
-function onReady(fn) {
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn, { once: true });
-  else fn();
+/**
+ * Runs `fn` once the page's DOM is ready. Modules are evaluated before DOMContentLoaded, so this waits
+ * for it even then: every module of the page has been evaluated before any of them starts, and
+ * start-up code never meets another module's constants before they exist.
+ */
+let domContentLoaded = document.readyState === 'complete';
+document.addEventListener('DOMContentLoaded', () => { domContentLoaded = true; }, { once: true });
+export function onReady(fn) {
+  if (domContentLoaded) fn();
+  else document.addEventListener('DOMContentLoaded', fn, { once: true });
 }
 
 /**
@@ -101,7 +107,7 @@ function onReady(fn) {
  * submit the busy control is the submit button.
  */
 const WIRE_ATTR = { click: 'action', input: 'input', change: 'change', keydown: 'keydown', submit: 'submit', pointerdown: 'pointerdown' };
-function wire(container, handlers) {
+export function wire(container, handlers) {
   if (!container) return;
   container._wire = container._wire || {};
   for (const [type, map] of Object.entries(handlers)) {
@@ -127,7 +133,7 @@ function wire(container, handlers) {
 /**
  * Format uptime in seconds to human readable string
  */
-function formatUptime(seconds) {
+export function formatUptime(seconds) {
   if (typeof seconds !== 'number' || isNaN(seconds) || seconds < 0) {
     return '0s';
   }
@@ -148,7 +154,7 @@ function formatUptime(seconds) {
 /**
  * Set button loading state with spinner
  */
-function setButtonLoading(button, loading = true) {
+export function setButtonLoading(button, loading = true) {
   if (!button) return;
   
   if (loading) {
@@ -171,7 +177,7 @@ function setButtonLoading(button, loading = true) {
 /**
  * Update slider value display
  */
-function updateSlider(id) {
+export function updateSlider(id) {
   const slider = document.getElementById(id);
   const valueDisplay = document.getElementById(id + '-value');
   if (slider && valueDisplay) {
@@ -183,7 +189,7 @@ function updateSlider(id) {
  * Renders `data` as data-* attributes (camelCase keys become kebab-case), values escaped.
  * dataAttrs({ param: 'x', fieldId: 'f1' }) -> ' data-param="x" data-field-id="f1"'
  */
-function dataAttrs(data) {
+export function dataAttrs(data) {
   if (!data) return '';
   return Object.entries(data)
     .map(([k, v]) => ` data-${k.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${escapeHtml(v)}"`)
@@ -194,7 +200,7 @@ function dataAttrs(data) {
  * Marker attributes for a rendered control: `marker` is `{ action, ...data }` or empty.
  * The control gets data-input or data-change="action" (see wire()) plus the extra data.
  */
-function markerAttrs(event, marker) {
+export function markerAttrs(event, marker) {
   if (!marker || !marker.action) return '';
   const { action, ...data } = marker;
   return ` data-${event}="${escapeHtml(action)}"` + dataAttrs(data);
@@ -212,7 +218,7 @@ document.addEventListener('input', event => {
  * `marker` ({ action, ...data }, optional) marks both inputs for wire(): the color input fires
  * `change`, the alpha slider `input`, both under the same action name.
  */
-function createColorInputWithAlpha(paramName, currentValue, marker) {
+export function createColorInputWithAlpha(paramName, currentValue, marker) {
   // Parse current color value
   let hexColor = '#000000';
   let alpha = 1.0;
@@ -268,7 +274,7 @@ function createColorInputWithAlpha(paramName, currentValue, marker) {
 /**
  * Get combined color+alpha value from inputs (ARGB format)
  */
-function getColorWithAlpha(paramName) {
+export function getColorWithAlpha(paramName) {
   const colorInput = document.getElementById(`${paramName}-color`);
   const alphaInput = document.getElementById(`${paramName}-alpha`);
 
@@ -287,7 +293,7 @@ function getColorWithAlpha(paramName) {
 /**
  * Compare values for change detection (handles type coercion)
  */
-function valuesEqual(a, b) {
+export function valuesEqual(a, b) {
   // Handle undefined/null
   if (a === undefined || a === null) {
     return b === undefined || b === null;
@@ -324,7 +330,7 @@ function valuesEqual(a, b) {
 /**
  * Convert hex color to RGBA string
  */
-function hexToRgba(hex, alpha = 1) {
+export function hexToRgba(hex, alpha = 1) {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (result) {
     return `rgba(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}, ${alpha})`;
@@ -335,7 +341,7 @@ function hexToRgba(hex, alpha = 1) {
 /**
  * Generate a unique GUID
  */
-function generateGuid() {
+export function generateGuid() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -375,18 +381,18 @@ function throttle(func, limit) {
 /** Host overlays (HA toast, voice, camera alert) — Studio may move them; content pickers must not. */
 const SYSTEM_OVERLAY_CANVASES = new Set(['HaToast', 'VoiceFeedback', 'CameraAlert', 'AiImageOverlay']);
 
-function isSystemOverlayCanvas(c) {
+export function isSystemOverlayCanvas(c) {
   if (!c) return false;
   if (typeof c === 'string') return SYSTEM_OVERLAY_CANVASES.has(c);
   return !!(c.isSystem || SYSTEM_OVERLAY_CANVASES.has(c.name));
 }
 
-function contentTargetCanvases(canvases) {
+export function contentTargetCanvases(canvases) {
   return (canvases || []).filter(c => !isSystemOverlayCanvas(c));
 }
 
 /** Canvas that is actually showing video. Target "Main" remaps to a MediaPlayer overlay. */
-function mediaPlaybackCanvasName(state) {
+export function mediaPlaybackCanvasName(state) {
   const s = state || window.mediaState || {};
   if (!s.isRunning || s.isAudioPlayback) return null;
   if (s.playbackCanvasName) return s.playbackCanvasName;
@@ -395,69 +401,3 @@ function mediaPlaybackCanvasName(state) {
   return t;
 }
 
-/**
- * Refresh all canvas selectors across the application
- * Called when canvases are added or removed
- */
-async function refreshAllCanvasSelectors() {
-  try {
-    // Fetch current canvas list
-    const result = await window.api.get('/api/canvas/stack');
-    if (!result.data) return;
-    
-    const canvases = contentTargetCanvases(result.data);
-    
-    const optionsHtml = canvases.map(c => 
-      `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)} (${c.width}\u00D7${c.height})</option>`
-    ).join('');
-
-    const fillSelect = (id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const currentValue = el.value;
-      el.innerHTML = optionsHtml;
-      if (canvases.some(c => c.name === currentValue))
-        el.value = currentValue;
-    };
-
-    fillSelect('draw-target-canvas');
-    fillSelect('camera-target-canvas');
-    fillSelect('ai-target-canvas');
-    fillSelect('ai-schedule-canvas');
-    fillSelect('gallery-slideshow-canvas');
-    fillSelect('upload-target-canvas');
-    
-    // The media target list has the media layer first; media-player.js builds it.
-    if (typeof populateMediaCanvasSelector === 'function') populateMediaCanvasSelector();
-
-    // Update visualizer canvas selector
-    if (typeof refreshVisualizerStatus === 'function') {
-      await refreshVisualizerStatus();
-    }
-    
-  } catch (error) {
-    console.error('Failed to refresh canvas selectors:', error);
-  }
-}
-
-// Aliases for backward compatibility
-function populateDemoCanvasSelector() { refreshAllCanvasSelectors(); }
-
-// Expose globally
-window.escapeHtml = escapeHtml;
-window.reportError = reportError;
-window.formatUptime = formatUptime;
-window.setButtonLoading = setButtonLoading;
-window.updateSlider = updateSlider;
-window.createColorInputWithAlpha = createColorInputWithAlpha;
-window.getColorWithAlpha = getColorWithAlpha;
-window.valuesEqual = valuesEqual;
-window.hexToRgba = hexToRgba;
-window.generateGuid = generateGuid;
-window.debounce = debounce;
-window.throttle = throttle;
-window.isSystemOverlayCanvas = isSystemOverlayCanvas;
-window.contentTargetCanvases = contentTargetCanvases;
-window.mediaPlaybackCanvasName = mediaPlaybackCanvasName;
-window.refreshAllCanvasSelectors = refreshAllCanvasSelectors;
-window.populateDemoCanvasSelector = populateDemoCanvasSelector;

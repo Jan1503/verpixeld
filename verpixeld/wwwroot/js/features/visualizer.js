@@ -2,6 +2,8 @@
    AUDIO VISUALIZER - Real-time music visualization with FFT analysis
    ============================================================================ */
 
+import { contentTargetCanvases, escapeHtml, onReady, wire } from '../utils/helpers.js';
+
 let visualizerStatus = {
   isRunning: false,
   targetCanvasId: null,
@@ -17,14 +19,14 @@ let visualizerStatus = {
 /**
  * Initialize visualizer controls
  */
-async function initVisualizer() {
+export async function initVisualizer() {
   await refreshVisualizerStatus();
 }
 
 /**
  * Refresh visualizer status from server
  */
-async function refreshVisualizerStatus() {
+export async function refreshVisualizerStatus() {
   try {
     const result = await window.api.get('/api/visualizer/status');
     if (result.data) {
@@ -254,15 +256,6 @@ function onSmoothingChange(value) {
 function onVisualizerModeChange() {
   updateVisualizerSettings();
 }
-
-// Expose functions globally
-window.initVisualizer = initVisualizer;
-window.refreshVisualizerStatus = refreshVisualizerStatus;
-window.startVisualizer = startVisualizer;
-window.stopVisualizer = stopVisualizer;
-window.onSensitivityChange = onSensitivityChange;
-window.onSmoothingChange = onSmoothingChange;
-window.onVisualizerModeChange = onVisualizerModeChange;
 
 // Controls of #tab-media in index.html: wired here instead of inline handlers.
 onReady(() => wire(document.getElementById('tab-media'), {
