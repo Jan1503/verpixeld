@@ -38,7 +38,7 @@ export function showConfirm(options) {
       done = true;
       document.removeEventListener('keydown', onKey);
       overlay.remove();
-      if (!document.querySelector('.modal-overlay')) document.body.style.overflow = '';
+      syncScrollLock();
       resolve(result);
     }
     const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); finish(false); } };
@@ -75,7 +75,7 @@ export function showPrompt(options) {
       done = true;
       document.removeEventListener('keydown', onKey);
       overlay.remove();
-      if (!document.querySelector('.modal-overlay')) document.body.style.overflow = '';
+      syncScrollLock();
       resolve(result);
     }
     const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); finish(null); } };
@@ -106,7 +106,7 @@ export function showLoading(message = 'Loading...') {
   `;
 
   document.body.appendChild(overlay);
-  document.body.style.overflow = 'hidden';
+  syncScrollLock();
 }
 
 /**
@@ -114,10 +114,8 @@ export function showLoading(message = 'Loading...') {
  */
 export function hideLoading() {
   const overlay = document.getElementById('loading-overlay');
-  if (overlay) {
-    overlay.remove();
-    document.body.style.overflow = '';
-  }
+  overlay?.remove();
+  syncScrollLock();
 }
 
 /**
@@ -126,15 +124,16 @@ export function hideLoading() {
 function showModal(htmlContent, onBackdrop) {
   const modalOverlay = document.createElement('div');
   modalOverlay.className = 'modal-overlay';
+  modalOverlay.dataset.scrollLock = '';
   modalOverlay.innerHTML = htmlContent;
   modalOverlay.onclick = (e) => {
     if (e.target !== modalOverlay) return;
     if (onBackdrop) { onBackdrop(); return; }
     modalOverlay.remove();
-    document.body.style.overflow = '';
+    syncScrollLock();
   };
   document.body.appendChild(modalOverlay);
-  document.body.style.overflow = 'hidden';
+  syncScrollLock();
   return modalOverlay;
 }
 
@@ -152,7 +151,17 @@ export function closeModal() {
     modal.style.display = 'none';
   });
   
-  document.body.style.overflow = '';
+  syncScrollLock();
+}
+
+/**
+ * The page scrolls unless one of the dialogs that lock it is still open (marked data-scroll-lock, or the
+ * loading overlay). Asking the DOM instead of counting keeps it right however a dialog was closed; other
+ * overlays (feature modals, the hidden static filter form) never lock the page.
+ */
+function syncScrollLock() {
+  const locked = !!document.querySelector('.modal-overlay[data-scroll-lock], #loading-overlay');
+  document.body.style.overflow = locked ? 'hidden' : '';
 }
 
 /**
