@@ -278,13 +278,14 @@ public class MediaPlayerService : IDisposable
         _layerRect = r;
         try
         {
-            var root = AppSettingsStore.Load();
-            var section = AppSettingsStore.Section(root, "MediaLayer");
-            AppSettingsStore.Set(section, "X", System.Text.Json.Nodes.JsonValue.Create(x));
-            AppSettingsStore.Set(section, "Y", System.Text.Json.Nodes.JsonValue.Create(y));
-            AppSettingsStore.Set(section, "Width", System.Text.Json.Nodes.JsonValue.Create(width));
-            AppSettingsStore.Set(section, "Height", System.Text.Json.Nodes.JsonValue.Create(height));
-            AppSettingsStore.Save(root);
+            AppSettingsStore.Update(root =>
+            {
+                var section = AppSettingsStore.Section(root, "MediaLayer");
+                AppSettingsStore.Set(section, "X", System.Text.Json.Nodes.JsonValue.Create(x));
+                AppSettingsStore.Set(section, "Y", System.Text.Json.Nodes.JsonValue.Create(y));
+                AppSettingsStore.Set(section, "Width", System.Text.Json.Nodes.JsonValue.Create(width));
+                AppSettingsStore.Set(section, "Height", System.Text.Json.Nodes.JsonValue.Create(height));
+            });
         }
         catch (Exception ex)
         {

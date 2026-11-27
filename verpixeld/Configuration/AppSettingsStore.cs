@@ -28,7 +28,31 @@ public static class AppSettingsStore
     public static string LoadPath =>
         AppPaths.RunningInContainer() && File.Exists(OverlayPath) ? OverlayPath : BundledPath;
 
+    /// <summary>
+    ///     One writer at a time. The web UI and the audio board's volume feedback save from different
+    ///     threads; two saves at once collided on the backup copy ("file is being used by another
+    ///     process") and the second could overwrite the first one's section with stale data.
+    /// </summary>
+    public static readonly object Gate = new();
+
+    /// <summary>Load, change and save as one step, so concurrent changes to other sections are kept.</summary>
+    public static void Update(Action<JsonNode> change)
+    {
+        lock (Gate)
+        {
+            var root = Load();
+            change(root);
+            Save(root);
+        }
+    }
+
     public static JsonNode Load()
+    {
+        lock (Gate)
+            return LoadUnlocked();
+    }
+
+    private static JsonNode LoadUnlocked()
     {
         var path = AppPaths.RunningInContainer()
             ? (File.Exists(OverlayPath) ? OverlayPath : null)
@@ -38,16 +62,22 @@ public static class AppSettingsStore
         return Parse(path) ?? new JsonObject();
     }
 
-    public static void Save(JsonNode node)
+    public static void Save(JsonNode node) => WriteText(node.ToJsonString(JsonOpts));
+
+    /// <summary>Writes the settings file (keeping the previous one as .backup) under <see cref="Gate" />.</summary>
+    public static void WriteText(string json)
     {
-        var path = ConfigPath;
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        if (File.Exists(path))
-            File.Copy(path, path + ".backup", true);
-        File.WriteAllText(path, node.ToJsonString(JsonOpts));
-        Console.WriteLine($"[CONFIG] saved {path}");
+        lock (Gate)
+        {
+            var path = ConfigPath;
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+            if (File.Exists(path))
+                File.Copy(path, path + ".backup", true);
+            File.WriteAllText(path, json);
+        }
+        Console.WriteLine($"[CONFIG] saved {ConfigPath}");
     }
 
     public static JsonObject Section(JsonNode root, string name)

@@ -319,17 +319,26 @@ public sealed class PixToneOutputService
 
     private void Save()
     {
-        var root = AppSettingsStore.Load();
-        var section = AppSettingsStore.Section(root, "PixTone");
-        AppSettingsStore.Set(section, "Host", JsonValue.Create(Host));
-        AppSettingsStore.Set(section, "Selected", JsonValue.Create(IsSelected));
-        AppSettingsStore.Set(section, "Volume", JsonValue.Create(Volume));
-        AppSettingsStore.Set(section, "Muted", JsonValue.Create(Muted));
-        AppSettingsStore.Set(section, "WallPreview", JsonValue.Create(WallPreview));
-        AppSettingsStore.Set(section, "PreviewFps", JsonValue.Create(PreviewFps));
-        AppSettingsStore.Set(section, "PreviewWidth", JsonValue.Create(PreviewWidth));
-        AppSettingsStore.Set(section, "PreviewFill", JsonValue.Create(PreviewFill));
-        AppSettingsStore.Save(root);
+        // A volume change must never fail because the settings file could not be written.
+        try
+        {
+            AppSettingsStore.Update(root =>
+            {
+                var section = AppSettingsStore.Section(root, "PixTone");
+                AppSettingsStore.Set(section, "Host", JsonValue.Create(Host));
+                AppSettingsStore.Set(section, "Selected", JsonValue.Create(IsSelected));
+                AppSettingsStore.Set(section, "Volume", JsonValue.Create(Volume));
+                AppSettingsStore.Set(section, "Muted", JsonValue.Create(Muted));
+                AppSettingsStore.Set(section, "WallPreview", JsonValue.Create(WallPreview));
+                AppSettingsStore.Set(section, "PreviewFps", JsonValue.Create(PreviewFps));
+                AppSettingsStore.Set(section, "PreviewWidth", JsonValue.Create(PreviewWidth));
+                AppSettingsStore.Set(section, "PreviewFill", JsonValue.Create(PreviewFill));
+            });
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning("Could not save the audio board settings: {Message}", ex.Message);
+        }
     }
 
     public void SetWallPreview(bool on)

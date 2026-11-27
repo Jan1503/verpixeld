@@ -279,11 +279,7 @@ public static class SettingsEndpoints
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
 
-        var path = AppSettingsStore.ConfigPath;
-        if (File.Exists(path))
-            File.Copy(path, path + ".backup", true);
-
-        File.WriteAllText(path, json);
+        AppSettingsStore.WriteText(json);
     }
 
     private static bool CheckPulseAudio()
@@ -527,10 +523,7 @@ public static class SettingsEndpoints
     {
         try
         {
-            var root = AppSettingsStore.Load();
-            var ws = AppSettingsStore.Section(root, "WebServer");
-            ws["CertificatePassword"] = password;
-            AppSettingsStore.Save(root);
+            AppSettingsStore.Update(root => AppSettingsStore.Section(root, "WebServer")["CertificatePassword"] = password);
         }
         catch (Exception ex)
         {

@@ -119,22 +119,22 @@ public static class ImageCorrectionEndpoints
 
     private static void Persist(ImageCorrectionService c, bool? swap)
     {
-        var node = AppSettingsStore.Load();
-        var ic = AppSettingsStore.Section(node, "ImageCorrection");
-        ic["Curve"] = c.Curve;
-        ic["Gamma"] = c.Gamma;
-        ic["Contrast"] = c.Contrast;
-        ic["Brightness"] = c.Brightness;
-        ic["GainR"] = c.GainR;
-        ic["GainG"] = c.GainG;
-        ic["GainB"] = c.GainB;
-
-        if (swap.HasValue)
+        AppSettingsStore.Update(node =>
         {
-            var netObj = AppSettingsStore.Section(node, "Network");
-            netObj["SwapRedBlue"] = swap.Value;
-        }
+            var ic = AppSettingsStore.Section(node, "ImageCorrection");
+            ic["Curve"] = c.Curve;
+            ic["Gamma"] = c.Gamma;
+            ic["Contrast"] = c.Contrast;
+            ic["Brightness"] = c.Brightness;
+            ic["GainR"] = c.GainR;
+            ic["GainG"] = c.GainG;
+            ic["GainB"] = c.GainB;
 
-        AppSettingsStore.Save(node);
+            if (swap.HasValue)
+            {
+                var netObj = AppSettingsStore.Section(node, "Network");
+                netObj["SwapRedBlue"] = swap.Value;
+            }
+        });
     }
 }

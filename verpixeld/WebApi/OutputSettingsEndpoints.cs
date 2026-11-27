@@ -427,11 +427,12 @@ public static class OutputSettingsEndpoints
 
     internal static void PersistSection(string name, Dictionary<string, JsonNode?> values)
     {
-        var root = AppSettingsStore.Load();
-        var section = AppSettingsStore.Section(root, name);
-        foreach (var (k, v) in values)
-            section[k] = v;
-        AppSettingsStore.Save(root);
+        AppSettingsStore.Update(root =>
+        {
+            var section = AppSettingsStore.Section(root, name);
+            foreach (var (k, v) in values)
+                section[k] = v;
+        });
     }
 
     private static async Task<JsonElement> ReadObject(HttpContext ctx)

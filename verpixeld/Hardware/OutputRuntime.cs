@@ -298,11 +298,12 @@ public sealed class OutputRuntime : IMatrixRenderer, IDisposable
     {
         try
         {
-            var root = AppSettingsStore.Load();
-            var app = AppSettingsStore.Section(root, "App");
-            AppSettingsStore.Set(app, "OutputMode", mode);
-            AppSettingsStore.Set(app, "SimulationMode", mode == "simulation");
-            AppSettingsStore.Save(root);
+            AppSettingsStore.Update(root =>
+            {
+                var app = AppSettingsStore.Section(root, "App");
+                AppSettingsStore.Set(app, "OutputMode", mode);
+                AppSettingsStore.Set(app, "SimulationMode", mode == "simulation");
+            });
         }
         catch (Exception ex)
         {
