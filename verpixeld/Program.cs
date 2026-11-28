@@ -33,6 +33,10 @@ public class Program
         var appConfig = builder.Configuration.GetSection(AppOptions.SectionName).Get<AppOptions>();
         var useVerboseLogging = _verboseLogging || (appConfig?.VerboseLogging ?? false);
         ConfigureLogging(builder, useVerboseLogging, logService);
+        logService.ConsoleAll = useVerboseLogging ||
+                                string.Equals(appConfig?.ConsoleLog, "all", StringComparison.OrdinalIgnoreCase);
+        if (!logService.ConsoleAll)
+            Console.WriteLine("[LOG] Console: warnings, errors and health only after the first minute (App__ConsoleLog=all for everything; the web UI log has it all)");
 
         var webServerOptions = builder.Configuration.GetSection(WebServerOptions.SectionName).Get<WebServerOptions>()
                                ?? new WebServerOptions();

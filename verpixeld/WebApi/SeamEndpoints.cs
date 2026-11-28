@@ -166,7 +166,7 @@ public static class SeamEndpoints
                 net.SetSeamCalibrateBits(bits);
                 if (bits is 8 or 14)
                     await net.EnsureColorBitsAsync(bits).ConfigureAwait(false);
-                Log.LogInformation("Seam calibrate lock: {Value} (panel {ColorBits}-bit)", (bits is 8 or 14 ? bits + "-bit" : "off"), net.ColorBits);
+                Log.LogDebug("Seam calibrate lock: {Value} (panel {ColorBits}-bit)", (bits is 8 or 14 ? bits + "-bit" : "off"), net.ColorBits);
 
                 return ApiResponse.Ok(new
                 {

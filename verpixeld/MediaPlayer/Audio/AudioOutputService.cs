@@ -144,12 +144,14 @@ public class AudioOutputService(ILogger<AudioOutputService> log) : IAudioOutputS
             var psi = new ProcessStartInfo("id", $"-u {username}")
             {
                 RedirectStandardOutput = true,
+                RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
             using var proc = Process.Start(psi);
             if (proc == null) return 1000;
             var output = proc.StandardOutput.ReadToEnd().Trim();
+            proc.StandardError.ReadToEnd();
             proc.WaitForExit(5000);
             return int.TryParse(output, out var uid) ? uid : 1000;
         }

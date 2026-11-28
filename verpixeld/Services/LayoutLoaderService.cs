@@ -140,7 +140,11 @@ public class LayoutLoaderService : ILayoutLoaderService
     {
         var nightModeConfig = _nightModeManager.GetConfiguration();
 
-        if (layout.OverrideGlobalBrightness)
+        if (layout.OverrideGlobalBrightness && _nightModeManager.WallOff && _canvasManager.Brightness <= 0.005f)
+        {
+            _log.LogInformation("[{Source}] Wall is switched off - layout brightness not applied", source);
+        }
+        else if (layout.OverrideGlobalBrightness)
         {
             _canvasManager.Brightness = (float)layout.GlobalBrightness;
             _log.LogInformation("[{Source}] Brightness set to {Brightness:F2}", source, _canvasManager.Brightness);

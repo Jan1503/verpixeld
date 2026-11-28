@@ -26,6 +26,7 @@ public sealed class PanelBridgeService
     private readonly SongLogService _songs;
     private readonly IAudioVisualizerService _visualizer;
     private readonly CanvasManagement.CanvasManager _canvasManager;
+    private readonly verpixeld.Interfaces.INightModeManager _night;
     private readonly verpixeld.Layout.LayoutStorageManager _layoutStorage;
     private readonly verpixeld.Interfaces.IDisplayLayoutManager _layoutManager;
     private string? _visualCanvas;
@@ -53,8 +54,9 @@ public sealed class PanelBridgeService
         RadioService radio, SleepTimerService sleep, AlarmService alarms, SongLogService songs,
         IAudioVisualizerService visualizer, CanvasManagement.CanvasManager canvasManager,
         verpixeld.Layout.LayoutStorageManager layoutStorage, verpixeld.Interfaces.IDisplayLayoutManager layoutManager,
-        IConfiguration configuration, ILogger<PanelBridgeService> log)
+        IConfiguration configuration, verpixeld.Interfaces.INightModeManager night, ILogger<PanelBridgeService> log)
     {
+        _night = night;
         _log = log;
         _board = board;
         _media = media;
@@ -273,8 +275,19 @@ public sealed class PanelBridgeService
             case PanelKey.WallPower:
             {
                 var on = _canvasManager.Brightness > 0.005f;
-                if (on) _wallBrightness = _canvasManager.Brightness;
-                _canvasManager.Brightness = on ? 0f : Math.Max(0.05f, _wallBrightness);
+                if (on)
+                {
+                    // Off by hand wins over the night schedule until it is switched on again.
+                    _wallBrightness = _canvasManager.Brightness;
+                    _night.WallOff = true;
+                    _canvasManager.Brightness = 0f;
+                }
+                else
+                {
+                    _night.WallOff = false;
+                    var target = _night.GetConfiguration().Enabled ? (float)_night.GetStatus().targetBrightness : _wallBrightness;
+                    _canvasManager.Brightness = Math.Max(0.05f, target);
+                }
                 _log.LogInformation("Wall {Value}", (on ? "off" : "on"));
                 break;
             }

@@ -36,4 +36,10 @@ public interface INightModeManager : IDisposable
     ///     Forces an immediate brightness update without transition
     /// </summary>
     void ForceUpdateImmediate();
+
+    /// <summary>
+    ///     The wall was switched off by hand (audio panel). The schedule then leaves the brightness at 0
+    ///     until the wall is switched on again (or something else sets a brightness).
+    /// </summary>
+    bool WallOff { get; set; }
 }

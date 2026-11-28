@@ -371,7 +371,7 @@ public class LayoutScheduleManager : ILayoutScheduleManager
     {
         if (_activeSchedule == null)
         {
-            _log.LogInformation("GetNextScheduledChange: No active schedule");
+            _log.LogDebug("GetNextScheduledChange: No active schedule");
             return null;
         }
 

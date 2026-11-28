@@ -20,6 +20,25 @@ public class NightModeManager : INightModeManager
     private Timer? _checkTimer;
     private NightModeConfiguration _config;
     private bool _isTransitioning;
+    private volatile bool _wallOff;
+
+    public bool WallOff
+    {
+        get => _wallOff;
+        set => _wallOff = value;
+    }
+
+    /// <summary>
+    ///     Switched off by hand and still dark: the schedule keeps out. A brightness set elsewhere since
+    ///     (web UI, Home Assistant) counts as switched on again.
+    /// </summary>
+    private bool HeldOff()
+    {
+        if (!_wallOff) return false;
+        if (_canvasManager.Brightness <= 0.005f) return true;
+        _wallOff = false;
+        return false;
+    }
 
     public NightModeManager(CanvasManager canvasManager, ILogger<NightModeManager> log, string? configDirectory = null)
     {
@@ -128,6 +147,11 @@ public class NightModeManager : INightModeManager
                 _log.LogWarning("Night mode is disabled - cannot apply");
                 return;
             }
+            if (HeldOff())
+            {
+                _log.LogInformation("Wall is switched off - not applied");
+                return;
+            }
 
             var now = DateTime.Now;
             var targetBrightness = _config.GetTargetBrightness(now);
@@ -191,18 +215,22 @@ public class NightModeManager : INightModeManager
     {
         if (_isTransitioning)
         {
-            _log.LogInformation("Skipping check - transition in progress");
+            _log.LogDebug("Skipping check - transition in progress");
             return;
         }
 
         lock (_lock)
         {
-            _log.LogInformation("Checking brightness at {Now:HH:mm:ss}", DateTime.Now);
-            _log.LogInformation("Enabled: {Enabled}", _config.Enabled);
+            _log.LogDebug("Checking brightness at {Now:HH:mm:ss}, enabled: {Enabled}", DateTime.Now, _config.Enabled);
 
             if (!_config.Enabled)
             {
-                _log.LogInformation("Skipping - night mode disabled");
+                _log.LogDebug("Skipping - night mode disabled");
+                return;
+            }
+            if (HeldOff())
+            {
+                _log.LogDebug("Wall is switched off on the panel - schedule waits");
                 return;
             }
 
@@ -212,12 +240,8 @@ public class NightModeManager : INightModeManager
             var isNightMode = _config.IsNightModeActive(now);
             var mode = isNightMode ? "NIGHT" : "DAY";
 
-            _log.LogInformation("Current time: {Now:HH:mm:ss}", now);
-            _log.LogInformation("Schedule: {StartTime} - {EndTime}", _config.StartTime, _config.EndTime);
-            _log.LogInformation("Mode: {Mode}", mode);
-            _log.LogInformation("Current brightness: {CurrentBrightness:F2}", currentBrightness);
-            _log.LogInformation("Target brightness: {TargetBrightness:F2}", targetBrightness);
-            _log.LogInformation("Difference: {Value:F2}", Math.Abs(currentBrightness - targetBrightness));
+            _log.LogDebug("{Mode} ({StartTime} - {EndTime}): brightness {CurrentBrightness:F2}, target {TargetBrightness:F2}",
+                mode, _config.StartTime, _config.EndTime, currentBrightness, targetBrightness);
 
             // Check if we need to adjust brightness
             if (Math.Abs(currentBrightness - targetBrightness) > 0.01)
@@ -240,7 +264,7 @@ public class NightModeManager : INightModeManager
             }
             else
             {
-                _log.LogInformation("Brightness already at target - no adjustment needed");
+                _log.LogDebug("Brightness already at target - no adjustment needed");
             }
         }
     }
@@ -262,6 +286,11 @@ public class NightModeManager : INightModeManager
 
             for (var i = 1; i <= steps; i++)
             {
+                if (_wallOff)
+                {
+                    _log.LogInformation("Transition stopped: the wall was switched off");
+                    break;
+                }
                 var newBrightness = from + stepSize * i;
                 _canvasManager.Brightness = (float)newBrightness;
 

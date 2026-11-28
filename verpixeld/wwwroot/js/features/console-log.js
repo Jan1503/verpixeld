@@ -8,7 +8,8 @@ const consoleState = {
   latestSequence: 0,
   autoScroll: true,
   paused: false,
-  pollInterval: null,
+  pollTimer: null,
+  polling: false,
   filterText: '',
   minLevel: 'all', // all | warn | error
   entries: []
@@ -52,31 +53,66 @@ async function fetchInitialLogs() {
 }
 
 /**
- * Start polling for new log entries
+ * Poll for new log entries, one request at a time. Each request gets a time limit: a request the
+ * browser never answered (lost connection, NAS asleep) used to leave the log standing until reload.
  */
 function startLogPolling() {
-  if (consoleState.pollInterval) return;
-  
-  consoleState.pollInterval = setInterval(async () => {
-    if (consoleState.paused) return;
-    
-    try {
-      const result = await window.api.get(`/api/logs/poll?since=${consoleState.latestSequence}`);
-      if (result.entries && result.entries.length > 0) {
-        consoleState.latestSequence = result.latestSequence;
-        consoleState.entries.push(...result.entries);
-        
-        // Trim in-memory entries
-        if (consoleState.entries.length > 500) {
-          consoleState.entries = consoleState.entries.slice(-500);
-        }
-        
-        appendLogs(result.entries);
+  if (consoleState.polling) return;
+  consoleState.polling = true;
+  scheduleLogPoll(1000);
+  // Hidden tabs poll rarely; catch up as soon as the page is visible again.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) scheduleLogPoll(0);
+  });
+}
+
+function scheduleLogPoll(delay) {
+  clearTimeout(consoleState.pollTimer);
+  consoleState.pollTimer = setTimeout(pollLogs, delay);
+}
+
+async function pollLogs() {
+  if (consoleState.paused) {
+    scheduleLogPoll(1000);
+    return;
+  }
+  let delay = 1000;
+  const ctrl = new AbortController();
+  const limit = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const res = await fetch(`${window.API_BASE || ''}/api/logs/poll?since=${consoleState.latestSequence}`,
+      { signal: ctrl.signal, cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const result = await res.json();
+    setConsoleOffline(false);
+    if (result.latestSequence < consoleState.latestSequence) {
+      // The host restarted and counts from zero again: start over.
+      await fetchInitialLogs();
+    } else if (result.entries && result.entries.length > 0) {
+      consoleState.latestSequence = result.latestSequence;
+      consoleState.entries.push(...result.entries);
+
+      // Trim in-memory entries
+      if (consoleState.entries.length > 500) {
+        consoleState.entries = consoleState.entries.slice(-500);
       }
-    } catch {
-      return;
+
+      appendLogs(result.entries);
     }
-  }, 1000);
+  } catch {
+    setConsoleOffline(true);
+    delay = 3000;
+  } finally {
+    clearTimeout(limit);
+    scheduleLogPoll(delay);
+  }
+}
+
+/** Shows in the line count that the host does not answer, instead of a log that just stands still. */
+function setConsoleOffline(offline) {
+  if (consoleState.offline === offline) return;
+  consoleState.offline = offline;
+  updateLineCount();
 }
 
 /**
@@ -174,7 +210,17 @@ function matchesFilter(entry) {
   if (consoleState.minLevel === 'error' && entry.level !== 'error') return false;
   if (consoleState.minLevel === 'warn' && entry.level !== 'warn' && entry.level !== 'error') return false;
   if (!consoleState.filterText) return true;
-  return entry.msg.toLowerCase().includes(consoleState.filterText.toLowerCase());
+  // Every word must appear; "-word" hides lines that have it (e.g. "vlc -ffmpeg", "-night -health").
+  const msg = entry.msg.toLowerCase();
+  for (const word of consoleState.filterText.toLowerCase().split(/\s+/)) {
+    if (!word || word === '-') continue;
+    if (word.startsWith('-')) {
+      if (msg.includes(word.slice(1))) return false;
+    } else if (!msg.includes(word)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -234,7 +280,7 @@ function updateLineCount() {
   const el = document.getElementById('console-line-count');
   const container = document.getElementById('console-output');
   if (el && container) {
-    el.textContent = `${container.children.length} lines`;
+    el.textContent = `${container.children.length} lines` + (consoleState.offline ? ' · no connection, retrying' : '');
   }
 }
 

@@ -29,6 +29,13 @@ public class AppOptions
     public bool VerboseLogging { get; set; } = false;
 
     /// <summary>
+    ///     What the console (the Docker log) gets: "important" (default: the first minute after start,
+    ///     warnings, errors, the health line every five minutes) or "all". The web page's log always has
+    ///     everything.
+    /// </summary>
+    public string ConsoleLog { get; set; } = "important";
+
+    /// <summary>
     ///     Enable simulation mode (no hardware)
     /// </summary>
     public bool SimulationMode { get; set; } = false;

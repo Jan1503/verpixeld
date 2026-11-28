@@ -497,7 +497,10 @@ public class CanvasContentManager(
                 // Continue with other canvases
             }
 
-        _log.LogError("Stopped {StopCount}/{Count} canvases ({ErrorCount} errors)", stopCount, canvasNames.Count, errorCount);
+        if (errorCount > 0)
+            _log.LogError("Stopped {StopCount}/{Count} canvases, {ErrorCount} failed", stopCount, canvasNames.Count, errorCount);
+        else
+            _log.LogInformation("Stopped {StopCount}/{Count} canvases", stopCount, canvasNames.Count);
     }
 
     /// <summary>

@@ -15,6 +15,7 @@ namespace verpixeld.Services;
 [LogTag("LOCALCAM")]
 public class LocalCameraService : IDisposable
 {
+    private static bool _pactlMissingLogged;
     private readonly ILogger<LocalCameraService> _log;
 
     private readonly CanvasManager _canvasManager;
@@ -519,6 +520,15 @@ public class LocalCameraService : IDisposable
                     Console.WriteLine($"[LOCALCAM] Found {devices.Count} PulseAudio input source(s)");
                     return devices;
                 }
+            }
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // No PulseAudio tools on this host (the Docker image): say it once, not on every scan.
+            if (!_pactlMissingLogged)
+            {
+                _pactlMissingLogged = true;
+                Console.WriteLine("[LOCALCAM] pactl not installed - audio sources from /proc/asound only");
             }
         }
         catch (Exception ex)
